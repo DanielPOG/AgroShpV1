@@ -1,0 +1,146 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import {
+  LayoutDashboard,
+  Package,
+  ArrowLeftRight,
+  ShoppingCart,
+  BarChart3,
+  Globe,
+  Leaf,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react"
+
+interface SidebarProps {
+  userRole: string
+  userName: string
+  onLogout: () => void
+}
+
+const navigation = [
+  {
+    name: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    roles: ["admin", "inventarista", "cajero", "consulta"],
+  },
+  { name: "Inventario", href: "/dashboard/inventario", icon: Package, roles: ["admin", "inventarista"] },
+  { name: "Movimientos", href: "/dashboard/movimientos", icon: ArrowLeftRight, roles: ["admin", "inventarista"] },
+  { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, roles: ["admin", "cajero"] },
+  { name: "Reportes", href: "/dashboard/reportes", icon: BarChart3, roles: ["admin", "inventarista", "consulta"] },
+  { name: "Catálogo Público", href: "/", icon: Globe, roles: ["admin", "inventarista", "cajero", "consulta"] },
+]
+
+export function Sidebar({ userRole, userName, onLogout }: SidebarProps) {
+  const pathname = usePathname()
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+
+  const filteredNavigation = navigation.filter((item) => item.roles.includes(userRole))
+
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-br from-primary/5 to-chart-4/5 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-chart-4 flex items-center justify-center shadow-lg">
+            <Leaf className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="font-bold text-base sm:text-lg text-foreground">AgroShop</h2>
+            <p className="text-xs text-muted-foreground">Centro Agropecuario</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0 py-4">
+        <div className="space-y-1 px-3">
+          <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Navegación</p>
+          {filteredNavigation.map((item) => {
+            const Icon = item.icon
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  isActive
+                    ? "bg-gradient-to-r from-primary to-chart-4 text-white shadow-md scale-[1.02]"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:scale-[1.01]",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.name}
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
+      <Separator className="shrink-0" />
+
+      <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 shrink-0 bg-card">
+        <div className="px-2 sm:px-3 py-2 sm:py-3 rounded-lg bg-gradient-to-br from-secondary to-accent border border-border">
+          <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Usuario Activo</p>
+          <p className="text-xs sm:text-sm font-semibold text-foreground mt-1 truncate">{userName}</p>
+          <p className="text-[10px] sm:text-xs text-primary capitalize font-medium">{userRole}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all duration-200 bg-transparent text-xs sm:text-sm h-8 sm:h-9"
+          onClick={() => {
+            onLogout()
+            setIsMobileOpen(false)
+          }}
+        >
+          <LogOut className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+          Cerrar Sesión
+        </Button>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed top-2 left-2 z-50 lg:hidden shadow-lg bg-card h-9 w-9 sm:h-10 sm:w-10"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+      >
+        {isMobileOpen ? <X className="h-4 w-4 sm:h-5 sm:w-5" /> : <Menu className="h-4 w-4 sm:h-5 sm:w-5" />}
+      </Button>
+
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      <aside
+        className={cn(
+          "fixed top-0 left-0 z-40 h-full w-64 border-r border-border bg-card flex flex-col transition-transform duration-300 lg:hidden overflow-hidden",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <SidebarContent />
+      </aside>
+
+      {/* Desktop sidebar - sticky positioning */}
+      <aside className="hidden lg:flex lg:flex-col h-screen w-64 border-r border-border bg-card sticky top-0 overflow-hidden">
+        <SidebarContent />
+      </aside>
+    </>
+  )
+}

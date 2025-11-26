@@ -1,0 +1,594 @@
+prompt 1
+Diseña una aplicación web completa llamada AgroShop – Sistema de Gestión de Ventas, Inventario y Producción del SENA Centro Agropecuario. La interfaz debe ser minimalista, moderna, joven, con acentos visuales institucionales del SENA (verde administrativo, negro corporativo, pequeñas notas de naranja). El diseño debe verse profesional, limpio y atractivo.
+
+La aplicación será usada principalmente por administrativos del SENA, pero en fases futuras podrá habilitar una vista pública para aprendices con catálogo digital.
+
+🎨 Identidad visual / Estilo
+
+Estilo: Minimalista + joven + moderno.
+
+Predominante: Blanco, grises suaves.
+
+Acentos: Verde administrativo SENA, negro, pequeños toques naranja.
+
+Componentes con sombras suaves, bordes redondeados, diseño limpio.
+
+Iconografía estilo “agro” (hojas, plantas, agricultura) pero discreta.
+
+🧭 Arquitectura de pantallas requeridas
+
+Genera todo el flujo completo, no solo pantallas sueltas. Debe incluir:
+
+1. Pantalla de Login / Roles
+
+Login corporativo (correo institucional y contraseña).
+
+Fondo minimalista con imágenes conceptuales agro SENA.
+
+Roles: Admin / Inventarista / Cajero / Consulta.
+
+2. Dashboard Principal
+
+Mostrar todo lo importante en tiempo real:
+
+Tarjetas KPI:
+
+Ventas del día
+
+Inventario bajo stock
+
+Productos más vendidos
+
+Movimientos recientes entre unidades productivas
+
+Gráficas:
+
+Ventas diarias / semanales / mensuales
+
+Producción por unidades productivas
+
+Indicadores en vivo:
+
+“Se vendieron 30 tomates hace 2 minutos”
+
+“Unidad Productiva Bovinos registró lote de leche 18L”
+
+3. Gestión de Inventario (muy importante)
+
+Aquí necesito un diseño detallado.
+
+Inventario general
+
+Lista de productos con:
+
+Foto
+
+Nombre
+
+Categoría
+
+Unidad productiva de origen
+
+Tipo: líquido, sólido, lote, unidad
+
+Stock actual
+
+Precio por unidad / litro / lote
+
+Estado (disponible, agotado, pronto a vencer)
+
+Filtros
+
+Por categoría: Lácteos, Frutas, Vegetales, Cárnicos, Insumos, etc.
+
+Por unidad productiva (Bovinos, Hortofrutícola, Porcinos, Lácteos, Avícola, etc.).
+
+Por tipo (líquido / sólido / lote con cantidad variable).
+
+Ficha individual de producto
+
+Incluye:
+
+Foto grande
+
+Stock disponible
+
+Historial de movimientos
+
+Origen de la unidad productiva
+
+Fechas de lote (producción y vencimiento cuando aplique)
+
+Código de barras (ver y regenerar)
+
+Botón “Mover a otra unidad productiva”
+
+4. Movimientos entre Unidades Productivas
+
+Pantalla dedicada para:
+
+Seleccionar unidad origen
+
+Seleccionar unidad destino
+
+Seleccionar productos y cantidades
+
+Historial de movimientos con timestamps
+
+Flujo claro estilo “Transferencia bancaria” pero para inventario
+
+5. Punto de Venta (POS) con escáner automático
+
+Esta es una de las pantallas más importantes.
+
+Diseño del POS
+
+Campo que detecta escaneo de código de barras
+
+Búsqueda manual también disponible
+
+Tarjetas de producto grandes al estilo supermercado digital
+
+Al escanear, el producto se agrega automáticamente a la factura
+
+Lista del pedido a la derecha:
+
+Cantidad
+
+Precio
+
+Subtotal
+
+Botón para eliminar o editar cantidades
+
+Finalizar venta
+
+Debe incluir:
+
+Métodos de pago: Efectivo, Nequi, Tarjeta (si aplica), Mixto
+
+Botón “Generar recibo”
+
+Botón “Venta rápida”
+
+Opción de recibo digital (PDF con QR) o recibo físico
+
+6. Reportes completos
+
+Pantallas profesionales de analytics:
+
+Reportes de ventas
+
+Diario / semanal / mensual
+
+Ranking productos más vendidos
+
+Métodos de pago utilizados
+
+Horas pico de venta
+
+Descarga en PDF o Excel
+
+Reportes de inventario
+
+Productos por agotarse
+
+Lotes próximos a vencer
+
+Rendimiento por unidad productiva
+
+7. Vista pública (futuro)
+
+Para aprendices:
+
+Catálogo separado del sistema interno
+
+Solo vista (no vender online todavía)
+
+Estilo juvenil y atractivo
+
+Botón “Consultar disponibilidad y acercarse a la tienda”
+
+🧱 Componentes UI obligatorios
+
+Incluye en el diseño:
+
+Navbar lateral moderno
+
+Header con búsqueda global
+
+Modal de confirmación de movimiento
+
+Tabla responsive
+
+Cards con sombra suave
+
+Input para escáner estilo “terminal minimalista”
+
+Gráficas modernas (líneas, barras, doughnut)
+
+⚙️ Interacciones UX
+
+Hover states claros
+
+Skeleton loading
+
+Validaciones en tiempo real
+
+Feedback instantáneo al vender o mover inventario
+
+Notificación tipo “toast” elegante
+
+🎯 Objetivo final del diseño
+
+Generar un diseño completo, limpio, funcional y atractivo de todo el ecosistema AgroShop, incluyendo flujos, pantallas, layouts y componentes, para que el Centro Agropecuario del SENA lo utilice como sistema real de gestión de inventario, ventas y producción.
+prompt2
+Diseña una aplicación web completa llamada **AgroShop – Sistema de Gestión de Ventas, Inventario y Producción del SENA Centro Agropecuario**.
+
+🎨 **Identidad visual / Estilo**
+- Estilo: Minimalista + joven + moderno.
+- Predominante: Blanco, grises suaves.
+- Acentos: Verde administrativo SENA (#008000 aprox), negro corporativo, pequeños toques naranja (#FF6600).
+- Componentes con sombras suaves, bordes redondeados, diseño limpio.
+- Iconografía estilo “agro” (hojas, plantas, agricultura) discreta.
+- Accesibilidad AA: contraste mínimo, navegación por teclado, foco visible.
+
+🧭 **Arquitectura de pantallas requeridas**
+Genera todo el flujo completo, no solo pantallas sueltas:
+
+1. **Pantalla de Login / Roles**
+   - Login corporativo (correo institucional y contraseña).
+   - Fondo minimalista con imágenes conceptuales agro SENA.
+   - Roles: Admin / Inventarista / Cajero / Consulta.
+   - Cada rol con permisos distintos:
+     - Admin: acceso total.
+     - Inventarista: CRUD inventario y movimientos.
+     - Cajero: POS y ventas.
+     - Consulta: solo lectura.
+
+2. **Dashboard Principal**
+   - Tarjetas KPI: Ventas del día, inventario bajo stock, productos más vendidos, movimientos recientes.
+   - Gráficas: ventas diarias/semanales/mensuales, producción por unidad productiva, métodos de pago.
+   - Indicadores en vivo (ejemplo: “Se vendieron 30 tomates hace 2 minutos”).
+   - Actualización cada 15–30s.
+
+3. **Gestión de Inventario**
+   - Lista de productos con: foto, nombre, categoría, unidad productiva, tipo (líquido/sólido/lote), stock actual, precio, estado (disponible, agotado, pronto a vencer).
+   - Filtros: categoría, unidad productiva, tipo, estado.
+   - Ficha individual: foto grande, stock, historial de movimientos, origen, fechas de lote, código de barras (ver/regenerar), botón “Mover a otra unidad productiva”.
+   - Estados definidos:
+     - Bajo stock: ≤ umbral configurable.
+     - Pronto a vencer: a X días del vencimiento (ej. 7/14).
+     - Agotado: stock = 0.
+
+4. **Movimientos entre Unidades Productivas**
+   - Flujo estilo “transferencia bancaria”: origen → destino → productos → confirmación.
+   - Historial con timestamps y usuario.
+   - Validación de stock disponible.
+   - Modal de confirmación.
+
+5. **Punto de Venta (POS)**
+   - Campo para escáner de código de barras (input estilo terminal minimalista).
+   - Búsqueda manual.
+   - Tarjetas de producto grandes estilo supermercado digital.
+   - Lista del pedido a la derecha: cantidad, precio, subtotal, editar/eliminar.
+   - Finalizar venta con métodos de pago: Efectivo, Nequi, Tarjeta, Mixto.
+   - Flujo mixto: distribución de montos exacta.
+   - Cambio automático para efectivo.
+   - Botones: “Generar recibo” (PDF con QR o físico), “Venta rápida”.
+   - Atajos: Enter = finalizar, F2 = búsqueda, Esc = cancelar ítem.
+
+6. **Reportes completos**
+   - Reportes de ventas: diario/semanal/mensual, ranking productos, métodos de pago, horas pico.
+   - Reportes de inventario: productos por agotarse, lotes próximos a vencer, rendimiento por unidad productiva.
+   - Descarga en PDF o Excel.
+   - Gráficas modernas (líneas, barras, doughnut).
+
+7. **Vista pública (futuro)**
+   - Catálogo digital juvenil y atractivo.
+   - Solo vista (no venta online).
+   - Botón “Consultar disponibilidad y acercarse a la tienda”.
+
+🧱 **Componentes UI obligatorios**
+- Navbar lateral moderno con iconos agro discretos.
+- Header con búsqueda global.
+- Modal de confirmación de movimiento.
+- Tabla responsive con badges de estado.
+- Cards con sombra suave.
+- Input escáner estilo terminal.
+- Gráficas modernas (líneas, barras, doughnut).
+- Skeleton loading, hover states, validaciones en tiempo real.
+- Feedback instantáneo con notificaciones tipo “toast”.
+
+⚙️ **Interacciones UX**
+- Hover states claros.
+- Skeleton loading.
+- Validaciones en tiempo real.
+- Feedback instantáneo al vender o mover inventario.
+- Notificación tipo “toast” elegante.
+
+🎯 **Objetivo final**
+Generar un diseño completo, limpio, funcional y atractivo de todo el ecosistema AgroShop, incluyendo flujos, pantallas, layouts y componentes, para que el Centro Agropecuario del SENA lo utilice como sistema real de gestión de inventario, ventas y producción.
+
+resumen de v0
+# Resumen Completo de AgroShop - Sistema de Gestión Agropecuario SENA
+
+## ¿Qué es AgroShop?
+
+AgroShop es un sistema web integral de gestión para el **SENA Centro Agropecuario** que permite administrar productos agrícolas y pecuarios producidos por el centro, controlar inventarios, realizar ventas, gestionar movimientos entre unidades productivas y generar reportes detallados.
+
+---
+
+## Flujo Principal de la Aplicación
+
+### 1. **Página Principal (Pública)**
+
+- **Ruta:** `/` (raíz)
+- **Acceso:** Cualquier persona sin login
+- **Función:** Catálogo público que muestra todos los productos disponibles (hortalizas, lácteos, panadería, cárnicos, otros)
+- **Características:**
+
+- Hero section atractivo con degradado verde SENA
+- Búsqueda y filtros por categoría
+- Grid de productos con imágenes, precios y disponibilidad
+- Modal de consulta (sin compra online)
+- Información de unidades productivas
+- Botón para iniciar sesión ubicado en el header
+- Diseño juvenil y animado
+
+
+
+
+
+### 2. **Login de Usuarios**
+
+- **Ruta:** `/login`
+- **Función:** Autenticación con 4 roles diferentes
+- **Roles disponibles:**
+
+- **Admin:** Acceso total al sistema
+- **Inventarista:** Gestión de inventario y movimientos
+- **Cajero:** Solo punto de venta
+- **Consulta:** Solo lectura de reportes e inventario
+
+
+
+- **Diseño:** Login atractivo con degradados, animaciones flotantes y efecto glass
+
+
+---
+
+## Módulos del Dashboard (Post-Login)
+
+### 3. **Dashboard Principal**
+
+- **Ruta:** `/dashboard`
+- **Función:** Vista general del negocio con KPIs y métricas
+- **Componentes:**
+
+- **4 Cards de estadísticas principales:**
+
+- Ventas del día
+- Productos en inventario
+- Stock bajo (alertas)
+- Productos vendidos hoy
+
+
+
+- **Gráfico de ventas:** Últimos 7 días con líneas
+- **Top 5 productos más vendidos:** Con imágenes y cantidades
+- **Actividad reciente:** Notificaciones de movimientos del sistema (entradas, salidas, transferencias)
+- **Gráfico de métodos de pago:** Distribución (Efectivo, Nequi, Tarjeta)
+
+
+
+
+
+### 4. **Gestión de Inventario**
+
+- **Ruta:** `/dashboard/inventario`
+- **Función:** Control total de productos y stock
+- **Características:**
+
+- Cards visuales de productos con imágenes
+- Información detallada: stock, precio, categoría, unidad productiva
+- Estados visuales: "En Stock", "Bajo Stock", "Sin Stock"
+- **Filtros avanzados:**
+
+- Por categoría (Hortalizas, Lácteos, Panadería, etc.)
+- Por unidad productiva
+- Por tipo (Perecedero/No perecedero)
+- Por estado de stock
+
+
+
+- **Modal de detalles:** Información completa incluyendo código de barras
+- **Formulario de creación de productos:**
+
+- Código automático generado (ej: PROD-001)
+- Todos los campos necesarios: nombre, descripción, precio, stock, categoría, etc.
+- Fechas de vencimiento para perecederos
+
+
+
+
+
+
+
+
+### 5. **Movimientos entre Unidades Productivas**
+
+- **Ruta:** `/dashboard/movimientos`
+- **Función:** Transferir productos entre diferentes unidades productivas (Huerta, Granja de Pollos, Panadería, etc.)
+- **Wizard paso a paso:**
+
+1. **Seleccionar origen y destino:** Elige de qué unidad productiva a cuál transferir
+2. **Seleccionar productos:** Grid con productos disponibles y cantidad a transferir
+3. **Confirmación:** Resumen del movimiento antes de ejecutar
+
+
+
+- **Historial de movimientos:** Registro completo con fechas, responsables, cantidades
+- **Vista de unidades productivas:** Cards con información de cada unidad
+
+
+### 6. **Punto de Venta (POS)**
+
+- **Ruta:** `/dashboard/pos`
+- **Función:** Terminal de ventas tipo supermercado
+- **Características:**
+
+- **Escáner de código de barras:** Input para escanear productos
+- **Búsqueda manual:** Campo para buscar por nombre (F2)
+- **Grid de productos:** Visual con imágenes para seleccionar
+- **Entrada manual:** Teclado numérico para productos no registrados
+- **Carrito de compras:**
+
+- En desktop: Lateral derecho fijo
+- **En móvil: Retráctil con FAB (botón flotante)**
+
+- Se oculta para ver productos
+- Botón flotante muestra cantidad de items
+- Al presionar se despliega desde abajo ocupando 85% de pantalla
+
+
+
+- Lista de items con cantidades editables
+- Cálculo automático de subtotal, IVA (19%), y total
+
+
+
+- **Checkout modal:**
+
+- Múltiples métodos de pago: Efectivo, Nequi, Tarjeta, Mixto
+- Cálculo automático de cambio
+- **Sistema de facturación:**
+
+- Opción de generar factura o no
+- Vista previa de factura profesional con logo SENA
+- Descargar PDF
+- Imprimir
+- Enviar por correo electrónico
+
+
+
+
+
+
+- **Atajos de teclado:** Enter para confirmar, F2 para búsqueda, Esc para cancelar
+
+
+
+
+
+### 7. **Sistema de Reportes**
+
+- **Ruta:** `/dashboard/reportes`
+- **Función:** Análisis y reportes del negocio
+- **3 Módulos principales:**
+
+**a) Reportes de Ventas:**
+
+- Ventas totales con gráfica de últimos 7 días
+- Análisis de horas pico (gráfica de barras por hora)
+- Botones para descargar PDF y Excel
+
+
+**b) Reportes de Inventario:**
+
+- Productos bajo stock (alertas en rojo)
+- Productos próximos a vencer (alertas en naranja)
+- Fechas de vencimiento
+- Exportación de reportes
+
+
+**c) Reportes de Métodos de Pago:**
+
+- Gráfica de pastel con distribución de métodos
+- Gráfica de barras comparativa
+- Totales por cada método
+
+
+
+
+
+---
+
+## Diseño y Experiencia de Usuario
+
+### Identidad Visual
+
+- **Colores principales:**
+
+- Verde SENA (`#059669`) como color primario
+- Naranja (`#FF6600`) como acento
+- Grises suaves y blancos para neutrales
+- Degradados sutiles para jerarquía
+
+
+
+- **Tipografía:** Geist (moderna y limpia)
+- **Estilo:** Minimalista, juvenil, con sombras suaves y bordes redondeados
+
+
+### Responsive Design
+
+- **Móviles pequeños:** Optimizado para 320px de ancho
+- **Tablets:** Layout adaptable con grids de 2 columnas
+- **Desktop:** Experiencia completa con sidebar fijo
+- **Características especiales móviles:**
+
+- Sidebar colapsable con botón hamburguesa
+- Carrito retráctil en POS con FAB
+- Grids adaptables de 1-2-3-4 columnas según pantalla
+- Texto y botones ajustados para pantallas pequeñas
+
+
+
+
+
+### Navegación
+
+- **Sidebar lateral:** Con logo, menú de navegación e información del usuario
+- **Menú incluye:**
+
+- Dashboard
+- Inventario
+- Movimientos
+- Punto de Venta
+- Reportes
+- Catálogo Público
+
+
+
+- **Usuario activo:** Card en el sidebar mostrando rol y nombre
+- **Botón de cerrar sesión:** Siempre visible, incluso en móviles
+
+
+---
+
+## Mejoras Implementadas
+
+1. ✅ Login visual mejorado con animaciones y degradados
+2. ✅ Catálogo público como página principal
+3. ✅ Responsive completo para móviles de 320px
+4. ✅ Sidebar sin duplicados y con logout visible
+5. ✅ Sistema de facturación completo en POS
+6. ✅ Carrito retráctil en móviles con diseño mejorado
+7. ✅ Formulario de creación de productos con código automático
+8. ✅ Teclado numérico para entrada manual en POS
+9. ✅ Animaciones y efectos visuales en catálogo público
+10. ✅ Diseño robusto con prevención de errores visuales
+
+
+---
+
+## Tecnologías Utilizadas
+
+- **Framework:** Next.js 16 con App Router
+- **Estilos:** Tailwind CSS v4
+- **Componentes:** shadcn/ui
+- **Gráficas:** Recharts
+- **Iconos:** Lucide React
+- **Formularios:** React Hook Form (implementable)
+- **Datos:** Mock data (preparado para integración con base de datos real)

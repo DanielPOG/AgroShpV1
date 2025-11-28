@@ -14,7 +14,6 @@ import {
   BarChart3,
   Globe,
   Leaf,
-  LogOut,
   Menu,
   X,
 } from "lucide-react"
@@ -22,7 +21,6 @@ import {
 interface SidebarProps {
   userRole: string
   userName: string
-  onLogout: () => void
 }
 
 const navigation = [
@@ -39,11 +37,13 @@ const navigation = [
   { name: "Catálogo Público", href: "/", icon: Globe, roles: ["admin", "inventarista", "cajero", "consulta"] },
 ]
 
-export function Sidebar({ userRole, userName, onLogout }: SidebarProps) {
+export function Sidebar({ userRole, userName }: SidebarProps) {
   const pathname = usePathname()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
 
-  const filteredNavigation = navigation.filter((item) => item.roles.includes(userRole))
+  // Normalizar el rol a minúsculas para comparación
+  const normalizedRole = userRole.toLowerCase()
+  const filteredNavigation = navigation.filter((item) => item.roles.includes(normalizedRole))
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -87,24 +87,15 @@ export function Sidebar({ userRole, userName, onLogout }: SidebarProps) {
 
       <Separator className="shrink-0" />
 
-      <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 shrink-0 bg-card">
+      <div className="p-3 sm:p-4 shrink-0 bg-card">
         <div className="px-2 sm:px-3 py-2 sm:py-3 rounded-lg bg-gradient-to-br from-secondary to-accent border border-border">
           <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Usuario Activo</p>
           <p className="text-xs sm:text-sm font-semibold text-foreground mt-1 truncate">{userName}</p>
           <p className="text-[10px] sm:text-xs text-primary capitalize font-medium">{userRole}</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all duration-200 bg-transparent text-xs sm:text-sm h-8 sm:h-9"
-          onClick={() => {
-            onLogout()
-            setIsMobileOpen(false)
-          }}
-        >
-          <LogOut className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-          Cerrar Sesión
-        </Button>
+        <p className="text-[9px] sm:text-[10px] text-muted-foreground text-center mt-2">
+          Cerrar sesión desde el menú de usuario
+        </p>
       </div>
     </div>
   )

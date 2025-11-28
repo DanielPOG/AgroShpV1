@@ -1,36 +1,46 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 import { LoginForm } from "@/components/login-form"
-import type { UserRole } from "@/lib/auth"
+import { Loader2 } from "lucide-react"
 
+/**
+ * Página de Login
+ * 
+ * - Si ya está autenticado, redirige al dashboard
+ * - Si no, muestra el formulario de login
+ * - Ya no usa localStorage (todo en NextAuth)
+ */
 export default function LoginPage() {
   const router = useRouter()
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [user, setUser] = useState<{ email: string; name: string; role: UserRole } | null>(null)
+  const { isAuthenticated, isLoading } = useAuth()
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("agroshop_user")
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser)
-      setUser(parsedUser)
-      setIsAuthenticated(true)
+    // Si ya está autenticado, redirigir al dashboard
+    if (isAuthenticated) {
       router.push("/dashboard")
     }
-  }, [router])
+  }, [isAuthenticated, router])
 
-  const handleLogin = (email: string, name: string, role: UserRole) => {
-    const userData = { email, name, role }
-    localStorage.setItem("agroshop_user", JSON.stringify(userData))
-    setUser(userData)
-    setIsAuthenticated(true)
-    router.push("/dashboard")
+  // Mostrar loading mientras se verifica la sesión
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary via-chart-4 to-orange-accent">
+        <div className="flex flex-col items-center gap-4 text-white">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p>Verificando sesión...</p>
+        </div>
+      </div>
+    )
   }
 
-  if (isAuthenticated && user) {
+  // Si ya está autenticado, no mostrar nada (se está redirigiendo)
+  if (isAuthenticated) {
     return null
   }
 
-  return <LoginForm onLogin={handleLogin} />
+  // Mostrar formulario de login
+  return <LoginForm />
 }

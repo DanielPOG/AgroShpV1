@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,9 +13,8 @@ import { Cart } from "@/components/pos/cart"
 import { CheckoutModal, type PaymentData } from "@/components/pos/checkout-modal"
 import { ManualEntryModal } from "@/components/pos/manual-entry-modal"
 import { mockProducts, type Product } from "@/lib/mock-data"
-import type { User } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
-import { Search, Zap, X, Plus, ShoppingCart, ChevronUp } from "lucide-react"
+import { Search, Zap, X, Plus, ShoppingCart, ChevronUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface CartItem {
@@ -29,7 +29,7 @@ interface CartItem {
 export default function POSPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const [user, setUser] = useState<User | null>(null)
+  const { user, isAuthenticated, isLoading, hasPermission } = useAuth()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
@@ -38,13 +38,19 @@ export default function POSPage() {
   const [availableProducts] = useState(mockProducts.filter((p) => p.stock > 0))
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("agroshop_user")
-    if (!storedUser) {
-      router.push("/")
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login")
       return
     }
-    setUser(JSON.parse(storedUser))
+    
+    // Verificar que tenga permisos de POS
+    if (!isLoading && isAuthenticated && !hasPermission('pos') && !hasPermission('all')) {
+      router.push("/dashboard")
+      return
+    }
+  }, [isAuthenticated, isLoading, hasPermission, router])
 
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F2") {
         e.preventDefault()
@@ -66,12 +72,7 @@ export default function POSPage() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [router, cartItems.length, isCheckoutOpen])
-
-  const handleLogout = () => {
-    localStorage.removeItem("agroshop_user")
-    router.push("/")
-  }
+  }, [cartItems.length, isCheckoutOpen])
 
   const handleBarcodeScan = (barcode: string) => {
     const product = mockProducts.find((p) => p.barcode === barcode)
@@ -160,13 +161,20 @@ export default function POSPage() {
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
-  if (!user) {
-    return null
+  if (isLoading || !isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Cargando POS...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar userRole={user.role} userName={user.name} onLogout={handleLogout} />
+      <Sidebar userRole={user.role as string} userName={user.name || "Usuario"} />
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Panel - Products */}

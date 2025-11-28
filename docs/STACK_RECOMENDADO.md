@@ -23,7 +23,7 @@ Basándome en los requisitos de tu proyecto AgroShop, te recomiendo un stack mod
 - **Framework:** Next.js API Routes (Server Actions)
 - **ORM:** Prisma (recomendado) o Drizzle ORM
 - **Base de Datos:** PostgreSQL 15+
-- **Autenticación:** NextAuth.js v5 (Auth.js)
+- **Autenticación:** NextAuth.js v4.24 (Auth.js)
 - **Validación:** Zod
 
 ### **Infraestructura y DevOps**

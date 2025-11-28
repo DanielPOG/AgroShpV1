@@ -1,0 +1,679 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model auditoria {
+  id               Int       @id @default(autoincrement())
+  tabla            String    @db.VarChar(50)
+  registro_id      Int
+  accion           String    @db.VarChar(20)
+  usuario_id       Int?
+  datos_anteriores Json?
+  datos_nuevos     Json?
+  ip_address       String?   @db.VarChar(50)
+  user_agent       String?
+  fecha            DateTime? @default(now()) @db.Timestamp(6)
+  usuarios         usuarios? @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([accion], map: "idx_auditoria_accion")
+  @@index([fecha], map: "idx_auditoria_fecha")
+  @@index([registro_id], map: "idx_auditoria_registro")
+  @@index([tabla], map: "idx_auditoria_tabla")
+  @@index([usuario_id], map: "idx_auditoria_usuario")
+}
+
+model categorias {
+  id          Int          @id @default(autoincrement())
+  nombre      String       @unique @db.VarChar(100)
+  descripcion String?
+  icono       String?      @db.VarChar(50)
+  color       String?      @db.VarChar(20)
+  created_at  DateTime?    @default(now()) @db.Timestamp(6)
+  descuentos  descuentos[]
+  productos   productos[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model clientes {
+  id               Int       @id @default(autoincrement())
+  tipo_cliente     String?   @default("ocasional") @db.VarChar(20)
+  tipo_documento   String?   @db.VarChar(20)
+  numero_documento String?   @unique @db.VarChar(50)
+  nombre           String    @db.VarChar(150)
+  apellido         String?   @db.VarChar(150)
+  email            String?   @db.VarChar(150)
+  telefono         String?   @db.VarChar(20)
+  direccion        String?
+  ciudad           String?   @db.VarChar(100)
+  es_institucional Boolean?  @default(false)
+  dependencia      String?   @db.VarChar(200)
+  total_compras    Decimal?  @default(0) @db.Decimal(10, 2)
+  ultima_compra    DateTime? @db.Timestamp(6)
+  activo           Boolean?  @default(true)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+  turnos           turnos[]
+  ventas           ventas[]
+
+  @@index([numero_documento], map: "idx_clientes_documento")
+  @@index([email], map: "idx_clientes_email")
+  @@index([tipo_cliente], map: "idx_clientes_tipo")
+}
+
+model configuracion {
+  id          Int       @id @default(autoincrement())
+  clave       String    @unique @db.VarChar(100)
+  valor       String?
+  tipo        String?   @db.VarChar(20)
+  descripcion String?
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model costos_produccion {
+  id                  Int              @id @default(autoincrement())
+  producto_id         Int?
+  lote_id             Int?
+  costo_materia_prima Decimal?         @default(0) @db.Decimal(10, 2)
+  costo_mano_obra     Decimal?         @default(0) @db.Decimal(10, 2)
+  costo_insumos       Decimal?         @default(0) @db.Decimal(10, 2)
+  costo_energia       Decimal?         @default(0) @db.Decimal(10, 2)
+  otros_costos        Decimal?         @default(0) @db.Decimal(10, 2)
+  costo_total         Decimal?         @default(dbgenerated("((((costo_materia_prima + costo_mano_obra) + costo_insumos) + costo_energia) + otros_costos)")) @db.Decimal(10, 2)
+  cantidad_producida  Decimal          @db.Decimal(10, 2)
+  costo_unitario      Decimal?         @default(dbgenerated("(((((costo_materia_prima + costo_mano_obra) + costo_insumos) + costo_energia) + otros_costos) / NULLIF(cantidad_producida, (0)::numeric))")) @db.Decimal(10, 2)
+  fecha_registro      DateTime?        @default(dbgenerated("CURRENT_DATE")) @db.Date
+  observaciones       String?
+  created_at          DateTime?        @default(now()) @db.Timestamp(6)
+  lotes_productos     lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productos           productos?       @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([fecha_registro], map: "idx_costos_fecha")
+  @@index([lote_id], map: "idx_costos_lote")
+  @@index([producto_id], map: "idx_costos_producto")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model descuentos {
+  id                   Int                    @id @default(autoincrement())
+  codigo               String                 @unique @db.VarChar(50)
+  nombre               String                 @db.VarChar(100)
+  descripcion          String?
+  tipo                 String                 @db.VarChar(20)
+  valor                Decimal                @db.Decimal(10, 2)
+  minimo_compra        Decimal?               @db.Decimal(10, 2)
+  maximo_descuento     Decimal?               @db.Decimal(10, 2)
+  aplica_a             String?                @db.VarChar(20)
+  categoria_id         Int?
+  producto_id          Int?
+  usos_maximos         Int?
+  usos_actuales        Int?                   @default(0)
+  fecha_inicio         DateTime?              @db.Date
+  fecha_fin            DateTime?              @db.Date
+  solo_aprendices      Boolean?               @default(false)
+  solo_empleados       Boolean?               @default(false)
+  solo_institucional   Boolean?               @default(false)
+  activo               Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.Timestamp(6)
+  categorias           categorias?            @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productos            productos?             @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  descuentos_aplicados descuentos_aplicados[]
+
+  @@index([activo], map: "idx_descuentos_activo")
+  @@index([codigo], map: "idx_descuentos_codigo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model descuentos_aplicados {
+  id               Int         @id @default(autoincrement())
+  venta_id         Int?
+  descuento_id     Int?
+  monto_descuento  Decimal     @db.Decimal(10, 2)
+  aplicado_por     Int?
+  fecha_aplicacion DateTime?   @default(now()) @db.Timestamp(6)
+  usuarios         usuarios?   @relation(fields: [aplicado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  descuentos       descuentos? @relation(fields: [descuento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ventas           ventas?     @relation(fields: [venta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([venta_id], map: "idx_descuentos_aplicados_venta")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model detalle_movimientos {
+  id                   Int                   @id @default(autoincrement())
+  movimiento_id        Int?
+  producto_id          Int?
+  lote_id              Int?
+  cantidad             Decimal               @db.Decimal(10, 2)
+  unidad               String?               @db.VarChar(20)
+  lotes_productos      lotes_productos?      @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimientos_unidades movimientos_unidades? @relation(fields: [movimiento_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos            productos?            @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model detalle_solicitudes {
+  id                        Int                        @id @default(autoincrement())
+  solicitud_id              Int?
+  producto_id               Int?
+  cantidad_solicitada       Decimal                    @db.Decimal(10, 2)
+  cantidad_aprobada         Decimal?                   @db.Decimal(10, 2)
+  observaciones             String?
+  productos                 productos?                 @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  solicitudes_transferencia solicitudes_transferencia? @relation(fields: [solicitud_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model detalle_ventas {
+  id              Int              @id @default(autoincrement())
+  venta_id        Int?
+  producto_id     Int?
+  lote_id         Int?
+  cantidad        Decimal          @db.Decimal(10, 2)
+  precio_unitario Decimal          @db.Decimal(10, 2)
+  subtotal        Decimal          @db.Decimal(10, 2)
+  lotes_productos lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productos       productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ventas          ventas?          @relation(fields: [venta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model historial_inventario {
+  id                  Int        @id @default(autoincrement())
+  producto_id         Int?
+  tipo_movimiento     String     @db.VarChar(30)
+  cantidad_anterior   Decimal?   @db.Decimal(10, 2)
+  cantidad_movimiento Decimal    @db.Decimal(10, 2)
+  cantidad_nueva      Decimal?   @db.Decimal(10, 2)
+  usuario_id          Int?
+  referencia_id       Int?
+  referencia_tipo     String?    @db.VarChar(30)
+  observaciones       String?
+  fecha_movimiento    DateTime?  @default(now()) @db.Timestamp(6)
+  productos           productos? @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuarios            usuarios?  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([fecha_movimiento], map: "idx_historial_fecha")
+  @@index([producto_id], map: "idx_historial_producto")
+  @@index([tipo_movimiento], map: "idx_historial_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lotes_productos {
+  id                   Int                   @id @default(autoincrement())
+  producto_id          Int?
+  codigo_lote          String                @unique @db.VarChar(50)
+  cantidad             Decimal               @db.Decimal(10, 2)
+  fecha_produccion     DateTime              @db.Date
+  fecha_vencimiento    DateTime?             @db.Date
+  unidad_productiva_id Int?
+  estado               String?               @default("disponible") @db.VarChar(20)
+  created_at           DateTime?             @default(now()) @db.Timestamp(6)
+  costos_produccion    costos_produccion[]
+  detalle_movimientos  detalle_movimientos[]
+  detalle_ventas       detalle_ventas[]
+  productos            productos?            @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  unidades_productivas unidades_productivas? @relation(fields: [unidad_productiva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estado], map: "idx_lotes_estado")
+  @@index([producto_id], map: "idx_lotes_producto")
+  @@index([fecha_vencimiento], map: "idx_lotes_vencimiento")
+}
+
+model metodos_pago {
+  id          Int           @id @default(autoincrement())
+  nombre      String        @unique @db.VarChar(50)
+  descripcion String?
+  activo      Boolean?      @default(true)
+  icono       String?       @db.VarChar(50)
+  created_at  DateTime?     @default(now()) @db.Timestamp(6)
+  pagos_venta pagos_venta[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model movimientos_unidades {
+  id                                                                                Int                   @id @default(autoincrement())
+  codigo_movimiento                                                                 String                @unique @db.VarChar(50)
+  unidad_origen_id                                                                  Int?
+  unidad_destino_id                                                                 Int?
+  usuario_id                                                                        Int?
+  fecha_movimiento                                                                  DateTime?             @default(now()) @db.Timestamp(6)
+  motivo                                                                            String?
+  estado                                                                            String?               @default("completado") @db.VarChar(20)
+  observaciones                                                                     String?
+  created_at                                                                        DateTime?             @default(now()) @db.Timestamp(6)
+  detalle_movimientos                                                               detalle_movimientos[]
+  unidades_productivas_movimientos_unidades_unidad_destino_idTounidades_productivas unidades_productivas? @relation("movimientos_unidades_unidad_destino_idTounidades_productivas", fields: [unidad_destino_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidades_productivas_movimientos_unidades_unidad_origen_idTounidades_productivas  unidades_productivas? @relation("movimientos_unidades_unidad_origen_idTounidades_productivas", fields: [unidad_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios                                                                          usuarios?             @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([unidad_destino_id], map: "idx_movimientos_destino")
+  @@index([fecha_movimiento], map: "idx_movimientos_fecha")
+  @@index([unidad_origen_id], map: "idx_movimientos_origen")
+}
+
+model notificaciones {
+  id              Int       @id @default(autoincrement())
+  tipo            String    @db.VarChar(30)
+  titulo          String    @db.VarChar(200)
+  mensaje         String
+  prioridad       String?   @default("normal") @db.VarChar(20)
+  leida           Boolean?  @default(false)
+  usuario_id      Int?
+  referencia_id   Int?
+  referencia_tipo String?   @db.VarChar(30)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  usuarios        usuarios? @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_notificaciones_fecha")
+  @@index([leida], map: "idx_notificaciones_leida")
+  @@index([usuario_id], map: "idx_notificaciones_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pagos_venta {
+  id               Int                @id @default(autoincrement())
+  venta_id         Int?
+  metodo_pago_id   Int?
+  monto            Decimal            @db.Decimal(10, 2)
+  referencia       String?            @db.VarChar(100)
+  fecha_pago       DateTime?          @default(now()) @db.Timestamp(6)
+  movimientos_caja movimientos_caja[]
+  metodos_pago     metodos_pago?      @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ventas           ventas?            @relation(fields: [venta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([metodo_pago_id], map: "idx_pagos_metodo")
+  @@index([venta_id], map: "idx_pagos_venta")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model productos {
+  id                   Int                    @id @default(autoincrement())
+  codigo               String                 @unique @db.VarChar(50)
+  nombre               String                 @db.VarChar(150)
+  descripcion          String?
+  categoria_id         Int?
+  unidad_productiva_id Int?
+  tipo_medida          String                 @db.VarChar(20)
+  unidad               String?                @db.VarChar(20)
+  precio_unitario      Decimal                @db.Decimal(10, 2)
+  precio_mayorista     Decimal?               @db.Decimal(10, 2)
+  stock_actual         Decimal?               @default(0) @db.Decimal(10, 2)
+  stock_minimo         Decimal?               @default(0) @db.Decimal(10, 2)
+  stock_maximo         Decimal?               @db.Decimal(10, 2)
+  es_perecedero        Boolean?               @default(false)
+  dias_vencimiento     Int?
+  imagen_url           String?                @db.VarChar(500)
+  activo               Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?              @default(now()) @db.Timestamp(6)
+  proveedor_id         Int?
+  es_produccion_propia Boolean?               @default(true)
+  costos_produccion    costos_produccion[]
+  descuentos           descuentos[]
+  detalle_movimientos  detalle_movimientos[]
+  detalle_solicitudes  detalle_solicitudes[]
+  detalle_ventas       detalle_ventas[]
+  historial_inventario historial_inventario[]
+  lotes_productos      lotes_productos[]
+  categorias           categorias?            @relation(fields: [categoria_id], references: [id], onUpdate: NoAction)
+  proveedores          proveedores?           @relation(fields: [proveedor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidades_productivas unidades_productivas?  @relation(fields: [unidad_productiva_id], references: [id], onUpdate: NoAction)
+
+  @@index([activo], map: "idx_productos_activo")
+  @@index([categoria_id], map: "idx_productos_categoria")
+  @@index([codigo], map: "idx_productos_codigo")
+  @@index([unidad_productiva_id], map: "idx_productos_unidad")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model proveedores {
+  id                Int         @id @default(autoincrement())
+  codigo            String      @unique @db.VarChar(50)
+  nombre            String      @db.VarChar(200)
+  nit               String?     @db.VarChar(50)
+  contacto_nombre   String?     @db.VarChar(150)
+  contacto_email    String?     @db.VarChar(150)
+  contacto_telefono String?     @db.VarChar(20)
+  direccion         String?
+  ciudad            String?     @db.VarChar(100)
+  tipo_productos    String[]
+  activo            Boolean?    @default(true)
+  created_at        DateTime?   @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?   @default(now()) @db.Timestamp(6)
+  productos         productos[]
+
+  @@index([activo], map: "idx_proveedores_activo")
+  @@index([codigo], map: "idx_proveedores_codigo")
+}
+
+model roles {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique @db.VarChar(50)
+  descripcion String?
+  permisos    Json?      @default("{}")
+  created_at  DateTime?  @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?  @default(now()) @db.Timestamp(6)
+  usuarios    usuarios[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model solicitudes_transferencia {
+  id                                                                                         Int                   @id @default(autoincrement())
+  codigo_solicitud                                                                           String                @unique @db.VarChar(50)
+  unidad_solicitante_id                                                                      Int?
+  unidad_proveedora_id                                                                       Int?
+  usuario_solicitante_id                                                                     Int?
+  estado                                                                                     String?               @default("pendiente") @db.VarChar(20)
+  fecha_solicitud                                                                            DateTime?             @default(now()) @db.Timestamp(6)
+  fecha_respuesta                                                                            DateTime?             @db.Timestamp(6)
+  usuario_respuesta_id                                                                       Int?
+  observaciones                                                                              String?
+  motivo_rechazo                                                                             String?
+  detalle_solicitudes                                                                        detalle_solicitudes[]
+  unidades_productivas_solicitudes_transferencia_unidad_proveedora_idTounidades_productivas  unidades_productivas? @relation("solicitudes_transferencia_unidad_proveedora_idTounidades_productivas", fields: [unidad_proveedora_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidades_productivas_solicitudes_transferencia_unidad_solicitante_idTounidades_productivas unidades_productivas? @relation("solicitudes_transferencia_unidad_solicitante_idTounidades_productivas", fields: [unidad_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_solicitudes_transferencia_usuario_respuesta_idTousuarios                          usuarios?             @relation("solicitudes_transferencia_usuario_respuesta_idTousuarios", fields: [usuario_respuesta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_solicitudes_transferencia_usuario_solicitante_idTousuarios                        usuarios?             @relation("solicitudes_transferencia_usuario_solicitante_idTousuarios", fields: [usuario_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estado], map: "idx_solicitudes_estado")
+  @@index([fecha_solicitud], map: "idx_solicitudes_fecha")
+  @@index([unidad_proveedora_id], map: "idx_solicitudes_proveedora")
+  @@index([unidad_solicitante_id], map: "idx_solicitudes_solicitante")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model turnos {
+  id                Int       @id @default(autoincrement())
+  numero_turno      Int
+  cliente_nombre    String?   @db.VarChar(150)
+  cliente_id        Int?
+  estado            String?   @default("esperando") @db.VarChar(20)
+  cajero_id         Int?
+  fecha             DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  hora_creacion     DateTime? @default(now()) @db.Timestamp(6)
+  hora_atencion     DateTime? @db.Timestamp(6)
+  hora_finalizacion DateTime? @db.Timestamp(6)
+  usuarios          usuarios? @relation(fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  clientes          clientes? @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([numero_turno, fecha])
+  @@index([cajero_id], map: "idx_turnos_cajero")
+  @@index([estado], map: "idx_turnos_estado")
+  @@index([fecha], map: "idx_turnos_fecha")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model unidades_productivas {
+  id                                                                                              Int                         @id @default(autoincrement())
+  codigo                                                                                          String                      @unique @db.VarChar(20)
+  nombre                                                                                          String                      @db.VarChar(100)
+  descripcion                                                                                     String?
+  tipo                                                                                            String?                     @db.VarChar(50)
+  responsable_id                                                                                  Int?
+  ubicacion                                                                                       String?                     @db.VarChar(200)
+  activa                                                                                          Boolean?                    @default(true)
+  created_at                                                                                      DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                                                                                      DateTime?                   @default(now()) @db.Timestamp(6)
+  lotes_productos                                                                                 lotes_productos[]
+  movimientos_unidades_movimientos_unidades_unidad_destino_idTounidades_productivas               movimientos_unidades[]      @relation("movimientos_unidades_unidad_destino_idTounidades_productivas")
+  movimientos_unidades_movimientos_unidades_unidad_origen_idTounidades_productivas                movimientos_unidades[]      @relation("movimientos_unidades_unidad_origen_idTounidades_productivas")
+  productos                                                                                       productos[]
+  solicitudes_transferencia_solicitudes_transferencia_unidad_proveedora_idTounidades_productivas  solicitudes_transferencia[] @relation("solicitudes_transferencia_unidad_proveedora_idTounidades_productivas")
+  solicitudes_transferencia_solicitudes_transferencia_unidad_solicitante_idTounidades_productivas solicitudes_transferencia[] @relation("solicitudes_transferencia_unidad_solicitante_idTounidades_productivas")
+  usuarios                                                                                        usuarios?                   @relation(fields: [responsable_id], references: [id], onUpdate: NoAction)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model usuarios {
+  id                                                                                   Int                         @id @default(autoincrement())
+  nombre                                                                               String                      @db.VarChar(100)
+  apellido                                                                             String                      @db.VarChar(100)
+  email                                                                                String                      @unique @db.VarChar(150)
+  password_hash                                                                        String                      @db.VarChar(255)
+  rol_id                                                                               Int?
+  activo                                                                               Boolean?                    @default(true)
+  ultimo_acceso                                                                        DateTime?                   @db.Timestamp(6)
+  created_at                                                                           DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                                                                           DateTime?                   @default(now()) @db.Timestamp(6)
+  arqueos_caja_arqueos_caja_realizado_porTousuarios                                    arqueos_caja[]              @relation("arqueos_caja_realizado_porTousuarios")
+  arqueos_caja_arqueos_caja_supervisado_porTousuarios                                  arqueos_caja[]              @relation("arqueos_caja_supervisado_porTousuarios")
+  auditoria                                                                            auditoria[]
+  descuentos_aplicados                                                                 descuentos_aplicados[]
+  gastos_caja                                                                          gastos_caja[]
+  historial_inventario                                                                 historial_inventario[]
+  movimientos_caja_movimientos_caja_autorizado_porTousuarios                           movimientos_caja[]          @relation("movimientos_caja_autorizado_porTousuarios")
+  movimientos_caja_movimientos_caja_usuario_idTousuarios                               movimientos_caja[]          @relation("movimientos_caja_usuario_idTousuarios")
+  movimientos_unidades                                                                 movimientos_unidades[]
+  notificaciones                                                                       notificaciones[]
+  retiros_caja_retiros_caja_autorizado_porTousuarios                                   retiros_caja[]              @relation("retiros_caja_autorizado_porTousuarios")
+  retiros_caja_retiros_caja_solicitado_porTousuarios                                   retiros_caja[]              @relation("retiros_caja_solicitado_porTousuarios")
+  sesiones_caja_sesiones_caja_cajero_idTousuarios                                      sesiones_caja[]             @relation("sesiones_caja_cajero_idTousuarios")
+  sesiones_caja_sesiones_caja_cerrada_porTousuarios                                    sesiones_caja[]             @relation("sesiones_caja_cerrada_porTousuarios")
+  sesiones_caja_sesiones_caja_cuadrada_porTousuarios                                   sesiones_caja[]             @relation("sesiones_caja_cuadrada_porTousuarios")
+  solicitudes_transferencia_solicitudes_transferencia_usuario_respuesta_idTousuarios   solicitudes_transferencia[] @relation("solicitudes_transferencia_usuario_respuesta_idTousuarios")
+  solicitudes_transferencia_solicitudes_transferencia_usuario_solicitante_idTousuarios solicitudes_transferencia[] @relation("solicitudes_transferencia_usuario_solicitante_idTousuarios")
+  turnos                                                                               turnos[]
+  unidades_productivas                                                                 unidades_productivas[]
+  roles                                                                                roles?                      @relation(fields: [rol_id], references: [id], onUpdate: NoAction)
+  ventas                                                                               ventas[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ventas {
+  id                   Int                    @id @default(autoincrement())
+  codigo_venta         String                 @unique @db.VarChar(50)
+  usuario_id           Int?
+  fecha_venta          DateTime?              @default(now()) @db.Timestamp(6)
+  subtotal             Decimal                @db.Decimal(10, 2)
+  impuesto             Decimal?               @default(0) @db.Decimal(10, 2)
+  descuento            Decimal?               @default(0) @db.Decimal(10, 2)
+  total                Decimal                @db.Decimal(10, 2)
+  cliente_nombre       String?                @db.VarChar(150)
+  cliente_email        String?                @db.VarChar(150)
+  cliente_telefono     String?                @db.VarChar(20)
+  estado               String?                @default("completada") @db.VarChar(20)
+  requiere_factura     Boolean?               @default(false)
+  factura_generada     Boolean?               @default(false)
+  factura_url          String?                @db.VarChar(500)
+  observaciones        String?
+  created_at           DateTime?              @default(now()) @db.Timestamp(6)
+  cliente_id           Int?
+  descuentos_aplicados descuentos_aplicados[]
+  detalle_ventas       detalle_ventas[]
+  movimientos_caja     movimientos_caja[]
+  pagos_venta          pagos_venta[]
+  clientes             clientes?              @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios             usuarios?              @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estado], map: "idx_ventas_estado")
+  @@index([fecha_venta], map: "idx_ventas_fecha")
+  @@index([usuario_id], map: "idx_ventas_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model arqueos_caja {
+  id                                              Int           @id @default(autoincrement())
+  sesion_caja_id                                  Int
+  tipo_arqueo                                     String        @db.VarChar(20)
+  fecha_arqueo                                    DateTime?     @default(now()) @db.Timestamp(6)
+  billetes_100000                                 Int?          @default(0)
+  billetes_50000                                  Int?          @default(0)
+  billetes_20000                                  Int?          @default(0)
+  billetes_10000                                  Int?          @default(0)
+  billetes_5000                                   Int?          @default(0)
+  billetes_2000                                   Int?          @default(0)
+  billetes_1000                                   Int?          @default(0)
+  monedas_1000                                    Int?          @default(0)
+  monedas_500                                     Int?          @default(0)
+  monedas_200                                     Int?          @default(0)
+  monedas_100                                     Int?          @default(0)
+  monedas_50                                      Int?          @default(0)
+  total_billetes                                  Decimal?      @default(dbgenerated("(((((((billetes_100000 * 100000) + (billetes_50000 * 50000)) + (billetes_20000 * 20000)) + (billetes_10000 * 10000)) + (billetes_5000 * 5000)) + (billetes_2000 * 2000)) + (billetes_1000 * 1000))")) @db.Decimal(10, 2)
+  total_monedas                                   Decimal?      @default(dbgenerated("(((((monedas_1000 * 1000) + (monedas_500 * 500)) + (monedas_200 * 200)) + (monedas_100 * 100)) + (monedas_50 * 50))")) @db.Decimal(10, 2)
+  total_efectivo                                  Decimal?      @default(dbgenerated("((((((((((((billetes_100000 * 100000) + (billetes_50000 * 50000)) + (billetes_20000 * 20000)) + (billetes_10000 * 10000)) + (billetes_5000 * 5000)) + (billetes_2000 * 2000)) + (billetes_1000 * 1000)) + (monedas_1000 * 1000)) + (monedas_500 * 500)) + (monedas_200 * 200)) + (monedas_100 * 100)) + (monedas_50 * 50))")) @db.Decimal(10, 2)
+  realizado_por                                   Int
+  supervisado_por                                 Int?
+  observaciones                                   String?
+  usuarios_arqueos_caja_realizado_porTousuarios   usuarios      @relation("arqueos_caja_realizado_porTousuarios", fields: [realizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesiones_caja                                   sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_arqueos_caja_supervisado_porTousuarios usuarios?     @relation("arqueos_caja_supervisado_porTousuarios", fields: [supervisado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([fecha_arqueo], map: "idx_arqueos_fecha")
+  @@index([sesion_caja_id], map: "idx_arqueos_sesion")
+  @@index([tipo_arqueo], map: "idx_arqueos_tipo")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model cajas {
+  id            Int             @id @default(autoincrement())
+  codigo        String          @unique @db.VarChar(20)
+  nombre        String          @db.VarChar(100)
+  ubicacion     String?         @db.VarChar(200)
+  tipo          String?         @default("principal") @db.VarChar(20)
+  activa        Boolean?        @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  sesiones_caja sesiones_caja[]
+
+  @@index([activa], map: "idx_cajas_activa")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model gastos_caja {
+  id                 Int               @id @default(autoincrement())
+  sesion_caja_id     Int
+  movimiento_caja_id Int?
+  codigo_gasto       String            @unique @db.VarChar(50)
+  categoria_gasto    String?           @db.VarChar(50)
+  monto              Decimal           @db.Decimal(10, 2)
+  concepto           String
+  solicitado_por     Int
+  fecha_gasto        DateTime?         @default(now()) @db.Timestamp(6)
+  tiene_comprobante  Boolean?          @default(false)
+  numero_comprobante String?           @db.VarChar(100)
+  comprobante_url    String?           @db.VarChar(500)
+  observaciones      String?
+  created_at         DateTime?         @default(now()) @db.Timestamp(6)
+  movimientos_caja   movimientos_caja? @relation(fields: [movimiento_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesiones_caja      sesiones_caja     @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios           usuarios          @relation(fields: [solicitado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([categoria_gasto], map: "idx_gastos_categoria")
+  @@index([fecha_gasto], map: "idx_gastos_fecha")
+  @@index([sesion_caja_id], map: "idx_gastos_sesion")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model movimientos_caja {
+  id                                                 Int            @id @default(autoincrement())
+  sesion_caja_id                                     Int
+  tipo_movimiento                                    String         @db.VarChar(30)
+  venta_id                                           Int?
+  pago_id                                            Int?
+  metodo_pago                                        String?        @db.VarChar(30)
+  monto                                              Decimal        @db.Decimal(10, 2)
+  concepto                                           String
+  autorizado_por                                     Int?
+  requiere_autorizacion                              Boolean?       @default(false)
+  usuario_id                                         Int
+  fecha_movimiento                                   DateTime?      @default(now()) @db.Timestamp(6)
+  gastos_caja                                        gastos_caja[]
+  usuarios_movimientos_caja_autorizado_porTousuarios usuarios?      @relation("movimientos_caja_autorizado_porTousuarios", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pagos_venta                                        pagos_venta?   @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesiones_caja                                      sesiones_caja  @relation(fields: [sesion_caja_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuarios_movimientos_caja_usuario_idTousuarios     usuarios       @relation("movimientos_caja_usuario_idTousuarios", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ventas                                             ventas?        @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  retiros_caja                                       retiros_caja[]
+
+  @@index([sesion_caja_id], map: "idx_movimientos_sesion")
+  @@index([tipo_movimiento], map: "idx_movimientos_tipo")
+  @@index([venta_id], map: "idx_movimientos_venta")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model retiros_caja {
+  id                                             Int               @id @default(autoincrement())
+  sesion_caja_id                                 Int
+  movimiento_caja_id                             Int?
+  codigo_retiro                                  String            @unique @db.VarChar(50)
+  monto                                          Decimal           @db.Decimal(10, 2)
+  motivo                                         String
+  tipo_retiro                                    String            @db.VarChar(30)
+  solicitado_por                                 Int
+  autorizado_por                                 Int?
+  fecha_solicitud                                DateTime?         @default(now()) @db.Timestamp(6)
+  fecha_autorizacion                             DateTime?         @db.Timestamp(6)
+  estado                                         String?           @default("pendiente") @db.VarChar(20)
+  numero_comprobante                             String?           @db.VarChar(100)
+  comprobante_url                                String?           @db.VarChar(500)
+  observaciones                                  String?
+  created_at                                     DateTime?         @default(now()) @db.Timestamp(6)
+  usuarios_retiros_caja_autorizado_porTousuarios usuarios?         @relation("retiros_caja_autorizado_porTousuarios", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimientos_caja                               movimientos_caja? @relation(fields: [movimiento_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesiones_caja                                  sesiones_caja     @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_retiros_caja_solicitado_porTousuarios usuarios          @relation("retiros_caja_solicitado_porTousuarios", fields: [solicitado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estado], map: "idx_retiros_estado")
+  @@index([fecha_solicitud], map: "idx_retiros_fecha")
+  @@index([sesion_caja_id], map: "idx_retiros_sesion")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sesiones_caja {
+  id                                            Int                @id @default(autoincrement())
+  codigo_sesion                                 String             @unique @db.VarChar(50)
+  caja_id                                       Int
+  cajero_id                                     Int
+  fecha_apertura                                DateTime           @default(now()) @db.Timestamp(6)
+  fondo_inicial                                 Decimal            @default(0) @db.Decimal(10, 2)
+  observaciones_apertura                        String?
+  fecha_cierre                                  DateTime?          @db.Timestamp(6)
+  estado                                        String?            @default("abierta") @db.VarChar(20)
+  observaciones_cierre                          String?
+  total_ventas_efectivo                         Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_nequi                            Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_tarjeta                          Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_transferencia                    Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas                                  Decimal?           @default(0) @db.Decimal(10, 2)
+  total_retiros                                 Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ingresos_adicionales                    Decimal?           @default(0) @db.Decimal(10, 2)
+  total_gastos                                  Decimal?           @default(0) @db.Decimal(10, 2)
+  efectivo_esperado                             Decimal?           @default(dbgenerated("((((fondo_inicial + total_ventas_efectivo) + total_ingresos_adicionales) - total_retiros) - total_gastos)")) @db.Decimal(10, 2)
+  efectivo_contado                              Decimal?           @db.Decimal(10, 2)
+  diferencia                                    Decimal?           @db.Decimal(10, 2)
+  desglose_efectivo                             Json?
+  cerrada_por                                   Int?
+  cuadrada_por                                  Int?
+  created_at                                    DateTime?          @default(now()) @db.Timestamp(6)
+  arqueos_caja                                  arqueos_caja[]
+  gastos_caja                                   gastos_caja[]
+  movimientos_caja                              movimientos_caja[]
+  retiros_caja                                  retiros_caja[]
+  cajas                                         cajas              @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_sesiones_caja_cajero_idTousuarios    usuarios           @relation("sesiones_caja_cajero_idTousuarios", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_sesiones_caja_cerrada_porTousuarios  usuarios?          @relation("sesiones_caja_cerrada_porTousuarios", fields: [cerrada_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_sesiones_caja_cuadrada_porTousuarios usuarios?          @relation("sesiones_caja_cuadrada_porTousuarios", fields: [cuadrada_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([caja_id], map: "idx_sesiones_caja")
+  @@index([cajero_id], map: "idx_sesiones_cajero")
+  @@index([estado], map: "idx_sesiones_estado")
+  @@index([fecha_apertura], map: "idx_sesiones_fecha")
+}

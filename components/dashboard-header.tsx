@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ShoppingCart, Package, TrendingDown } from "lucide-react"
+import { UserMenu } from "@/components/user-menu"
 
 interface DashboardHeaderProps {
   title: string
@@ -88,6 +89,9 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
             </ScrollArea>
           </PopoverContent>
         </Popover>
+        
+        {/* Menú de usuario con logout */}
+        <UserMenu />
       </div>
     </div>
   )

@@ -1,7 +1,5 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth.server"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { StatsCard } from "@/components/dashboard/stats-card"
@@ -10,37 +8,37 @@ import { TopProducts } from "@/components/dashboard/top-products"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { PaymentMethodsChart } from "@/components/dashboard/payment-methods-chart"
 import { DollarSign, Package, TrendingDown, ShoppingCart } from "lucide-react"
-import type { User } from "@/lib/auth"
 
-export default function DashboardPage() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("agroshop_user")
-    if (!storedUser) {
-      router.push("/")
-      return
-    }
-    setUser(JSON.parse(storedUser))
-  }, [router])
-
-  const handleLogout = () => {
-    localStorage.removeItem("agroshop_user")
-    router.push("/")
-  }
-
-  if (!user) {
-    return null
+/**
+ * Dashboard Principal - Server Component
+ * 
+ * ✅ Usa NextAuth con auth() para verificación en servidor
+ * ✅ Mejor rendimiento (no usa localStorage)
+ * ✅ Redirige a login si no está autenticado
+ */
+export default async function DashboardPage() {
+  // ⭐ Verificar sesión en el servidor (mejor rendimiento)
+  const session = await auth()
+  
+  // Si no hay sesión, redirigir a login
+  if (!session) {
+    redirect('/login')
   }
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar userRole={user.role} userName={user.name} onLogout={handleLogout} />
+      {/* ⭐ Sidebar ahora recibe datos de la sesión */}
+      <Sidebar 
+        userRole={session.user.role as any} 
+        userName={session.user.name || "Usuario"} 
+      />
 
       <main className="flex-1 overflow-y-auto bg-background">
         <div className="container max-w-7xl mx-auto p-6 lg:p-8">
-          <DashboardHeader title="Dashboard Principal" description="Vista general del sistema AgroShop" />
+          <DashboardHeader 
+            title="Dashboard Principal" 
+            description="Vista general del sistema AgroShop" 
+          />
 
           {/* KPI Cards */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">

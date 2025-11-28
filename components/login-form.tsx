@@ -2,16 +2,18 @@
 
 import type React from "react"
 import { useState } from "react"
+import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Leaf, Loader2, Sparkles, Lock } from "lucide-react"
-import { login, type UserRole, getRoleLabel, getRoleDescription } from "@/lib/auth"
+import { type UserRole, getRoleLabel, getRoleDescription } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
 
 interface LoginFormProps {
-  onLogin: (email: string, name: string, role: UserRole) => void
+  // Sin props necesarios ahora que usamos NextAuth
 }
 
 const roleColors = {
@@ -21,7 +23,8 @@ const roleColors = {
   consulta: "bg-gradient-to-r from-chart-3 to-chart-5 text-white border-0",
 }
 
-export function LoginForm({ onLogin }: LoginFormProps) {
+export function LoginForm({}: LoginFormProps) {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -33,14 +36,22 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setIsLoading(true)
 
     try {
-      const user = await login(email, password)
-      if (user) {
-        onLogin(user.email, user.name, user.role)
-      } else {
-        setError("Credenciales inválidas")
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError("Credenciales inválidas. Verifica tu email y contraseña.")
+      } else if (result?.ok) {
+        // Login exitoso, redirigir al dashboard
+        router.push("/dashboard")
+        router.refresh()
       }
     } catch (err) {
-      setError("Error al iniciar sesión")
+      setError("Error al iniciar sesión. Intenta nuevamente.")
+      console.error("Error en login:", err)
     } finally {
       setIsLoading(false)
     }
@@ -48,15 +59,26 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   const quickLogin = async (demoEmail: string) => {
     setEmail(demoEmail)
-    setPassword("demo")
+    setPassword("agroshop2024")
     setError("")
     setIsLoading(true)
 
     try {
-      const user = await login(demoEmail, "demo")
-      if (user) {
-        onLogin(user.email, user.name, user.role)
+      const result = await signIn("credentials", {
+        email: demoEmail,
+        password: "agroshop2024",
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError("Error al iniciar sesión con cuenta de demostración")
+      } else if (result?.ok) {
+        router.push("/dashboard")
+        router.refresh()
       }
+    } catch (err) {
+      setError("Error al iniciar sesión")
+      console.error("Error en quick login:", err)
     } finally {
       setIsLoading(false)
     }

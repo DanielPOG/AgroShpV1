@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -173,10 +172,9 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar userRole={user.role as string} userName={user.name || "Usuario"} />
-
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+    <>
+      {/* Products and Cart Container */}
+      <div className="flex flex-col lg:flex-row h-full overflow-hidden">
         {/* Left Panel - Products */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           <div className="p-2 sm:p-4 lg:p-6 border-b border-border bg-card shrink-0">
@@ -249,7 +247,7 @@ export default function POSPage() {
             onCheckout={handleCheckout}
           />
         </div>
-      </main>
+      </div>
 
       {cartItems.length > 0 && (
         <Button

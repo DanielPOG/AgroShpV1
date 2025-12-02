@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { getColombiaDate } from "@/lib/date-utils"
 
 /**
  * Configuración de NextAuth.js v4 (ESTABLE)
@@ -57,7 +58,7 @@ export const authOptions: NextAuthOptions = {
                     // Actualizar último acceso
                     await prisma.usuarios.update({
                         where: { id: user.id },
-                        data: { ultimo_acceso: new Date() }
+                        data: { ultimo_acceso: getColombiaDate() }
                     })
 
                     // Retornar usuario para la sesión
@@ -111,3 +112,12 @@ export const authOptions: NextAuthOptions = {
 const handler = NextAuth(authOptions)
 
 export { handler as GET, handler as POST }
+
+/**
+ * Export auth() para uso en Server Components
+ * Esta función permite obtener la sesión en Server Components
+ */
+export async function auth() {
+    const { getServerSession } = await import("next-auth/next")
+    return getServerSession(authOptions)
+}

@@ -16,6 +16,7 @@ import {
   Leaf,
   Menu,
   X,
+  PackageCheck,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -28,22 +29,53 @@ const navigation = [
     name: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    roles: ["admin", "inventarista", "cajero", "consulta"],
+    roles: ["Admin", "Inventarista", "Cajero", "Consulta"],
   },
-  { name: "Inventario", href: "/dashboard/inventario", icon: Package, roles: ["admin", "inventarista"] },
-  { name: "Movimientos", href: "/dashboard/movimientos", icon: ArrowLeftRight, roles: ["admin", "inventarista"] },
-  { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, roles: ["admin", "cajero"] },
-  { name: "Reportes", href: "/dashboard/reportes", icon: BarChart3, roles: ["admin", "inventarista", "consulta"] },
-  { name: "Catálogo Público", href: "/", icon: Globe, roles: ["admin", "inventarista", "cajero", "consulta"] },
+  { 
+    name: "Inventario", 
+    href: "/dashboard/inventario", 
+    icon: Package, 
+    roles: ["Admin", "Inventarista"] 
+  },
+  { 
+    name: "Lotes", 
+    href: "/dashboard/lotes", 
+    icon: PackageCheck, 
+    roles: ["Admin", "Inventarista"],
+    description: "Trazabilidad y vencimientos"
+  },
+  { 
+    name: "Movimientos", 
+    href: "/dashboard/movimientos", 
+    icon: ArrowLeftRight, 
+    roles: ["Admin", "Inventarista"] 
+  },
+  { 
+    name: "Punto de Venta", 
+    href: "/dashboard/pos", 
+    icon: ShoppingCart, 
+    roles: ["Admin", "Cajero"] 
+  },
+  { 
+    name: "Reportes", 
+    href: "/dashboard/reportes", 
+    icon: BarChart3, 
+    roles: ["Admin", "Inventarista", "Consulta"] 
+  },
+  { 
+    name: "Catálogo Público", 
+    href: "/", 
+    icon: Globe, 
+    roles: ["Admin", "Inventarista", "Cajero", "Consulta"] 
+  },
 ]
 
 export function Sidebar({ userRole, userName }: SidebarProps) {
   const pathname = usePathname()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
 
-  // Normalizar el rol a minúsculas para comparación
-  const normalizedRole = userRole.toLowerCase()
-  const filteredNavigation = navigation.filter((item) => item.roles.includes(normalizedRole))
+  // Filtrar navegación según rol del usuario
+  const filteredNavigation = navigation.filter((item) => item.roles.includes(userRole))
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -66,15 +65,11 @@ export default function MovimientosPage() {
   const activeMovements = todayMovements.length
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar userRole={user.role as string} userName={user.name || "Usuario"} />
-
-      <main className="flex-1 overflow-y-auto bg-background">
-        <div className="container max-w-7xl mx-auto p-6 lg:p-8">
-          <DashboardHeader
-            title="Movimientos entre Unidades"
-            description="Gestiona transferencias de productos entre unidades productivas"
-          />
+    <div className="space-y-6">
+      <DashboardHeader
+        title="Movimientos entre Unidades"
+        description="Gestiona transferencias de productos entre unidades productivas"
+      />
 
           {/* Stats Cards */}
           <div className="grid gap-6 md:grid-cols-3 mb-6">
@@ -128,10 +123,8 @@ export default function MovimientosPage() {
             </CardHeader>
             <CardContent>
               <MovementHistory movements={movements} />
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+        </CardContent>
+      </Card>
 
       {/* Movement Wizard Modal */}
       <MovementWizard

@@ -3,101 +3,278 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MoreVertical, Eye, Edit, Trash2, Barcode } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { type Product, productiveUnits } from "@/lib/mock-data"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Package, AlertCircle, CheckCircle, Clock, MoreVertical, Eye, Edit, Trash2, History, RotateCcw } from "lucide-react"
 import Image from "next/image"
+
+interface Product {
+  id: number
+  codigo: string
+  nombre: string
+  descripcion?: string | null
+  precio_unitario: number
+  stock_actual: number
+  stock_minimo: number
+  unidad: string
+  tipo_medida: string
+  imagen_url?: string | null
+  activo?: boolean | null
+  categoria?: {
+    id: number
+    nombre: string
+    icono?: string | null
+    color?: string | null
+  } | null
+  unidad_productiva?: {
+    id: number
+    codigo: string
+    nombre: string
+  } | null
+}
 
 interface ProductCardProps {
   product: Product
-  onView: (product: Product) => void
-  onEdit: (product: Product) => void
-  onDelete: (productId: string) => void
+  viewMode: "grid" | "list"
+  onClick: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  onHistory?: () => void
+  onAdjustStock?: () => void
+  onReactivate?: () => void  // Nueva prop para reactivar
+  onPermanentDelete?: () => void  // Nueva prop para eliminar de BD
+  showInactive?: boolean  // Indica si estamos viendo productos inactivos
 }
 
-const statusConfig = {
-  disponible: { label: "Disponible", className: "bg-primary text-primary-foreground" },
-  "bajo-stock": { label: "Bajo Stock", className: "bg-orange-accent text-white" },
-  agotado: { label: "Agotado", className: "bg-destructive text-destructive-foreground" },
-  "proximo-vencer": { label: "Próximo a Vencer", className: "bg-chart-2 text-white" },
-}
+export function ProductCard({ product, viewMode, onClick, onEdit, onDelete, onHistory, onAdjustStock, onReactivate, onPermanentDelete, showInactive }: ProductCardProps) {
+  // Determinar estado del stock
+  const getStockStatus = () => {
+    if (product.stock_actual === 0) {
+      return {
+        label: "Agotado",
+        icon: <AlertCircle className="h-3 w-3" />,
+        className: "bg-destructive text-destructive-foreground",
+      }
+    }
+    if (product.stock_actual <= product.stock_minimo) {
+      return {
+        label: "Bajo Stock",
+        icon: <AlertCircle className="h-3 w-3" />,
+        className: "bg-orange-accent text-white",
+      }
+    }
+    return {
+      label: "Disponible",
+      icon: <CheckCircle className="h-3 w-3" />,
+      className: "bg-primary text-primary-foreground",
+    }
+  }
 
-const typeLabels = {
-  liquido: "Líquido",
-  solido: "Sólido",
-  lote: "Lote",
-}
+  const stockStatus = getStockStatus()
 
-export function ProductCard({ product, onView, onEdit, onDelete }: ProductCardProps) {
-  const unit = productiveUnits.find((u) => u.id === product.productiveUnit)
-  const statusInfo = statusConfig[product.status]
+  const typeLabels: Record<string, string> = {
+    unidad: "Unidad",
+    peso: "Peso",
+    volumen: "Volumen",
+    lote: "Lote",
+  }
+
+  if (viewMode === "list") {
+    return (
+      <Card className="group hover:shadow-lg transition-all">
+        <CardContent className="p-4">
+          <div className="flex gap-4">
+            <div 
+              className="relative h-20 w-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={onClick}
+            >
+              <Image
+                src={product.imagen_url || "/placeholder.svg"}
+                alt={product.nombre}
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground truncate">{product.nombre}</h3>
+                  <p className="text-sm text-muted-foreground">{product.categoria?.nombre || "Sin categoría"}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={stockStatus.className}>
+                    {stockStatus.icon}
+                    <span className="ml-1">{stockStatus.label}</span>
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={onClick}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        Ver Detalles
+                      </DropdownMenuItem>
+                      {!showInactive && onEdit && (
+                        <DropdownMenuItem onClick={onEdit}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                      )}
+                      {!showInactive && onHistory && (
+                        <DropdownMenuItem onClick={onHistory}>
+                          <History className="mr-2 h-4 w-4" />
+                          Ver Historial
+                        </DropdownMenuItem>
+                      )}
+                      {showInactive && onReactivate && (
+                        <DropdownMenuItem onClick={onReactivate} className="text-green-600">
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          Reactivar
+                        </DropdownMenuItem>
+                      )}
+                      {showInactive && onPermanentDelete && (
+                        <DropdownMenuItem onClick={onPermanentDelete} className="text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Eliminar de BD
+                        </DropdownMenuItem>
+                      )}
+                      {!showInactive && onDelete && (
+                        <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Desactivar
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Stock: </span>
+                  <span className="font-semibold text-foreground">
+                    {product.stock_actual} {product.unidad}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Precio: </span>
+                  <span className="font-semibold text-primary">
+                    ${product.precio_unitario.toLocaleString("es-CO")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Código: </span>
+                  <span className="font-mono text-xs">{product.codigo}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="group hover:shadow-lg transition-all overflow-hidden">
       <CardContent className="p-0">
         <div className="relative h-48 bg-muted overflow-hidden">
-          <Image
-            src={product.image || "/placeholder.svg"}
-            alt={product.name}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-          <div className="absolute top-2 right-2 flex gap-2">
-            <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+          <div 
+            className="absolute inset-0 cursor-pointer" 
+            onClick={onClick}
+          >
+            <Image
+              src={product.imagen_url || "/placeholder.svg"}
+              alt={product.nombre}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+          <div className="absolute top-2 right-2 flex items-center gap-2 z-10">
+            <Badge className={stockStatus.className}>
+              {stockStatus.icon}
+              <span className="ml-1">{stockStatus.label}</span>
+            </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="secondary" className="h-8 w-8">
+                <Button variant="secondary" size="icon" className="h-8 w-8 bg-background/90 hover:bg-background">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onView(product)}>
-                  <Eye className="h-4 w-4 mr-2" />
+                <DropdownMenuItem onClick={onClick}>
+                  <Eye className="mr-2 h-4 w-4" />
                   Ver Detalles
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onEdit(product)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onDelete(product.id)} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar
-                </DropdownMenuItem>
+                {!showInactive && onEdit && (
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar
+                  </DropdownMenuItem>
+                )}
+                {!showInactive && onHistory && (
+                  <DropdownMenuItem onClick={onHistory}>
+                    <History className="mr-2 h-4 w-4" />
+                    Ver Historial
+                  </DropdownMenuItem>
+                )}
+                {showInactive && onReactivate && (
+                  <DropdownMenuItem onClick={onReactivate} className="text-green-600">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reactivar
+                  </DropdownMenuItem>
+                )}
+                {showInactive && onPermanentDelete && (
+                  <DropdownMenuItem onClick={onPermanentDelete} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar de BD
+                  </DropdownMenuItem>
+                )}
+                {!showInactive && onDelete && (
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Desactivar
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Badge className="absolute bottom-2 left-2 bg-background/90 text-foreground">
-            {unit?.icon} {unit?.name}
-          </Badge>
+          {product.unidad_productiva && (
+            <Badge className="absolute bottom-2 left-2 bg-background/90 text-foreground">
+              {product.unidad_productiva.nombre}
+            </Badge>
+          )}
         </div>
 
         <div className="p-4 space-y-3">
           <div>
-            <h3 className="font-semibold text-lg text-foreground">{product.name}</h3>
-            <p className="text-sm text-muted-foreground">{product.category}</p>
+            <h3 className="font-semibold text-lg text-foreground line-clamp-1">{product.nombre}</h3>
+            <p className="text-sm text-muted-foreground">{product.categoria?.nombre || "Sin categoría"}</p>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground">Stock</p>
               <p className="text-lg font-bold text-foreground">
-                {product.stock} {product.unit}
+                {product.stock_actual} {product.unidad}
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Precio</p>
-              <p className="text-lg font-bold text-primary">${product.price.toLocaleString("es-CO")}</p>
+              <p className="text-lg font-bold text-primary">${product.precio_unitario.toLocaleString("es-CO")}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-border">
             <Badge variant="outline" className="text-xs">
-              {typeLabels[product.type]}
+              {typeLabels[product.tipo_medida] || product.tipo_medida}
             </Badge>
-            <Button variant="ghost" size="sm" onClick={() => onView(product)} className="text-xs">
-              <Barcode className="h-3 w-3 mr-1" />
-              {product.barcode}
-            </Button>
+            <span className="font-mono text-xs text-muted-foreground">{product.codigo}</span>
           </div>
         </div>
       </CardContent>

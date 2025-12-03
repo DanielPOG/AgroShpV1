@@ -26,7 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { CalendarIcon, Loader2, Package } from "lucide-react"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useLotesMutations } from "@/hooks/use-lotes"
@@ -38,6 +38,7 @@ interface Product {
   codigo: string
   unidad: string
   es_perecedero: boolean
+  dias_vencimiento: number | null
 }
 
 interface UnidadProductiva {
@@ -90,11 +91,20 @@ export function CreateLoteModal({
     }
   }, [selectedProduct, codigoLote])
 
+  // Auto-calcular fecha de vencimiento basada en dias_vencimiento del producto
+  useEffect(() => {
+    if (selectedProduct?.es_perecedero && selectedProduct?.dias_vencimiento) {
+      const fechaCalculada = addDays(fechaProduccion, selectedProduct.dias_vencimiento)
+      setFechaVencimiento(fechaCalculada)
+    } else if (!selectedProduct?.es_perecedero) {
+      setFechaVencimiento(undefined)
+    }
+  }, [fechaProduccion, selectedProduct])
+
   // Resetear al cambiar producto
   useEffect(() => {
     if (productoId) {
       setCodigoLote("")
-      setFechaVencimiento(undefined)
     }
   }, [productoId])
 
@@ -138,11 +148,11 @@ export function CreateLoteModal({
       return
     }
 
-    // Si es perecedero, fecha de vencimiento es obligatoria
-    if (selectedProduct?.es_perecedero && !fechaVencimiento) {
+    // Si es perecedero, validar que tenga dias_vencimiento configurados
+    if (selectedProduct?.es_perecedero && !selectedProduct?.dias_vencimiento) {
       toast({
         title: "Error",
-        description: "Los productos perecederos requieren fecha de vencimiento",
+        description: "Este producto perecedero no tiene configurados los días de vencimiento",
         variant: "destructive",
       })
       return
@@ -318,40 +328,28 @@ export function CreateLoteModal({
               <Label>
                 Fecha de Vencimiento
                 {selectedProduct?.es_perecedero && (
-                  <span className="text-destructive"> *</span>
+                  <span className="text-muted-foreground text-xs"> (automática)</span>
                 )}
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !fechaVencimiento && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fechaVencimiento ? (
-                      format(fechaVencimiento, "PPP", { locale: es })
-                    ) : (
-                      <span>Selecciona fecha</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={fechaVencimiento}
-                    onSelect={setFechaVencimiento}
-                    initialFocus
-                    locale={es}
-                    disabled={(date) => date < fechaProduccion}
-                  />
-                </PopoverContent>
-              </Popover>
-              {selectedProduct?.es_perecedero && (
+              <Input
+                value={
+                  fechaVencimiento
+                    ? format(fechaVencimiento, "PPP", { locale: es })
+                    : selectedProduct?.es_perecedero
+                    ? "Configure días de vencimiento"
+                    : "No aplica"
+                }
+                disabled
+                className="bg-muted"
+              />
+              {selectedProduct?.es_perecedero && selectedProduct?.dias_vencimiento && (
                 <p className="text-xs text-muted-foreground">
-                  Obligatorio para productos perecederos
+                  Se calculó automáticamente: +{selectedProduct.dias_vencimiento} días desde producción
+                </p>
+              )}
+              {selectedProduct?.es_perecedero && !selectedProduct?.dias_vencimiento && (
+                <p className="text-xs text-destructive">
+                  ⚠️ Este producto no tiene configurados los días de vencimiento
                 </p>
               )}
             </div>

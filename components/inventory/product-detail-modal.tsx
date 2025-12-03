@@ -39,7 +39,7 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
   // Solo llamar al hook si hay un productId válido
   const shouldFetch = isOpen && productId !== null
   const { product, isLoading, error, refetch } = useProduct(shouldFetch ? productId : null)
-  const { lotes, isLoading: lotesLoading, refetch: refetchLotes } = useLotesByProducto(shouldFetch ? productId : null)
+  const { lotes, estadisticas, isLoading: lotesLoading, refetch: refetchLotes } = useLotesByProducto(shouldFetch ? productId : null)
   const { deleteProduct, isDeleting } = useProductMutations()
 
   // Handlers para lotes
@@ -147,13 +147,13 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-10xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-lg sm:text-xl md:text-2xl">Detalles del Producto</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">Información completa y gestión del inventario</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-1 space-y-3 sm:space-y-4">
+        <div className="flex-1 overflow-y-auto px-1 pr-3 space-y-3 sm:space-y-4">{/* Product Image */}
           {/* Product Image */}
           <div className="relative w-full h-40 sm:h-48 md:h-64 rounded-lg overflow-hidden bg-muted flex-shrink-0">
             <Image
@@ -273,13 +273,41 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
                 )}
               </div>
               
+              {/* Estadísticas de lotes */}
+              {estadisticas && estadisticas.total > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="bg-muted/30 rounded-lg p-2 text-center">
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="text-lg font-bold">{estadisticas.total}</p>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center border border-green-200 dark:border-green-800">
+                    <p className="text-xs text-green-700 dark:text-green-300">Disponibles</p>
+                    <p className="text-lg font-bold text-green-700 dark:text-green-300">{estadisticas.disponibles}</p>
+                  </div>
+                  <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-2 text-center border border-orange-200 dark:border-orange-800">
+                    <p className="text-xs text-orange-700 dark:text-orange-300">Próximos</p>
+                    <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{estadisticas.proximos_vencer}</p>
+                  </div>
+                  {estadisticas.vencidos > 0 && (
+                    <div className="bg-destructive/10 rounded-lg p-2 text-center border border-destructive/30">
+                      <p className="text-xs text-destructive">Vencidos</p>
+                      <p className="text-lg font-bold text-destructive">{estadisticas.vencidos}</p>
+                    </div>
+                  )}
+                  <div className="bg-muted/30 rounded-lg p-2 text-center col-span-2">
+                    <p className="text-xs text-muted-foreground">Stock en Lotes</p>
+                    <p className="text-lg font-bold">{estadisticas.cantidad_total} {product.unidad}</p>
+                  </div>
+                </div>
+              )}
+              
               {lotesLoading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-12 w-full" />
                   <Skeleton className="h-12 w-full" />
                 </div>
               ) : lotes && lotes.length > 0 ? (
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto pr-2 border rounded-lg">
                   <LotesList 
                     lotes={lotes} 
                     showProductInfo={false}

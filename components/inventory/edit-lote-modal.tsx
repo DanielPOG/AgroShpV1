@@ -4,12 +4,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { useLote, useLotesMutations } from "@/hooks/use-lotes"
 import { useState, useEffect } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, CheckCircle, XCircle, AlertCircle, Info } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface EditLoteModalProps {
   loteId: number | null
@@ -24,45 +28,33 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
   const { lote, isLoading, error } = useLote(shouldFetch ? loteId : null)
   const { updateLote, isUpdating } = useLotesMutations()
 
-  const [formData, setFormData] = useState({
-    codigo_lote: '',
-    cantidad: '',
-    fecha_produccion: '',
-    fecha_vencimiento: '',
-    estado: 'disponible' as 'disponible' | 'vencido' | 'retirado',
-  })
+  const [estado, setEstado] = useState<'disponible' | 'vencido' | 'retirado'>('disponible')
 
-  // Cargar datos del lote cuando se obtienen
+  // Cargar estado del lote cuando se obtiene
   useEffect(() => {
     if (lote) {
-      setFormData({
-        codigo_lote: lote.codigo_lote,
-        cantidad: lote.cantidad.toString(),
-        fecha_produccion: new Date(lote.fecha_produccion).toISOString().split('T')[0],
-        fecha_vencimiento: lote.fecha_vencimiento 
-          ? new Date(lote.fecha_vencimiento).toISOString().split('T')[0] 
-          : '',
-        estado: lote.estado as 'disponible' | 'vencido' | 'retirado',
-      })
+      setEstado(lote.estado as 'disponible' | 'vencido' | 'retirado')
     }
   }, [lote])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!loteId) return
+    if (!loteId || !lote) return
 
     try {
       await updateLote(loteId, {
-        codigo_lote: formData.codigo_lote,
-        cantidad: parseFloat(formData.cantidad),
-        fecha_produccion: formData.fecha_produccion,
-        fecha_vencimiento: formData.fecha_vencimiento || null,
-        estado: formData.estado,
+        codigo_lote: lote.codigo_lote,
+        cantidad: Number(lote.cantidad),
+        fecha_produccion: new Date(lote.fecha_produccion).toISOString().split('T')[0],
+        fecha_vencimiento: lote.fecha_vencimiento 
+          ? new Date(lote.fecha_vencimiento).toISOString().split('T')[0] 
+          : null,
+        estado: estado,
       })
 
       toast({
-        title: "Lote actualizado",
-        description: "El lote ha sido actualizado correctamente",
+        title: "Estado actualizado",
+        description: `El lote ahora está marcado como "${estado}"`,
       })
 
       onSuccess()
@@ -70,7 +62,7 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo actualizar el lote",
+        description: error instanceof Error ? error.message : "No se pudo actualizar el estado",
         variant: "destructive",
       })
     }
@@ -78,120 +70,148 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
 
   if (!isOpen || !loteId) return null
 
+  const estadoInfo = {
+    disponible: {
+      label: 'Disponible',
+      icon: <CheckCircle className="h-5 w-5" />,
+      color: 'bg-green-500',
+      description: 'El lote está disponible para venta y uso normal',
+      badge: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
+    },
+    vencido: {
+      label: 'Vencido',
+      icon: <XCircle className="h-5 w-5" />,
+      color: 'bg-destructive',
+      description: 'El lote ha superado su fecha de vencimiento',
+      badge: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+    },
+    retirado: {
+      label: 'Retirado',
+      icon: <AlertCircle className="h-5 w-5" />,
+      color: 'bg-slate-500',
+      description: 'El lote ha sido retirado del inventario',
+      badge: 'bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-300'
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Editar Lote</DialogTitle>
-          <DialogDescription>Modifica los datos del lote</DialogDescription>
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle>Cambiar Estado del Lote</DialogTitle>
+          <DialogDescription>Actualiza el estado actual del lote en el sistema</DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-          </div>
-        ) : error ? (
-          <div className="text-destructive text-sm">
-            Error al cargar el lote: {error}
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="codigo_lote">Código de Lote</Label>
-              <Input
-                id="codigo_lote"
-                value={formData.codigo_lote}
-                onChange={(e) => setFormData({ ...formData, codigo_lote: e.target.value })}
-                disabled
-                className="bg-muted"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                El código de lote no puede modificarse
-              </p>
+        <div className="flex-1 overflow-y-auto px-1 pr-3">
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cantidad">Cantidad</Label>
-              <Input
-                id="cantidad"
-                type="number"
-                step="0.01"
-                value={formData.cantidad}
-                onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Cantidad actual en el lote
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fecha_produccion">Fecha Producción</Label>
-                <Input
-                  id="fecha_produccion"
-                  type="date"
-                  value={formData.fecha_produccion}
-                  onChange={(e) => setFormData({ ...formData, fecha_produccion: e.target.value })}
-                  disabled
-                  className="bg-muted"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  La fecha de producción no puede modificarse
-                </p>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Error al cargar el lote: {error}</AlertDescription>
+            </Alert>
+          ) : lote ? (
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              {/* Información del lote (solo lectura) */}
+              <div className="bg-muted/50 rounded-lg p-3 sm:p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Código de Lote</p>
+                    <p className="text-base sm:text-lg font-semibold truncate">{lote.codigo_lote}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs sm:text-sm self-start sm:self-center">
+                    {lote.cantidad} {lote.producto?.unidad || 'unidades'}
+                  </Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Producción</p>
+                    <p className="text-xs sm:text-sm font-medium">
+                      {format(new Date(lote.fecha_produccion), 'PPP', { locale: es })}
+                    </p>
+                  </div>
+                  {lote.fecha_vencimiento && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Vencimiento</p>
+                      <p className="text-xs sm:text-sm font-medium">
+                        {format(new Date(lote.fecha_vencimiento), 'PPP', { locale: es })}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="fecha_vencimiento">Fecha Vencimiento</Label>
-                <Input
-                  id="fecha_vencimiento"
-                  type="date"
-                  value={formData.fecha_vencimiento}
-                  onChange={(e) => setFormData({ ...formData, fecha_vencimiento: e.target.value })}
-                />
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Solo puedes cambiar el estado. Para ajustar cantidades usa "Ajustar Stock".
+                </AlertDescription>
+              </Alert>
+
+              {/* Selector visual de estado */}
+              <div className="space-y-3">
+                <Label className="text-sm sm:text-base font-semibold">Selecciona el nuevo estado</Label>
+                <div className="grid grid-cols-1 gap-2 sm:gap-3">
+                  {(Object.keys(estadoInfo) as Array<'disponible' | 'vencido' | 'retirado'>).map((key) => (
+                    <Card
+                      key={key}
+                      className={`cursor-pointer transition-all hover:shadow-md ${
+                        estado === key
+                          ? 'ring-2 ring-primary shadow-lg'
+                          : 'hover:border-primary/50'
+                      }`}
+                      onClick={() => setEstado(key)}
+                    >
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className={`p-1.5 sm:p-2 rounded-full ${estadoInfo[key].color} text-white flex-shrink-0`}>
+                            {estadoInfo[key].icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h3 className="font-semibold text-sm sm:text-base">{estadoInfo[key].label}</h3>
+                              {estado === key && (
+                                <Badge variant="default" className="text-xs">Seleccionado</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              {estadoInfo[key].description}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="estado">Estado</Label>
-              <Select
-                value={formData.estado}
-                onValueChange={(value: 'disponible' | 'vencido' | 'retirado') =>
-                  setFormData({ ...formData, estado: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disponible">Disponible</SelectItem>
-                  <SelectItem value="vencido">Vencido</SelectItem>
-                  <SelectItem value="retirado">Retirado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isUpdating} className="flex-1">
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar Cambios"
-                )}
-              </Button>
-            </div>
-          </form>
-        )}
+              {/* Botones de acción */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-xs sm:text-sm">
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isUpdating || estado === lote.estado} 
+                  className="flex-1 text-xs sm:text-sm"
+                >
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                      Actualizando...
+                    </>
+                  ) : (
+                    'Actualizar Estado'
+                  )}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   )

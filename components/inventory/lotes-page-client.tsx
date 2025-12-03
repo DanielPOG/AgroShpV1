@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, AlertTriangle, Package } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Plus, AlertTriangle, Package, Search } from "lucide-react"
 import { CreateLoteModal } from "@/components/inventory/create-lote-modal"
 import { LotesList } from "@/components/inventory/lotes-list"
 import { useLotes } from "@/hooks/use-lotes"
@@ -18,9 +19,23 @@ export function LotesPageClient() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [unidadesProductivas, setUnidadesProductivas] = useState<any[]>([])
   const [productos, setProductos] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   
-  // Todos los lotes
-  const { lotes: todosLotes, isLoading, error, refetch } = useLotes({ page: 1, limit: 100 })
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+  
+  // Todos los lotes con búsqueda
+  const { lotes: todosLotes, isLoading, error, refetch } = useLotes({ 
+    page: 1, 
+    limit: 100,
+    search: debouncedSearch || undefined
+  })
   
   // Lotes próximos a vencer (7 días)
   const { lotes: lotesProximos, isLoading: loadingProximos } = useLotes({ 
@@ -99,48 +114,58 @@ export function LotesPageClient() {
 
   return (
     <div className="space-y-6">
-      {/* Header con estadísticas */}
-      <div className="flex items-center justify-between">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Lotes</CardDescription>
-              <CardTitle className="text-3xl">{todosLotes.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Disponibles</CardDescription>
-              <CardTitle className="text-3xl text-green-600">
-                {lotesDisponibles.length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Próximos a Vencer</CardDescription>
-              <CardTitle className="text-3xl text-orange-500">
-                {lotesProximos?.length || 0}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Vencidos</CardDescription>
-              <CardTitle className="text-3xl text-destructive">
-                {lotesVencidos.length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
+      {/* Barra de búsqueda y botón crear */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative w-full sm:w-96">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por código de lote..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
-        
-        <Button onClick={() => setIsCreateOpen(true)} className="ml-4">
+        <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Nuevo Lote
         </Button>
+      </div>
+
+      {/* Header con estadísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Total Lotes</CardDescription>
+            <CardTitle className="text-3xl">{todosLotes.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Disponibles</CardDescription>
+            <CardTitle className="text-3xl text-green-600">
+              {lotesDisponibles.length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Próximos a Vencer</CardDescription>
+            <CardTitle className="text-3xl text-orange-500">
+              {lotesProximos?.length || 0}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Vencidos</CardDescription>
+            <CardTitle className="text-3xl text-destructive">
+              {lotesVencidos.length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       {/* Alertas de vencimiento */}
@@ -204,7 +229,19 @@ export function LotesPageClient() {
         </TabsList>
 
         <TabsContent value="todos" className="mt-6">
-          <LotesList lotes={todosLotes} showProductInfo={true} />
+          {todosLotes.length === 0 && debouncedSearch ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-10">
+                <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No se encontraron lotes con el código "{debouncedSearch}"</p>
+                <Button variant="link" onClick={() => setSearchTerm("")} className="mt-2">
+                  Limpiar búsqueda
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <LotesList lotes={todosLotes} showProductInfo={true} />
+          )}
         </TabsContent>
 
         <TabsContent value="disponibles" className="mt-6">

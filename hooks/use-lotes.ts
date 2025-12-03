@@ -190,41 +190,56 @@ export function useLote(id: number | null) {
 }
 
 /**
- * Hook para obtener lotes de un producto específico
+ * Hook para obtener lotes de un producto específico con estadísticas
  */
 export function useLotesByProducto(producto_id: number | null) {
   const [lotes, setLotes] = useState<Lote[]>([])
+  const [estadisticas, setEstadisticas] = useState<{
+    total: number
+    disponibles: number
+    vencidos: number
+    retirados: number
+    cantidad_total: number
+    proximos_vencer: number
+  } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchLotes = useCallback(async () => {
     if (!producto_id) {
       setLotes([])
+      setEstadisticas(null)
       setIsLoading(false)
       return
     }
 
-    console.log('🔍 useLotesByProducto: Fetching lotes for producto_id:', producto_id)
     setIsLoading(true)
     setError(null)
 
     try {
       const response = await fetch(`/api/productos/${producto_id}/lotes`)
-      console.log('🔍 useLotesByProducto: Response status:', response.status)
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('❌ useLotesByProducto: Error response:', errorData)
         throw new Error(errorData.error || 'Error al cargar lotes del producto')
       }
 
-      const data = await response.json()
-      console.log('✅ useLotesByProducto: Lotes fetched:', data)
-      setLotes(data)
+      const result = await response.json()
+      
+      // El endpoint ahora retorna { success, data, estadisticas }
+      if (result.success) {
+        setLotes(result.data || [])
+        setEstadisticas(result.estadisticas || null)
+      } else {
+        // Fallback para respuesta antigua (solo array)
+        setLotes(Array.isArray(result) ? result : [])
+        setEstadisticas(null)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      console.error('❌ useLotesByProducto: Error:', err)
       setError(message)
+      setLotes([])
+      setEstadisticas(null)
     } finally {
       setIsLoading(false)
     }
@@ -236,6 +251,7 @@ export function useLotesByProducto(producto_id: number | null) {
 
   return {
     lotes,
+    estadisticas,
     isLoading,
     error,
     refetch: fetchLotes,

@@ -302,19 +302,41 @@ export async function updateLote(id: number, data: UpdateLoteData) {
       },
     })
 
-    // Si se proporcionó usuario_id, actualizar los registros de historial que creó el trigger
+    // Actualizar el usuario_id en el registro de auditoría que acaba de crear el trigger
     if (data.usuario_id) {
-      await prisma.historial_inventario.updateMany({
-        where: {
-          producto_id: lote.producto_id,
-          referencia_id: id,
-          referencia_tipo: 'lote',
-          usuario_id: null,
-        },
-        data: {
-          usuario_id: data.usuario_id,
-        },
-      })
+      // El trigger crea el registro sin usuario_id, así que lo actualizamos
+      await prisma.$executeRaw`
+        UPDATE auditoria 
+        SET usuario_id = ${data.usuario_id}
+        WHERE id = (
+          SELECT id 
+          FROM auditoria 
+          WHERE tabla = 'lotes_productos' 
+            AND registro_id = ${id}
+            AND usuario_id IS NULL
+            AND fecha >= NOW() - INTERVAL '5 seconds'
+          ORDER BY id DESC
+          LIMIT 1
+        )
+      `
+
+      // También actualizar historial_inventario si hay cambios de cantidad
+      if (data.cantidad && data.cantidad !== Number(existing.cantidad)) {
+        await prisma.historial_inventario.updateMany({
+          where: {
+            producto_id: lote.producto_id,
+            referencia_id: id,
+            referencia_tipo: 'lote',
+            usuario_id: null,
+            fecha_movimiento: {
+              gte: new Date(Date.now() - 5000), // últimos 5 segundos
+            },
+          },
+          data: {
+            usuario_id: data.usuario_id,
+          },
+        })
+      }
     }
 
     return lote

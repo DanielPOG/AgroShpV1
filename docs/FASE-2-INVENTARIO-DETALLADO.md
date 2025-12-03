@@ -91,7 +91,7 @@ Completar el **100% del módulo de inventario** con todas sus funcionalidades cr
 
 ---
 
-#### **Subtarea 2.2: Gestión de Lotes** (3-4 días) ⚠️ CRÍTICO
+#### **Subtarea 2.2: Gestión de Lotes** ✅ 95% COMPLETADA 
 **Justificación:** Trazabilidad obligatoria para productos perecederos (cumplimiento INVIMA).
 
 **Caso de uso:**
@@ -107,103 +107,105 @@ lotes_productos {
   producto_id INT NOT NULL,
   codigo_lote VARCHAR(50) UNIQUE,
   cantidad DECIMAL(10,2),
-  fecha_produccion DATE,
-  fecha_vencimiento DATE,
+  fecha_produccion TIMESTAMPTZ,
+  fecha_vencimiento TIMESTAMPTZ,
   unidad_productiva_id INT,
   estado VARCHAR(20) DEFAULT 'disponible', -- disponible, vencido, retirado
-  created_at TIMESTAMP
+  created_at TIMESTAMPTZ
 }
 ```
 
-**Archivos a crear:**
+**✅ ARCHIVOS COMPLETADOS:**
 
-**1. Validación:**
-- [ ] Crear `lib/validations/lote.schema.ts`
-```typescript
-// createLoteSchema
-{
-  producto_id: z.number().int().positive(),
-  codigo_lote: z.string().min(5).max(50).regex(/^[A-Z0-9-]+$/),
-  cantidad: z.number().positive(),
-  fecha_produccion: z.date(),
-  fecha_vencimiento: z.date().optional(),
-  unidad_productiva_id: z.number().int().positive(),
-  estado: z.enum(['disponible', 'vencido', 'retirado']).default('disponible')
-}
-// updateLoteSchema (solo estado y cantidad)
-// Validación: fecha_vencimiento > fecha_produccion
-// Validación: si producto es perecedero, fecha_vencimiento es requerida
-```
+**1. Validación:** ✅ COMPLETO
+- ✅ `lib/validations/lote.schema.ts`
+  - ✅ createLoteSchema (con todas las validaciones)
+  - ✅ updateLoteSchema (estado y cantidad)
+  - ✅ loteFiltersSchema (filtros de búsqueda)
+  - ✅ Validación fecha_vencimiento > fecha_produccion
+  - ✅ Validación productos perecederos
 
-**2. Funciones DB:**
-- [ ] Crear `lib/db/lotes.ts`
-```typescript
-// getLotes(filters) - Listar con filtros
-// getLoteById(id) - Obtener uno con producto
-// createLote(data) - Crear lote
-// updateLote(id, data) - Actualizar estado/cantidad
-// deleteLote(id) - Eliminar lote
-// getLotesByProducto(producto_id) - Lotes de un producto
-// getLotesProximosVencer(dias) - Lotes con vencimiento próximo
-// getLotesVencidos() - Lotes vencidos
-```
+**2. Funciones DB:** ✅ COMPLETO
+- ✅ `lib/db/lotes.ts` (500+ líneas)
+  - ✅ getLotes(filters) - Con paginación y 6 filtros
+  - ✅ getLoteById(id) - Con producto y unidad
+  - ✅ createLote(data) - Cálculo automático fecha_vencimiento
+  - ✅ updateLote(id, data) - Estado y cantidad
+  - ✅ deleteLote(id) - Con validaciones
+  - ✅ getLotesByProducto(producto_id)
+  - ✅ getLotesProximosVencer(dias)
+  - ✅ getLotesVencidos()
 
-**3. API Endpoints:**
-- [ ] Crear `app/api/lotes/route.ts`
-  - GET: Listar lotes con filtros
-  - POST: Crear lote
-- [ ] Crear `app/api/lotes/[id]/route.ts`
-  - GET: Detalle de lote
-  - PUT: Actualizar estado/cantidad
-  - DELETE: Eliminar lote
-- [ ] Crear `app/api/productos/[id]/lotes/route.ts`
-  - GET: Lotes de un producto
-- [ ] Crear `app/api/lotes/vencimientos/route.ts`
-  - GET: Lotes próximos a vencer (query param: dias)
+**3. API Endpoints:** ✅ 75% COMPLETO
+- ✅ `app/api/lotes/route.ts`
+  - ✅ GET: Listar con filtros (page, limit, producto_id, estado, dias_vencimiento, search)
+  - ✅ POST: Crear lote con validación completa
+- ✅ `app/api/lotes/[id]/route.ts`
+  - ✅ GET: Detalle con relaciones
+  - ✅ PUT: Actualizar estado/cantidad
+  - ✅ DELETE: Eliminar con validaciones
+- ✅ `app/api/lotes/vencimientos/route.ts`
+  - ✅ GET: Lotes próximos a vencer (param: dias, default 7)
+- ❌ FALTA: `app/api/productos/[id]/lotes/route.ts`
 
-**4. Componentes UI:**
-- [ ] Crear `components/inventory/create-lote-modal.tsx`
-  - Form para crear lote
-  - Select producto
-  - Input código lote (auto-generar sugerencia)
-  - Input cantidad
-  - DatePicker fecha producción
-  - DatePicker fecha vencimiento (solo si es perecedero)
-  - Select unidad productiva
-- [ ] Crear `components/inventory/lotes-list.tsx`
-  - Tabla de lotes con filtros
-  - Badges de estado (disponible, vencido, retirado)
-  - Alertas visuales para próximos a vencer
-  - Acciones: ver, editar, eliminar
-- [ ] Crear `components/inventory/lote-detail-modal.tsx`
-  - Información del lote
-  - Información del producto
-  - Historial de movimientos del lote
-  - Botón cambiar estado
-- [ ] Modificar `components/inventory/product-detail-modal.tsx`
-  - Agregar sección "Lotes" con lista de lotes del producto
-  - Botón "Crear Lote"
-- [ ] Modificar `components/inventory/inventory-page-client.tsx`
-  - Agregar filtro "Próximos a vencer"
-  - Badge visual en cards de productos con lotes vencidos
+**4. Componentes UI:** ✅ 80% COMPLETO
+- ✅ `components/inventory/create-lote-modal.tsx`
+  - ✅ Form completo con validación
+  - ✅ Select producto con búsqueda
+  - ✅ DatePicker fecha_produccion
+  - ✅ Cálculo automático fecha_vencimiento
+  - ✅ Select unidad productiva
+- ✅ `components/inventory/lotes-list.tsx`
+  - ✅ Tabla responsiva con todos los campos
+  - ✅ Indicador días restantes (crítico/próximo/normal)
+  - ✅ Badge de estado (disponible/vencido/retirado)
+  - ✅ Dropdown con acciones
+- ✅ `components/inventory/lotes-page-client.tsx`
+  - ✅ Dashboard con 4 estadísticas
+  - ✅ Tabs por estado (todos/disponibles/próximos/vencidos/retirados)
+  - ✅ Alertas visuales de vencimiento
+  - ✅ Botón crear lote
+- ✅ `components/inventory/edit-lote-modal.tsx`
+  - ✅ Editar cantidad y estado
+- ✅ `components/inventory/adjust-lote-stock-modal.tsx`
+  - ✅ Ajustar stock del lote
+- ❌ FALTA: Integración en `product-detail-modal.tsx`
 
-**5. Hooks:**
-- [ ] Crear `hooks/use-lotes.ts`
-  - useLotes() - Listar lotes
-  - useLote(id) - Obtener un lote
-  - useLotesByProducto(producto_id)
-  - useLotesMutations() - create, update, delete
+**5. Hooks:** ✅ COMPLETO
+- ✅ `hooks/use-lotes.ts`
+  - ✅ useLotes(filters) - Con refetch y loading
+  - ✅ updateLocalLote() - Para actualizaciones locales
 
-**6. Testing:**
-- [ ] Crear lote para producto perecedero
-- [ ] Crear lote para producto no perecedero
-- [ ] Validar fecha_vencimiento requerida para perecederos
+**❌ LO QUE FALTA (15%):**
+
+**1. API Endpoint faltante:** ✅ COMPLETADO
+- ✅ `app/api/productos/[id]/lotes/route.ts` 
+  - ✅ GET: Lotes de un producto específico
+  - ✅ Estadísticas calculadas (total, disponibles, vencidos, próximos, cantidad_total)
+
+**2. Integración en ProductDetail:** ✅ COMPLETADO
+- ✅ `components/inventory/product-detail-modal.tsx`
+  - ✅ Sección "Lotes" con estadísticas visuales
+  - ✅ Grid de KPIs (Total, Disponibles, Próximos, Vencidos, Stock)
+  - ✅ Lista de lotes del producto
+  - ✅ Botón "Crear Lote" para ese producto
+  - ✅ Acciones: editar y ajustar stock por lote
+
+**3. Hook mejorado:** ✅ COMPLETADO
+- ✅ `hooks/use-lotes.ts`
+  - ✅ useLotesByProducto retorna lotes + estadísticas
+  - ✅ Compatibilidad con respuesta antigua
+
+**3. Testing pendiente:**
+- [ ] Validar creación de lote con producto perecedero
+- [ ] Validar cálculo automático de fecha_vencimiento
 - [ ] Validar código_lote único
-- [ ] Ver lotes de un producto
-- [ ] Cambiar estado de lote
-- [ ] Alertas de vencimiento
+- [ ] Probar filtros de vencimiento
+- [ ] Probar cambio de estado
+- [ ] Probar ajuste de stock de lote
+- [ ] Verificar estadísticas en modal de producto
 
-**Tiempo:** 3-4 días
+**Tiempo restante:** 0.5 día (solo testing)
 
 ---
 

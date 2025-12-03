@@ -37,7 +37,37 @@ export async function GET(
     // Obtener lotes del producto
     const lotes = await getLotesByProducto(id)
 
-    return NextResponse.json(lotes, { status: 200 })
+    // Calcular estadísticas útiles para el frontend
+    const ahora = new Date()
+    
+    const estadisticas = {
+      total: lotes.length,
+      disponibles: lotes.filter(l => l.estado === 'disponible').length,
+      vencidos: lotes.filter(l => {
+        if (!l.fecha_vencimiento) return false
+        return new Date(l.fecha_vencimiento) < ahora && l.estado === 'disponible'
+      }).length,
+      retirados: lotes.filter(l => l.estado === 'retirado').length,
+      cantidad_total: lotes
+        .filter(l => l.estado === 'disponible')
+        .reduce((sum, l) => sum + Number(l.cantidad), 0),
+      proximos_vencer: lotes.filter(l => {
+        if (!l.fecha_vencimiento || l.estado !== 'disponible') return false
+        const diasRestantes = Math.ceil(
+          (new Date(l.fecha_vencimiento).getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24)
+        )
+        return diasRestantes > 0 && diasRestantes <= 7
+      }).length,
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: lotes,
+        estadisticas,
+      },
+      { status: 200 }
+    )
   } catch (error) {
     console.error(`Error en GET /api/productos/[id]/lotes:`, error)
 

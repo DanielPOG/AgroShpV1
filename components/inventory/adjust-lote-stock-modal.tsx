@@ -107,7 +107,7 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
           <DialogDescription>Aumenta o disminuye la cantidad del lote</DialogDescription>
           
           {/* Badge de advertencia si el producto está desactivado */}
-          {lote && !lote.productos?.activo && (
+          {lote && !lote.producto?.activo && (
             <Alert variant="default" className="bg-orange-50 border-orange-200 mt-3">
               <AlertCircle className="h-4 w-4 text-orange-600" />
               <AlertDescription className="text-xs text-orange-800">
@@ -138,10 +138,10 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
                 <span className="text-sm text-muted-foreground">Cantidad Actual:</span>
                 <span className="text-lg font-bold">{lote.cantidad}</span>
               </div>
-              {lote.productos && (
+              {lote.producto && (
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Producto:</span>
-                  <span className="text-sm font-medium">{lote.productos.nombre}</span>
+                  <span className="text-sm font-medium">{lote.producto.nombre}</span>
                 </div>
               )}
             </div>

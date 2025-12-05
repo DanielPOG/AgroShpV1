@@ -19,6 +19,9 @@ model auditoria {
   ip_address       String?   @db.VarChar(50)
   user_agent       String?
   fecha            DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([tabla, registro_id], map: "idx_auditoria_tabla_registro")
+  @@index([usuario_id], map: "idx_auditoria_usuario")
 }
 
 model categorias {
@@ -50,8 +53,8 @@ model clientes {
   activo           Boolean?  @default(true)
   created_at       DateTime? @default(now()) @db.Timestamp(6)
   updated_at       DateTime? @default(now()) @db.Timestamp(6)
-  ventas           ventas[]
   turnos           turnos[]
+  ventas           ventas[]
 
   @@index([numero_documento], map: "idx_clientes_documento")
   @@index([email], map: "idx_clientes_email")
@@ -84,8 +87,8 @@ model costos_produccion {
   fecha_registro      DateTime?        @default(now()) @db.Date
   observaciones       String?
   created_at          DateTime?        @default(now()) @db.Timestamp(6)
-  producto            productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lote                lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  producto            productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([producto_id], map: "idx_costos_producto")
   @@index([lote_id], map: "idx_costos_lote")
@@ -95,28 +98,28 @@ model costos_produccion {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model descuentos {
-  id                     Int                      @id @default(autoincrement())
-  codigo                 String                   @unique @db.VarChar(50)
-  nombre                 String                   @db.VarChar(100)
-  descripcion            String?
-  tipo                   String                   @db.VarChar(20)
-  valor                  Decimal                  @db.Decimal(10, 2)
-  minimo_compra          Decimal?                 @db.Decimal(10, 2)
-  maximo_descuento       Decimal?                 @db.Decimal(10, 2)
-  aplica_a               String?                  @db.VarChar(20)
-  categoria_id           Int?
-  producto_id            Int?
-  usos_maximos           Int?
-  usos_actuales          Int?                     @default(0)
-  fecha_inicio           DateTime?                @db.Date
-  fecha_fin              DateTime?                @db.Date
-  solo_aprendices        Boolean?                 @default(false)
-  solo_empleados         Boolean?                 @default(false)
-  solo_institucional     Boolean?                 @default(false)
-  activo                 Boolean?                 @default(true)
-  created_at             DateTime?                @default(now()) @db.Timestamp(6)
-  producto               productos?               @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  descuentos_aplicados   descuentos_aplicados[]
+  id                   Int                    @id @default(autoincrement())
+  codigo               String                 @unique @db.VarChar(50)
+  nombre               String                 @db.VarChar(100)
+  descripcion          String?
+  tipo                 String                 @db.VarChar(20)
+  valor                Decimal                @db.Decimal(10, 2)
+  minimo_compra        Decimal?               @db.Decimal(10, 2)
+  maximo_descuento     Decimal?               @db.Decimal(10, 2)
+  aplica_a             String?                @db.VarChar(20)
+  categoria_id         Int?
+  producto_id          Int?
+  usos_maximos         Int?
+  usos_actuales        Int?                   @default(0)
+  fecha_inicio         DateTime?              @db.Date
+  fecha_fin            DateTime?              @db.Date
+  solo_aprendices      Boolean?               @default(false)
+  solo_empleados       Boolean?               @default(false)
+  solo_institucional   Boolean?               @default(false)
+  activo               Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.Timestamp(6)
+  producto             productos?             @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  descuentos_aplicados descuentos_aplicados[]
 
   @@index([codigo], map: "idx_descuentos_codigo")
   @@index([activo], map: "idx_descuentos_activo")
@@ -130,8 +133,8 @@ model descuentos_aplicados {
   monto_descuento  Decimal     @db.Decimal(10, 2)
   aplicado_por     Int?
   fecha_aplicacion DateTime?   @default(now()) @db.Timestamp(6)
-  venta            ventas?     @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   descuento        descuentos? @relation(fields: [descuento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venta            ventas?     @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([venta_id], map: "idx_descuentos_aplicados_venta")
 }
@@ -144,21 +147,21 @@ model detalle_movimientos {
   lote_id       Int?
   cantidad      Decimal               @db.Decimal(10, 2)
   unidad        String?               @db.VarChar(20)
+  lote          lotes_productos?      @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   movimiento    movimientos_unidades? @relation(fields: [movimiento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producto      productos?            @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  lote          lotes_productos?      @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model detalle_solicitudes {
-  id                  Int                          @id @default(autoincrement())
+  id                  Int                        @id @default(autoincrement())
   solicitud_id        Int?
   producto_id         Int?
-  cantidad_solicitada Decimal                      @db.Decimal(10, 2)
-  cantidad_aprobada   Decimal?                     @db.Decimal(10, 2)
+  cantidad_solicitada Decimal                    @db.Decimal(10, 2)
+  cantidad_aprobada   Decimal?                   @db.Decimal(10, 2)
   observaciones       String?
-  solicitud           solicitudes_transferencia?   @relation(fields: [solicitud_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  producto            productos?                   @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  producto            productos?                 @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  solicitud           solicitudes_transferencia? @relation(fields: [solicitud_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -170,9 +173,9 @@ model detalle_ventas {
   cantidad        Decimal          @db.Decimal(10, 2)
   precio_unitario Decimal          @db.Decimal(10, 2)
   subtotal        Decimal          @db.Decimal(10, 2)
-  venta           ventas?          @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lote            lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venta           ventas?          @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -193,6 +196,8 @@ model historial_inventario {
   @@index([fecha_movimiento], map: "idx_historial_fecha")
   @@index([producto_id], map: "idx_historial_producto")
   @@index([tipo_movimiento], map: "idx_historial_tipo")
+  @@index([referencia_tipo, referencia_id], map: "idx_historial_referencia")
+  @@index([usuario_id], map: "idx_historial_usuario")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -205,46 +210,47 @@ model lotes_productos {
   fecha_vencimiento    DateTime?             @db.Timestamptz(6)
   unidad_productiva_id Int?
   estado               String?               @default("disponible") @db.VarChar(20)
-  usuario_id           Int?
   created_at           DateTime?             @default(now()) @db.Timestamp(6)
+  usuario_id           Int?
+  costos_produccion    costos_produccion[]
+  detalle_movimientos  detalle_movimientos[]
+  detalle_ventas       detalle_ventas[]
+  usuario              usuarios?             @relation(fields: [usuario_id], references: [id], map: "fk_lotes_usuario")
   producto             productos?            @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   unidad_productiva    unidades_productivas? @relation(fields: [unidad_productiva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario              usuarios?             @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  detalle_ventas       detalle_ventas[]
-  detalle_movimientos  detalle_movimientos[]
-  costos_produccion    costos_produccion[]
 
   @@index([estado], map: "idx_lotes_estado")
   @@index([producto_id], map: "idx_lotes_producto")
   @@index([fecha_vencimiento], map: "idx_lotes_vencimiento")
+  @@index([usuario_id], map: "idx_lotes_usuario")
 }
 
 model metodos_pago {
-  id           Int           @id @default(autoincrement())
-  nombre       String        @db.VarChar(50)
-  descripcion  String?
-  activo       Boolean?      @default(true)
-  icono        String?       @db.VarChar(50)
-  created_at   DateTime?     @default(now()) @db.Timestamp(6)
-  pagos_venta  pagos_venta[]
+  id          Int           @id @default(autoincrement())
+  nombre      String        @db.VarChar(50)
+  descripcion String?
+  activo      Boolean?      @default(true)
+  icono       String?       @db.VarChar(50)
+  created_at  DateTime?     @default(now()) @db.Timestamp(6)
+  pagos_venta pagos_venta[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model movimientos_unidades {
-  id                  Int                       @id @default(autoincrement())
-  codigo_movimiento   String                    @unique @db.VarChar(50)
+  id                  Int                   @id @default(autoincrement())
+  codigo_movimiento   String                @unique @db.VarChar(50)
   unidad_origen_id    Int?
   unidad_destino_id   Int?
   usuario_id          Int?
-  fecha_movimiento    DateTime?                 @default(now()) @db.Timestamptz(6)
+  fecha_movimiento    DateTime?             @default(now()) @db.Timestamptz(6)
   motivo              String?
-  estado              String?                   @default("completado") @db.VarChar(20)
+  estado              String?               @default("completado") @db.VarChar(20)
   observaciones       String?
-  created_at          DateTime?                 @default(now()) @db.Timestamptz(6)
-  unidad_origen       unidades_productivas?     @relation("movimientos_origen", fields: [unidad_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  unidad_destino      unidades_productivas?     @relation("movimientos_destino", fields: [unidad_destino_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario             usuarios?                 @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
   detalle_movimientos detalle_movimientos[]
+  unidad_destino      unidades_productivas? @relation("movimientos_destino", fields: [unidad_destino_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidad_origen       unidades_productivas? @relation("movimientos_origen", fields: [unidad_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario             usuarios?             @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([unidad_destino_id], map: "idx_movimientos_destino")
   @@index([fecha_movimiento], map: "idx_movimientos_fecha")
@@ -270,14 +276,14 @@ model notificaciones {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model pagos_venta {
-  id             Int          @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   venta_id       Int?
   metodo_pago_id Int?
-  monto          Decimal      @db.Decimal(10, 2)
-  referencia     String?      @db.VarChar(100)
-  fecha_pago     DateTime?    @default(now()) @db.Timestamptz(6)
-  venta          ventas?   @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  monto          Decimal       @db.Decimal(10, 2)
+  referencia     String?       @db.VarChar(100)
+  fecha_pago     DateTime?     @default(now()) @db.Timestamptz(6)
   metodo_pago    metodos_pago? @relation(fields: [metodo_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venta          ventas?       @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([metodo_pago_id], map: "idx_pagos_metodo")
   @@index([venta_id], map: "idx_pagos_venta")
@@ -285,15 +291,15 @@ model pagos_venta {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model cajas {
-  id             Int              @id @default(autoincrement())
-  codigo         String           @unique @db.VarChar(20)
-  nombre         String           @db.VarChar(100)
-  ubicacion      String?          @db.VarChar(200)
-  tipo           String?          @default("principal") @db.VarChar(20)
-  activa         Boolean?         @default(true)
-  created_at     DateTime?        @default(now()) @db.Timestamp(6)
-  updated_at     DateTime?        @default(now()) @db.Timestamp(6)
-  sesiones_caja  sesiones_caja[]
+  id            Int             @id @default(autoincrement())
+  codigo        String          @unique @db.VarChar(20)
+  nombre        String          @db.VarChar(100)
+  ubicacion     String?         @db.VarChar(200)
+  tipo          String?         @default("principal") @db.VarChar(20)
+  activa        Boolean?        @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  sesiones_caja sesiones_caja[]
 
   @@index([activa], map: "idx_cajas_activa")
 }
@@ -301,35 +307,35 @@ model cajas {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model sesiones_caja {
-  id                          Int                 @id @default(autoincrement())
-  codigo_sesion               String              @unique @db.VarChar(50)
-  caja_id                     Int
-  cajero_id                   Int
-  fecha_apertura              DateTime            @default(now()) @db.Timestamp(6)
-  fondo_inicial               Decimal             @default(0) @db.Decimal(10, 2)
-  observaciones_apertura      String?
-  fecha_cierre                DateTime?           @db.Timestamp(6)
-  estado                      String?             @default("abierta") @db.VarChar(20)
-  observaciones_cierre        String?
-  total_ventas_efectivo       Decimal?            @default(0) @db.Decimal(10, 2)
-  total_ventas_nequi          Decimal?            @default(0) @db.Decimal(10, 2)
-  total_ventas_tarjeta        Decimal?            @default(0) @db.Decimal(10, 2)
-  total_ventas_transferencia  Decimal?            @default(0) @db.Decimal(10, 2)
-  total_ingresos_adicionales  Decimal?            @default(0) @db.Decimal(10, 2)
-  total_retiros               Decimal?            @default(0) @db.Decimal(10, 2)
-  total_gastos                Decimal?            @default(0) @db.Decimal(10, 2)
-  efectivo_esperado           Decimal?            @db.Decimal(10, 2)
-  efectivo_contado            Decimal?            @db.Decimal(10, 2)
-  diferencia                  Decimal?            @db.Decimal(10, 2)
-  desglose_efectivo           Json?
-  cuadrada                    Boolean?            @default(false)
-  created_at                  DateTime?           @default(now()) @db.Timestamp(6)
-  caja                        cajas               @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cajero                      usuarios            @relation(fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  movimientos_caja            movimientos_caja[]
-  retiros_caja                retiros_caja[]
-  gastos_caja                 gastos_caja[]
-  arqueos_caja                arqueos_caja[]
+  id                         Int                @id @default(autoincrement())
+  codigo_sesion              String             @unique @db.VarChar(50)
+  caja_id                    Int
+  cajero_id                  Int
+  fecha_apertura             DateTime           @default(now()) @db.Timestamp(6)
+  fondo_inicial              Decimal            @default(0) @db.Decimal(10, 2)
+  observaciones_apertura     String?
+  fecha_cierre               DateTime?          @db.Timestamp(6)
+  estado                     String?            @default("abierta") @db.VarChar(20)
+  observaciones_cierre       String?
+  total_ventas_efectivo      Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_nequi         Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_tarjeta       Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ventas_transferencia Decimal?           @default(0) @db.Decimal(10, 2)
+  total_ingresos_adicionales Decimal?           @default(0) @db.Decimal(10, 2)
+  total_retiros              Decimal?           @default(0) @db.Decimal(10, 2)
+  total_gastos               Decimal?           @default(0) @db.Decimal(10, 2)
+  efectivo_esperado          Decimal?           @db.Decimal(10, 2)
+  efectivo_contado           Decimal?           @db.Decimal(10, 2)
+  diferencia                 Decimal?           @db.Decimal(10, 2)
+  desglose_efectivo          Json?
+  cuadrada                   Boolean?           @default(false)
+  created_at                 DateTime?          @default(now()) @db.Timestamp(6)
+  arqueos_caja               arqueos_caja[]
+  gastos_caja                gastos_caja[]
+  movimientos_caja           movimientos_caja[]
+  retiros_caja               retiros_caja[]
+  caja                       cajas              @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cajero                     usuarios           @relation(fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([caja_id], map: "idx_sesiones_caja")
   @@index([cajero_id], map: "idx_sesiones_cajero")
@@ -340,21 +346,21 @@ model sesiones_caja {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model movimientos_caja {
-  id                    Int             @id @default(autoincrement())
+  id                    Int           @id @default(autoincrement())
   sesion_caja_id        Int
   venta_id              Int?
-  tipo_movimiento       String          @db.VarChar(20)
-  metodo_pago           String?         @db.VarChar(20)
-  monto                 Decimal         @db.Decimal(10, 2)
+  tipo_movimiento       String        @db.VarChar(20)
+  metodo_pago           String?       @db.VarChar(20)
+  monto                 Decimal       @db.Decimal(10, 2)
   descripcion           String?
   usuario_id            Int?
-  requiere_autorizacion Boolean?        @default(false)
+  requiere_autorizacion Boolean?      @default(false)
   autorizado_por        Int?
-  fecha_movimiento      DateTime?       @default(now()) @db.Timestamp(6)
-  sesion_caja           sesiones_caja   @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  venta                 ventas?         @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario               usuarios?       @relation("movimientos_caja_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  autorizador           usuarios?       @relation("movimientos_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fecha_movimiento      DateTime?     @default(now()) @db.Timestamp(6)
+  autorizador           usuarios?     @relation("movimientos_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja           sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario               usuarios?     @relation("movimientos_caja_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venta                 ventas?       @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_movimientos_caja_sesion")
   @@index([tipo_movimiento], map: "idx_movimientos_caja_tipo")
@@ -377,9 +383,9 @@ model retiros_caja {
   observaciones   String?
   recibo_url      String?       @db.VarChar(500)
   destino_fondos  String?       @db.VarChar(200)
+  autorizador     usuarios?     @relation("retiros_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   solicitante     usuarios      @relation("retiros_caja_solicitante", fields: [solicitado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  autorizador     usuarios?     @relation("retiros_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_retiros_sesion")
   @@index([estado], map: "idx_retiros_estado")
@@ -389,19 +395,19 @@ model retiros_caja {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model gastos_caja {
-  id               Int           @id @default(autoincrement())
-  sesion_caja_id   Int
-  monto            Decimal       @db.Decimal(10, 2)
-  categoria_gasto  String        @db.VarChar(100)
-  descripcion      String
-  beneficiario     String?       @db.VarChar(200)
-  comprobante_url  String?       @db.VarChar(500)
-  numero_factura   String?       @db.VarChar(100)
-  autorizado_por   Int?
-  fecha_gasto      DateTime?     @default(now()) @db.Timestamp(6)
-  observaciones    String?
-  sesion_caja      sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  autorizador      usuarios?     @relation(fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id              Int           @id @default(autoincrement())
+  sesion_caja_id  Int
+  monto           Decimal       @db.Decimal(10, 2)
+  categoria_gasto String        @db.VarChar(100)
+  descripcion     String
+  beneficiario    String?       @db.VarChar(200)
+  comprobante_url String?       @db.VarChar(500)
+  numero_factura  String?       @db.VarChar(100)
+  autorizado_por  Int?
+  fecha_gasto     DateTime?     @default(now()) @db.Timestamp(6)
+  observaciones   String?
+  autorizador     usuarios?     @relation(fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_gastos_sesion")
   @@index([categoria_gasto], map: "idx_gastos_categoria")
@@ -411,29 +417,29 @@ model gastos_caja {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model arqueos_caja {
-  id               Int           @id @default(autoincrement())
-  sesion_caja_id   Int
-  tipo_arqueo      String        @db.VarChar(20)
-  realizado_por    Int
-  fecha_arqueo     DateTime?     @default(now()) @db.Timestamp(6)
-  billetes_100000  Int?          @default(0)
-  billetes_50000   Int?          @default(0)
-  billetes_20000   Int?          @default(0)
-  billetes_10000   Int?          @default(0)
-  billetes_5000    Int?          @default(0)
-  billetes_2000    Int?          @default(0)
-  billetes_1000    Int?          @default(0)
-  monedas_1000     Int?          @default(0)
-  monedas_500      Int?          @default(0)
-  monedas_200      Int?          @default(0)
-  monedas_100      Int?          @default(0)
-  monedas_50       Int?          @default(0)
-  total_contado    Decimal?      @db.Decimal(10, 2)
-  total_esperado   Decimal?      @db.Decimal(10, 2)
-  diferencia       Decimal?      @db.Decimal(10, 2)
-  observaciones    String?
-  sesion_caja      sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  realizador       usuarios      @relation(fields: [realizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id              Int           @id @default(autoincrement())
+  sesion_caja_id  Int
+  tipo_arqueo     String        @db.VarChar(20)
+  realizado_por   Int
+  fecha_arqueo    DateTime?     @default(now()) @db.Timestamp(6)
+  billetes_100000 Int?          @default(0)
+  billetes_50000  Int?          @default(0)
+  billetes_20000  Int?          @default(0)
+  billetes_10000  Int?          @default(0)
+  billetes_5000   Int?          @default(0)
+  billetes_2000   Int?          @default(0)
+  billetes_1000   Int?          @default(0)
+  monedas_1000    Int?          @default(0)
+  monedas_500     Int?          @default(0)
+  monedas_200     Int?          @default(0)
+  monedas_100     Int?          @default(0)
+  monedas_50      Int?          @default(0)
+  total_contado   Decimal?      @db.Decimal(10, 2)
+  total_esperado  Decimal?      @db.Decimal(10, 2)
+  diferencia      Decimal?      @db.Decimal(10, 2)
+  observaciones   String?
+  realizador      usuarios      @relation(fields: [realizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_arqueos_sesion")
   @@index([tipo_arqueo], map: "idx_arqueos_tipo")
@@ -465,16 +471,16 @@ model productos {
   updated_at           DateTime?              @default(now()) @db.Timestamp(6)
   proveedor_id         Int?
   es_produccion_propia Boolean?               @default(true)
-  categoria            categorias?            @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  unidad_productiva    unidades_productivas?  @relation(fields: [unidad_productiva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  proveedor            proveedores?           @relation(fields: [proveedor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  costos_produccion    costos_produccion[]
+  descuentos           descuentos[]
+  detalle_movimientos  detalle_movimientos[]
+  detalle_solicitudes  detalle_solicitudes[]
+  detalle_ventas       detalle_ventas[]
   historial_inventario historial_inventario[]
   lotes_productos      lotes_productos[]
-  detalle_ventas       detalle_ventas[]
-  detalle_movimientos  detalle_movimientos[]
-  costos_produccion    costos_produccion[]
-  detalle_solicitudes  detalle_solicitudes[]
-  descuentos           descuentos[]
+  categoria            categorias?            @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proveedor            proveedores?           @relation(fields: [proveedor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidad_productiva    unidades_productivas?  @relation(fields: [unidad_productiva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([activo], map: "idx_productos_activo")
   @@index([categoria_id], map: "idx_productos_categoria")
@@ -516,22 +522,22 @@ model roles {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model solicitudes_transferencia {
-  id                     Int                       @id @default(autoincrement())
-  codigo_solicitud       String                    @unique @db.VarChar(50)
+  id                     Int                   @id @default(autoincrement())
+  codigo_solicitud       String                @unique @db.VarChar(50)
   unidad_solicitante_id  Int?
   unidad_proveedora_id   Int?
   usuario_solicitante_id Int?
-  estado                 String?                   @default("pendiente") @db.VarChar(20)
-  fecha_solicitud        DateTime?                 @default(now()) @db.Timestamp(6)
-  fecha_respuesta        DateTime?                 @db.Timestamp(6)
+  estado                 String?               @default("pendiente") @db.VarChar(20)
+  fecha_solicitud        DateTime?             @default(now()) @db.Timestamp(6)
+  fecha_respuesta        DateTime?             @db.Timestamp(6)
   usuario_respuesta_id   Int?
   observaciones          String?
   motivo_rechazo         String?
-  unidad_solicitante     unidades_productivas?     @relation("solicitudes_solicitante", fields: [unidad_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  unidad_proveedora      unidades_productivas?     @relation("solicitudes_proveedora", fields: [unidad_proveedora_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario_solicitante    usuarios?                 @relation("solicitudes_solicitante", fields: [usuario_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario_respuesta      usuarios?                 @relation("solicitudes_respuesta", fields: [usuario_respuesta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   detalle_solicitudes    detalle_solicitudes[]
+  unidad_proveedora      unidades_productivas? @relation("solicitudes_proveedora", fields: [unidad_proveedora_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unidad_solicitante     unidades_productivas? @relation("solicitudes_solicitante", fields: [unidad_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario_respuesta      usuarios?             @relation("solicitudes_respuesta", fields: [usuario_respuesta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario_solicitante    usuarios?             @relation("solicitudes_solicitante", fields: [usuario_solicitante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([estado], map: "idx_solicitudes_estado")
   @@index([unidad_solicitante_id], map: "idx_solicitudes_solicitante")
@@ -561,80 +567,80 @@ model turnos {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model unidades_productivas {
-  id                             Int                          @id @default(autoincrement())
-  codigo                         String                       @unique @db.VarChar(20)
-  nombre                         String                       @db.VarChar(100)
-  descripcion                    String?
-  tipo                           String?                      @db.VarChar(50)
-  responsable_id                 Int?
-  ubicacion                      String?                      @db.VarChar(200)
-  activa                         Boolean?                     @default(true)
-  created_at                     DateTime?                    @default(now()) @db.Timestamp(6)
-  updated_at                     DateTime?                    @default(now()) @db.Timestamp(6)
-  responsable                    usuarios?                    @relation(fields: [responsable_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  productos                      productos[]
-  lotes_productos                lotes_productos[]
-  movimientos_origen             movimientos_unidades[]       @relation("movimientos_origen")
-  movimientos_destino            movimientos_unidades[]       @relation("movimientos_destino")
-  solicitudes_solicitante        solicitudes_transferencia[]  @relation("solicitudes_solicitante")
-  solicitudes_proveedora         solicitudes_transferencia[]  @relation("solicitudes_proveedora")
+  id                      Int                         @id @default(autoincrement())
+  codigo                  String                      @unique @db.VarChar(20)
+  nombre                  String                      @db.VarChar(100)
+  descripcion             String?
+  tipo                    String?                     @db.VarChar(50)
+  responsable_id          Int?
+  ubicacion               String?                     @db.VarChar(200)
+  activa                  Boolean?                    @default(true)
+  created_at              DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at              DateTime?                   @default(now()) @db.Timestamp(6)
+  lotes_productos         lotes_productos[]
+  movimientos_destino     movimientos_unidades[]      @relation("movimientos_destino")
+  movimientos_origen      movimientos_unidades[]      @relation("movimientos_origen")
+  productos               productos[]
+  solicitudes_proveedora  solicitudes_transferencia[] @relation("solicitudes_proveedora")
+  solicitudes_solicitante solicitudes_transferencia[] @relation("solicitudes_solicitante")
+  responsable             usuarios?                   @relation(fields: [responsable_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model usuarios {
-  id                                 Int                          @id @default(autoincrement())
-  nombre                             String                       @db.VarChar(100)
-  apellido                           String                       @db.VarChar(100)
-  email                              String                       @unique @db.VarChar(150)
-  password_hash                      String                       @db.VarChar(255)
-  rol_id                             Int?
-  activo                             Boolean?                     @default(true)
-  ultimo_acceso                      DateTime?                    @db.Timestamp(6)
-  created_at                         DateTime?                    @default(now()) @db.Timestamp(6)
-  updated_at                         DateTime?                    @default(now()) @db.Timestamp(6)
-  rol                                roles?                       @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  ventas                             ventas[]
-  lotes_productos                    lotes_productos[]
-  unidades_productivas               unidades_productivas[]
-  sesiones_caja                      sesiones_caja[]
-  movimientos_caja_usuario           movimientos_caja[]           @relation("movimientos_caja_usuario")
-  movimientos_caja_autorizador       movimientos_caja[]           @relation("movimientos_caja_autorizador")
-  retiros_caja_solicitante           retiros_caja[]               @relation("retiros_caja_solicitante")
-  retiros_caja_autorizador           retiros_caja[]               @relation("retiros_caja_autorizador")
-  gastos_caja                        gastos_caja[]
-  arqueos_caja                       arqueos_caja[]
-  movimientos_unidades               movimientos_unidades[]
-  solicitudes_transferencia_solicitante solicitudes_transferencia[] @relation("solicitudes_solicitante")
+  id                                    Int                         @id @default(autoincrement())
+  nombre                                String                      @db.VarChar(100)
+  apellido                              String                      @db.VarChar(100)
+  email                                 String                      @unique @db.VarChar(150)
+  password_hash                         String                      @db.VarChar(255)
+  rol_id                                Int?
+  activo                                Boolean?                    @default(true)
+  ultimo_acceso                         DateTime?                   @db.Timestamp(6)
+  created_at                            DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                            DateTime?                   @default(now()) @db.Timestamp(6)
+  arqueos_caja                          arqueos_caja[]
+  gastos_caja                           gastos_caja[]
+  lotes_productos                       lotes_productos[]
+  movimientos_caja_autorizador          movimientos_caja[]          @relation("movimientos_caja_autorizador")
+  movimientos_caja_usuario              movimientos_caja[]          @relation("movimientos_caja_usuario")
+  movimientos_unidades                  movimientos_unidades[]
+  retiros_caja_autorizador              retiros_caja[]              @relation("retiros_caja_autorizador")
+  retiros_caja_solicitante              retiros_caja[]              @relation("retiros_caja_solicitante")
+  sesiones_caja                         sesiones_caja[]
   solicitudes_transferencia_respuesta   solicitudes_transferencia[] @relation("solicitudes_respuesta")
+  solicitudes_transferencia_solicitante solicitudes_transferencia[] @relation("solicitudes_solicitante")
+  unidades_productivas                  unidades_productivas[]
+  rol                                   roles?                      @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ventas                                ventas[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model ventas {
-  id                   Int                      @id @default(autoincrement())
-  codigo_venta         String                   @unique @db.VarChar(50)
+  id                   Int                    @id @default(autoincrement())
+  codigo_venta         String                 @unique @db.VarChar(50)
   usuario_id           Int?
-  fecha_venta          DateTime?                @default(now()) @db.Timestamptz(6)
-  subtotal             Decimal                  @db.Decimal(10, 2)
-  impuesto             Decimal?                 @default(0) @db.Decimal(10, 2)
-  descuento            Decimal?                 @default(0) @db.Decimal(10, 2)
-  total                Decimal                  @db.Decimal(10, 2)
-  cliente_nombre       String?                  @db.VarChar(150)
-  cliente_email        String?                  @db.VarChar(150)
-  cliente_telefono     String?                  @db.VarChar(20)
-  estado               String?                  @default("completada") @db.VarChar(20)
-  requiere_factura     Boolean?                 @default(false)
-  factura_generada     Boolean?                 @default(false)
-  factura_url          String?                  @db.VarChar(500)
+  fecha_venta          DateTime?              @default(now()) @db.Timestamptz(6)
+  subtotal             Decimal                @db.Decimal(10, 2)
+  impuesto             Decimal?               @default(0) @db.Decimal(10, 2)
+  descuento            Decimal?               @default(0) @db.Decimal(10, 2)
+  total                Decimal                @db.Decimal(10, 2)
+  cliente_nombre       String?                @db.VarChar(150)
+  cliente_email        String?                @db.VarChar(150)
+  cliente_telefono     String?                @db.VarChar(20)
+  estado               String?                @default("completada") @db.VarChar(20)
+  requiere_factura     Boolean?               @default(false)
+  factura_generada     Boolean?               @default(false)
+  factura_url          String?                @db.VarChar(500)
   observaciones        String?
-  created_at           DateTime?                @default(now()) @db.Timestamptz(6)
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   cliente_id           Int?
-  usuario              usuarios?                @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cliente              clientes?                @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  detalle_ventas       detalle_ventas[]
-  pagos_venta          pagos_venta[]
   descuentos_aplicados descuentos_aplicados[]
+  detalle_ventas       detalle_ventas[]
   movimientos_caja     movimientos_caja[]
+  pagos_venta          pagos_venta[]
+  cliente              clientes?              @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario              usuarios?              @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([estado], map: "idx_ventas_estado")
   @@index([fecha_venta], map: "idx_ventas_fecha")

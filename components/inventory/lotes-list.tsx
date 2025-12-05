@@ -34,7 +34,8 @@ interface Lote {
   fecha_produccion: Date | string
   fecha_vencimiento: Date | string | null
   estado: 'disponible' | 'vencido' | 'retirado'
-  productos?: {
+  producto?: {
+    codigo: string
     nombre: string
     unidad: string
     imagen_url: string | null
@@ -156,11 +157,11 @@ export function LotesList({
                     </TableCell>
                     {showProductInfo && (
                       <TableCell>
-                        {lote.productos?.nombre || 'N/A'}
+                        {lote.producto?.codigo || 'N/A'}
                       </TableCell>
                     )}
                     <TableCell>
-                      {lote.cantidad} {lote.productos?.unidad || ''}
+                      {lote.cantidad} {lote.producto?.unidad || ''}
                     </TableCell>
                     <TableCell>
                       {lote.unidad_productiva?.nombre || 'N/A'}

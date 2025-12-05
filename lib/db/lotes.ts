@@ -398,42 +398,8 @@ export async function updateLote(id: number, data: UpdateLoteData) {
       },
     })
 
-    // Actualizar el usuario_id en el registro de auditoría que acaba de crear el trigger
-    if (data.usuario_id) {
-      // El trigger crea el registro sin usuario_id, así que lo actualizamos
-      await prisma.$executeRaw`
-        UPDATE auditoria 
-        SET usuario_id = ${data.usuario_id}
-        WHERE id = (
-          SELECT id 
-          FROM auditoria 
-          WHERE tabla = 'lotes_productos' 
-            AND registro_id = ${id}
-            AND usuario_id IS NULL
-            AND fecha >= NOW() - INTERVAL '5 seconds'
-          ORDER BY id DESC
-          LIMIT 1
-        )
-      `
-
-      // También actualizar historial_inventario si hay cambios de cantidad
-      if (data.cantidad && data.cantidad !== Number(existing.cantidad)) {
-        await prisma.historial_inventario.updateMany({
-          where: {
-            producto_id: lote.producto_id,
-            referencia_id: id,
-            referencia_tipo: 'lote',
-            usuario_id: null,
-            fecha_movimiento: {
-              gte: new Date(Date.now() - 5000), // últimos 5 segundos
-            },
-          },
-          data: {
-            usuario_id: data.usuario_id,
-          },
-        })
-      }
-    }
+    // Los triggers de auditoría e historial ya manejan el registro automáticamente
+    // con el usuario_id que viene en el lote
 
     return lote
   } catch (error) {
@@ -512,38 +478,23 @@ export async function reactivarLote(id: number, usuario_id: number, motivo?: str
       },
     })
 
-    // Actualizar el usuario_id en el registro de auditoría que creó el trigger
-    await prisma.$executeRaw`
-      UPDATE auditoria 
-      SET usuario_id = ${usuario_id}
-      WHERE id = (
-        SELECT id 
-        FROM auditoria 
-        WHERE tabla = 'lotes_productos' 
-          AND registro_id = ${id}
-          AND usuario_id IS NULL
-          AND fecha >= NOW() - INTERVAL '5 seconds'
-        ORDER BY id DESC
-        LIMIT 1
-      )
-    `
-
-    // Actualizar historial_inventario con el usuario
-    await prisma.historial_inventario.updateMany({
-      where: {
-        producto_id: loteActualizado.producto_id,
-        referencia_id: id,
-        referencia_tipo: 'lote',
-        usuario_id: null,
-        fecha_movimiento: {
-          gte: new Date(Date.now() - 5000),
+    // Los triggers de auditoría e historial ya manejan el registro automáticamente
+    // Actualizar solo la observación en historial si hay motivo
+    if (motivo) {
+      await prisma.historial_inventario.updateMany({
+        where: {
+          producto_id: loteActualizado.producto_id,
+          referencia_id: id,
+          referencia_tipo: 'lote',
+          fecha_movimiento: {
+            gte: new Date(Date.now() - 2000),
+          },
         },
-      },
-      data: {
-        usuario_id: usuario_id,
-        observaciones: motivo || 'Lote reactivado',
-      },
-    })
+        data: {
+          observaciones: motivo,
+        },
+      })
+    }
 
     console.log(`✅ Lote ${lote.codigo_lote} reactivado de retirado a disponible`)
 
@@ -612,38 +563,23 @@ export async function retirarLote(id: number, usuario_id: number, motivo?: strin
       },
     })
 
-    // Actualizar el usuario_id en el registro de auditoría que creó el trigger
-    await prisma.$executeRaw`
-      UPDATE auditoria 
-      SET usuario_id = ${usuario_id}
-      WHERE id = (
-        SELECT id 
-        FROM auditoria 
-        WHERE tabla = 'lotes_productos' 
-          AND registro_id = ${id}
-          AND usuario_id IS NULL
-          AND fecha >= NOW() - INTERVAL '5 seconds'
-        ORDER BY id DESC
-        LIMIT 1
-      )
-    `
-
-    // Actualizar historial_inventario con el usuario
-    await prisma.historial_inventario.updateMany({
-      where: {
-        producto_id: lote.producto_id,
-        referencia_id: id,
-        referencia_tipo: 'lote',
-        usuario_id: null,
-        fecha_movimiento: {
-          gte: new Date(Date.now() - 5000),
+    // Los triggers de auditoría e historial ya manejan el registro automáticamente
+    // Actualizar solo la observación en historial si hay motivo
+    if (motivo) {
+      await prisma.historial_inventario.updateMany({
+        where: {
+          producto_id: lote.producto_id,
+          referencia_id: id,
+          referencia_tipo: 'lote',
+          fecha_movimiento: {
+            gte: new Date(Date.now() - 2000),
+          },
         },
-      },
-      data: {
-        usuario_id: usuario_id,
-        observaciones: motivo || 'Lote retirado',
-      },
-    })
+        data: {
+          observaciones: motivo,
+        },
+      })
+    }
 
     return { 
       success: true, 
@@ -713,42 +649,28 @@ export async function deleteLote(id: number, usuario_id: number) {
       )
     }
 
-    // Registrar en auditoría ANTES de eliminar
-    await prisma.auditoria.create({
-      data: {
-        tabla: 'lotes_productos',
-        registro_id: id,
-        accion: 'DELETE',
-        usuario_id: usuario_id,
-        datos_anteriores: {
-          codigo_lote: existing.codigo_lote,
-          cantidad: existing.cantidad,
-          producto: existing.producto.nombre,
-          estado: existing.estado,
-          motivo: 'Eliminación física - lote creado por error',
-        },
-        datos_nuevos: null,
-      },
+    // Actualizar usuario_id del lote antes de eliminar para que los triggers lo capturen
+    await prisma.lotes_productos.update({
+      where: { id },
+      data: { usuario_id: usuario_id },
     })
 
-    // Eliminar lote (el trigger actualizará el stock automáticamente)
+    // Eliminar lote (los triggers de DELETE manejarán auditoría e historial automáticamente)
     await prisma.lotes_productos.delete({
       where: { id },
     })
 
-    // Actualizar historial que creó el trigger
+    // Actualizar observación en historial si es necesario
     await prisma.historial_inventario.updateMany({
       where: {
         producto_id: existing.producto_id,
         referencia_id: id,
         referencia_tipo: 'lote',
-        usuario_id: null,
         fecha_movimiento: {
-          gte: new Date(Date.now() - 5000),
+          gte: new Date(Date.now() - 2000),
         },
       },
       data: {
-        usuario_id: usuario_id,
         observaciones: 'Lote eliminado - creado por error',
       },
     })

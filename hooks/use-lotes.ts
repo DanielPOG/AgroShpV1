@@ -11,7 +11,7 @@ interface Lote {
   unidad_productiva_id: number
   estado: 'disponible' | 'vencido' | 'retirado'
   created_at: Date | string
-  productos?: {
+  producto?: {
     id: number
     codigo: string
     nombre: string

@@ -561,6 +561,33 @@ export function useProductMutations() {
     }
   }
 
+  const reactivateProduct = async (id: number): Promise<Product> => {
+    setIsUpdating(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/productos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: true }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al reactivar producto')
+      }
+
+      const result: Product = await response.json()
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido'
+      setError(message)
+      throw err
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const adjustStock = async (data: Omit<AdjustStockData, 'usuario_id'>): Promise<any> => {
     setIsAdjustingStock(true)
     setError(null)
@@ -592,6 +619,7 @@ export function useProductMutations() {
     createProduct,
     updateProduct,
     deleteProduct,
+    reactivateProduct,
     adjustStock,
     isCreating,
     isUpdating,

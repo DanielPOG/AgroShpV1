@@ -10,8 +10,9 @@ import { getColombiaDate } from '@/lib/date-utils'
  * Si falla cualquier parte, se hace rollback completo
  * 
  * Body:
- * - producto: datos del producto (codigo, nombre, categoria_id, etc.)
+ * - producto: datos del producto (codigo, nombre, categoria_id, stock_maximo, proveedor_id, etc.)
  * - lote: datos del lote inicial (codigo_lote, cantidad, fecha_produccion, etc.)
+ * - costos: costos de producción del lote (opcional, solo para productos propios)
  * 
  * Roles permitidos: Admin, Inventarista
  */
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // Parsear body
     const body = await request.json()
-    const { producto: productoData, lote: loteData } = body
+    const { producto: productoData, lote: loteData, costos: costosData } = body
 
     if (!productoData || !loteData) {
       return NextResponse.json(
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest) {
           stock_actual: 0, // Se actualizará después de crear el lote
           stock_minimo: productoData.stock_minimo || 10,
           stock_maximo: productoData.stock_maximo || null,
+          es_produccion_propia: productoData.es_produccion_propia ?? true,
+          proveedor: productoData.proveedor_id ? {
+            connect: { id: productoData.proveedor_id }
+          } : undefined,
           es_perecedero: productoData.es_perecedero || false,
           dias_vencimiento: productoData.dias_vencimiento || null,
           imagen_url: productoData.imagen_url || null,
@@ -105,7 +110,10 @@ export async function POST(request: NextRequest) {
         fechaVencimiento.setDate(fechaVencimiento.getDate() + producto.dias_vencimiento)
       }
 
-      // 5. Crear lote inicial (esto dispara el trigger que actualiza stock_actual automáticamente)
+      // 5. Crear lote inicial
+      // NOTA: El trigger sync_stock_on_lote_insert se encarga automáticamente de:
+      // - Actualizar stock_actual del producto
+      // - Crear registro en historial_inventario
       const lote = await tx.lotes_productos.create({
         data: {
           producto: {
@@ -121,24 +129,50 @@ export async function POST(request: NextRequest) {
           estado: 'disponible',
         },
       })
-      // NOTA: El trigger sync_stock_on_lote_insert se encarga de:
-      // - Actualizar stock_actual del producto
-      // - Crear registro en historial_inventario (pero sin usuario_id)
 
-      // 5.1. Actualizar el registro de historial que creó el trigger para agregar usuario_id
+      // 6. Actualizar usuario_id en el registro de historial creado por el trigger
       await tx.historial_inventario.updateMany({
         where: {
           producto_id: producto.id,
           referencia_id: lote.id,
           referencia_tipo: 'lote',
-          usuario_id: null, // Solo actualizar los que no tienen usuario
+          usuario_id: null, // Solo actualizar registros sin usuario
         },
         data: {
           usuario_id: Number(session.user.id),
         },
       })
 
-      // 5.2. Crear registro en auditoría
+      // 7. Registrar costos de producción si se proporcionaron
+      if (costosData && producto.es_produccion_propia) {
+        const costoTotal = 
+          (costosData.costo_materia_prima || 0) +
+          (costosData.costo_mano_obra || 0) +
+          (costosData.costo_insumos || 0) +
+          (costosData.costo_energia || 0) +
+          (costosData.otros_costos || 0)
+
+        const costoUnitario = loteData.cantidad > 0 ? costoTotal / loteData.cantidad : 0
+
+        await tx.costos_produccion.create({
+          data: {
+            producto_id: producto.id,
+            lote_id: lote.id,
+            costo_materia_prima: costosData.costo_materia_prima || 0,
+            costo_mano_obra: costosData.costo_mano_obra || 0,
+            costo_insumos: costosData.costo_insumos || 0,
+            costo_energia: costosData.costo_energia || 0,
+            otros_costos: costosData.otros_costos || 0,
+            costo_total: costoTotal,
+            cantidad_producida: loteData.cantidad,
+            costo_unitario: costoUnitario,
+            fecha_registro: new Date(),
+            observaciones: 'Costos del lote inicial',
+          },
+        })
+      }
+
+      // 8. Registrar en auditoría
       await tx.auditoria.create({
         data: {
           tabla: 'productos',
@@ -153,17 +187,20 @@ export async function POST(request: NextRequest) {
             precio_unitario: producto.precio_unitario,
             stock_minimo: producto.stock_minimo,
             stock_maximo: producto.stock_maximo,
+            es_produccion_propia: producto.es_produccion_propia,
+            proveedor_id: productoData.proveedor_id,
             lote_inicial: {
               codigo_lote: loteData.codigo_lote,
               cantidad: loteData.cantidad
-            }
+            },
+            costos_registrados: costosData ? true : false
           },
           ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
           user_agent: request.headers.get('user-agent') || 'unknown'
         }
       })
 
-      // 6. Recargar producto con las relaciones completas
+      // 9. Recargar producto con las relaciones completas
       const productoCompleto = await tx.productos.findUnique({
         where: { id: producto.id },
         include: {
@@ -191,14 +228,14 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // 7. Retornar ambos objetos creados con relaciones
+      // 10. Retornar producto completo con lote y costos
       return { producto: productoCompleto, lote }
     })
 
     return NextResponse.json(
       {
         success: true,
-        message: `Producto "${result.producto.nombre}" creado con lote inicial`,
+        message: `Producto "${result.producto!.nombre}" creado con lote inicial`,
         data: result,
       },
       { status: 201 }

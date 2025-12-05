@@ -47,6 +47,12 @@ interface UnidadProductiva {
   codigo: string
 }
 
+interface Proveedor {
+  id: number
+  nombre: string
+  codigo: string
+}
+
 interface CreateProductWithLoteModalProps {
   isOpen: boolean
   onClose: () => void
@@ -76,6 +82,9 @@ export function CreateProductWithLoteModal({
   const [precioUnitario, setPrecioUnitario] = useState("")
   const [precioMayorista, setPrecioMayorista] = useState("")
   const [stockMinimo, setStockMinimo] = useState("10")
+  const [stockMaximo, setStockMaximo] = useState("")
+  const [esProduccionPropia, setEsProduccionPropia] = useState(true)
+  const [proveedorId, setProveedorId] = useState("")
   const [esPerecedero, setEsPerecedero] = useState(false)
   const [diasVencimiento, setDiasVencimiento] = useState("")
   const [imagenUrl, setImagenUrl] = useState("")
@@ -86,6 +95,17 @@ export function CreateProductWithLoteModal({
   const [codigoLote, setCodigoLote] = useState("")
   const [cantidadInicial, setCantidadInicial] = useState("")
   const [fechaProduccion, setFechaProduccion] = useState<Date>(new Date())
+
+  // Costos de Producción (opcional)
+  const [mostrarCostos, setMostrarCostos] = useState(false)
+  const [costoMateriaPrima, setCostoMateriaPrima] = useState("")
+  const [costoManoObra, setCostoManoObra] = useState("")
+  const [costoInsumos, setCostoInsumos] = useState("")
+  const [costoEnergia, setCostoEnergia] = useState("")
+  const [otrosCostos, setOtrosCostos] = useState("")
+
+  // Lista de proveedores
+  const [proveedores, setProveedores] = useState<Proveedor[]>([])
 
   // Auto-generar código de lote cuando se ingresa el código del producto
   useEffect(() => {
@@ -98,6 +118,20 @@ export function CreateProductWithLoteModal({
       setCodigoLote(`${prefix}-${date}-${random}`)
     }
   }, [codigo, codigoLote])
+
+  // Cargar proveedores al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/proveedores')
+        .then(res => res.json())
+        .then(data => {
+          if (data.data) {
+            setProveedores(data.data.filter((p: Proveedor & { activo: boolean }) => p.activo))
+          }
+        })
+        .catch(err => console.error('Error cargando proveedores:', err))
+    }
+  }, [isOpen])
 
   // Actualizar sugerencias de unidades según tipo de medida
   useEffect(() => {
@@ -193,12 +227,21 @@ export function CreateProductWithLoteModal({
     setPrecioUnitario("")
     setPrecioMayorista("")
     setStockMinimo("10")
+    setStockMaximo("")
+    setEsProduccionPropia(true)
+    setProveedorId("")
     setEsPerecedero(false)
     setDiasVencimiento("")
     setImagenUrl("")
     setCodigoLote("")
     setCantidadInicial("")
     setFechaProduccion(new Date())
+    setMostrarCostos(false)
+    setCostoMateriaPrima("")
+    setCostoManoObra("")
+    setCostoInsumos("")
+    setCostoEnergia("")
+    setOtrosCostos("")
     onClose()
   }
 
@@ -238,6 +281,16 @@ export function CreateProductWithLoteModal({
         return
       }
 
+      if (!esProduccionPropia && !proveedorId) {
+        toast({
+          title: "Error",
+          description: "Selecciona un proveedor para productos no propios",
+          variant: "destructive",
+        })
+        setIsCreating(false)
+        return
+      }
+
       if (!codigoLote || !cantidadInicial || parseFloat(cantidadInicial) <= 0) {
         toast({
           title: "Error",
@@ -247,6 +300,15 @@ export function CreateProductWithLoteModal({
         setIsCreating(false)
         return
       }
+
+      // Calcular costos si se ingresaron
+      const costos = mostrarCostos && esProduccionPropia ? {
+        costo_materia_prima: costoMateriaPrima ? parseFloat(costoMateriaPrima) : 0,
+        costo_mano_obra: costoManoObra ? parseFloat(costoManoObra) : 0,
+        costo_insumos: costoInsumos ? parseFloat(costoInsumos) : 0,
+        costo_energia: costoEnergia ? parseFloat(costoEnergia) : 0,
+        otros_costos: otrosCostos ? parseFloat(otrosCostos) : 0,
+      } : null
 
       // 1. Crear producto
       const productRes = await fetch("/api/productos/con-lote", {
@@ -264,6 +326,9 @@ export function CreateProductWithLoteModal({
             precio_unitario: parseFloat(precioUnitario),
             precio_mayorista: precioMayorista ? parseFloat(precioMayorista) : null,
             stock_minimo: parseFloat(stockMinimo),
+            stock_maximo: stockMaximo ? parseFloat(stockMaximo) : null,
+            es_produccion_propia: esProduccionPropia,
+            proveedor_id: !esProduccionPropia && proveedorId ? parseInt(proveedorId) : null,
             es_perecedero: esPerecedero,
             dias_vencimiento: diasVencimiento ? parseInt(diasVencimiento) : null,
             imagen_url: imagenUrl || null,
@@ -274,6 +339,7 @@ export function CreateProductWithLoteModal({
             fecha_produccion: fechaProduccion.toISOString(),
             unidad_productiva_id: parseInt(unidadProductivaId),
           },
+          costos: costos,
         }),
       })
 
@@ -513,6 +579,65 @@ export function CreateProductWithLoteModal({
               </div>
             </div>
 
+            {/* Stock Máximo y Origen */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="stock_maximo">Stock Máximo</Label>
+                <Input
+                  id="stock_maximo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="100"
+                  value={stockMaximo}
+                  onChange={(e) => setStockMaximo(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Capacidad máxima de almacenamiento
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="es_produccion_propia">Origen del Producto</Label>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <span className="text-sm">
+                    {esProduccionPropia ? "Producción Propia" : "De Proveedor"}
+                  </span>
+                  <Switch
+                    id="es_produccion_propia"
+                    checked={esProduccionPropia}
+                    onCheckedChange={setEsProduccionPropia}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Proveedor (solo si no es producción propia) */}
+            {!esProduccionPropia && (
+              <div className="space-y-2">
+                <Label htmlFor="proveedor">
+                  Proveedor <span className="text-destructive">*</span>
+                </Label>
+                <Select value={proveedorId} onValueChange={setProveedorId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona proveedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {proveedores && proveedores.length > 0 ? (
+                      proveedores.map((proveedor) => (
+                        <SelectItem key={proveedor.id} value={proveedor.id.toString()}>
+                          {proveedor.nombre} ({proveedor.codigo})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>
+                        Cargando proveedores...
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Perecedero */}
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
@@ -692,6 +817,133 @@ export function CreateProductWithLoteModal({
               </p>
             </div>
           </div>
+
+          {/* SECCIÓN 3: COSTOS DE PRODUCCIÓN (solo para producción propia) */}
+          {esProduccionPropia && (
+            <>
+              <Separator />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <h3 className="text-sm font-semibold text-muted-foreground">
+                      COSTOS DE PRODUCCIÓN (OPCIONAL)
+                    </h3>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <Switch
+                    checked={mostrarCostos}
+                    onCheckedChange={setMostrarCostos}
+                  />
+                </div>
+
+                {mostrarCostos && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="costo_materia_prima">Materia Prima</Label>
+                        <Input
+                          id="costo_materia_prima"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costoMateriaPrima}
+                          onChange={(e) => setCostoMateriaPrima(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="costo_mano_obra">Mano de Obra</Label>
+                        <Input
+                          id="costo_mano_obra"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costoManoObra}
+                          onChange={(e) => setCostoManoObra(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="costo_insumos">Insumos</Label>
+                        <Input
+                          id="costo_insumos"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costoInsumos}
+                          onChange={(e) => setCostoInsumos(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="costo_energia">Energía</Label>
+                        <Input
+                          id="costo_energia"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costoEnergia}
+                          onChange={(e) => setCostoEnergia(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="otros_costos">Otros Costos</Label>
+                        <Input
+                          id="otros_costos"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={otrosCostos}
+                          onChange={(e) => setOtrosCostos(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">Costo Total Estimado:</span>
+                        <span className="text-lg font-bold">
+                          $
+                          {(
+                            (parseFloat(costoMateriaPrima) || 0) +
+                            (parseFloat(costoManoObra) || 0) +
+                            (parseFloat(costoInsumos) || 0) +
+                            (parseFloat(costoEnergia) || 0) +
+                            (parseFloat(otrosCostos) || 0)
+                          ).toFixed(2)}
+                        </span>
+                      </div>
+                      {cantidadInicial && parseFloat(cantidadInicial) > 0 && (
+                        <div className="flex items-center justify-between mt-2 text-sm text-muted-foreground">
+                          <span>Costo Unitario:</span>
+                          <span>
+                            $
+                            {
+                              (
+                                (
+                                  (parseFloat(costoMateriaPrima) || 0) +
+                                  (parseFloat(costoManoObra) || 0) +
+                                  (parseFloat(costoInsumos) || 0) +
+                                  (parseFloat(costoEnergia) || 0) +
+                                  (parseFloat(otrosCostos) || 0)
+                                ) / parseFloat(cantidadInicial)
+                              ).toFixed(2)
+                            }
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose} disabled={isCreating}>

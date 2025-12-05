@@ -532,49 +532,151 @@ export async function updateProduct(id: number, data: UpdateProductData) {
 
 /**
  * Desactiva un producto (soft delete)
+ * @param id - ID del producto a desactivar
+ * @param usuario_id - ID del usuario que realiza la acción
+ * @param retireLotes - Si es true, retira automáticamente todos los lotes disponibles
  */
-export async function deleteProduct(id: number, usuario_id?: number) {
+export async function deleteProduct(id: number, usuario_id?: number, retireLotes: boolean = false) {
   try {
+    console.log('🔍 Iniciando desactivación de producto:', { id, retireLotes })
+    
     // Verificar que el producto existe
     const existing = await prisma.productos.findUnique({
       where: { id },
-    })
-
-    if (!existing) {
-      throw new Error('Producto no encontrado')
-    }
-
-    // Soft delete (desactivar)
-    await prisma.productos.update({
-      where: { id },
-      data: { 
-        activo: false,
-        updated_at: getColombiaDate()
+      select: {
+        id: true,
+        nombre: true,
+        activo: true,
       },
     })
 
-    // Registrar en auditoría si se proporciona usuario_id
-    if (usuario_id) {
-      await prisma.auditoria.create({
-        data: {
-          tabla: 'productos',
-          registro_id: id,
-          accion: 'UPDATE',
-          usuario_id: usuario_id,
-          datos_anteriores: { activo: existing.activo },
-          datos_nuevos: { activo: false },
-          fecha: getColombiaDate(),
-        },
-      })
+    if (!existing) {
+      console.error('❌ Producto no encontrado:', id)
+      throw new Error('Producto no encontrado')
     }
 
-    return { success: true, message: 'Producto desactivado exitosamente' }
-  } catch (error) {
-    console.error('Error deleting product:', error)
-    if (error instanceof Error) {
-      throw error
+    if (!existing.activo) {
+      console.warn('⚠️ El producto ya está desactivado:', id)
+      throw new Error('El producto ya está desactivado')
     }
-    throw new Error('Error al desactivar producto')
+
+    // Usar transacción para garantizar atomicidad
+    await prisma.$transaction(async (tx) => {
+      // Si retireLotes es true, retirar todos los lotes disponibles
+      if (retireLotes) {
+        console.log('🔄 Retirando lotes disponibles para producto:', id)
+        
+        // Primero contar cuántos lotes hay disponibles
+        const lotesDisponibles = await tx.lotes_productos.count({
+          where: {
+            producto_id: id,
+            estado: 'disponible',
+          },
+        })
+
+        console.log(`📦 Lotes disponibles encontrados: ${lotesDisponibles}`)
+
+        if (lotesDisponibles > 0) {
+          // Actualizar los lotes a estado 'retirado'
+          const lotesActualizados = await tx.lotes_productos.updateMany({
+            where: {
+              producto_id: id,
+              estado: 'disponible',
+            },
+            data: {
+              estado: 'retirado',
+            },
+          })
+
+          console.log(`✅ Lotes actualizados: ${lotesActualizados.count}`)
+
+          // Registrar en auditoría el retiro masivo de lotes
+          if (usuario_id) {
+            console.log('📝 Registrando auditoría de retiro de lotes')
+            await tx.auditoria.create({
+              data: {
+                tabla: 'lotes_productos',
+                registro_id: id,
+                accion: 'UPDATE_BATCH',
+                usuario_id: usuario_id,
+                datos_anteriores: { 
+                  producto_id: id,
+                  estado: 'disponible',
+                  cantidad_lotes: lotesActualizados.count,
+                  motivo: 'Desactivación de producto con retiro automático de lotes'
+                },
+                datos_nuevos: { 
+                  estado: 'retirado',
+                  lotes_afectados: lotesActualizados.count
+                },
+                fecha: getColombiaDate(),
+              },
+            })
+          }
+        } else {
+          console.log('ℹ️ No hay lotes disponibles para retirar')
+        }
+      }
+
+      // Soft delete (desactivar producto)
+      console.log('🔒 Desactivando producto:', id)
+      await tx.productos.update({
+        where: { id },
+        data: { 
+          activo: false,
+          updated_at: getColombiaDate()
+        },
+      })
+
+      // Registrar en auditoría la desactivación del producto
+      if (usuario_id) {
+        console.log('📝 Registrando auditoría de desactivación de producto')
+        await tx.auditoria.create({
+          data: {
+            tabla: 'productos',
+            registro_id: id,
+            accion: 'UPDATE',
+            usuario_id: usuario_id,
+            datos_anteriores: { activo: existing.activo },
+            datos_nuevos: { 
+              activo: false,
+              lotes_retirados: retireLotes
+            },
+            fecha: getColombiaDate(),
+          },
+        })
+      }
+    })
+
+    console.log('✅ Producto desactivado exitosamente:', { id, nombre: existing.nombre })
+
+    return { 
+      success: true, 
+      message: retireLotes 
+        ? 'Producto desactivado y lotes retirados exitosamente' 
+        : 'Producto desactivado exitosamente'
+    }
+  } catch (error) {
+    console.error('❌ Error al desactivar producto:', error)
+    
+    // Manejo específico de errores de Prisma
+    if (error instanceof Error) {
+      // Si es un error de validación del modelo
+      if (error.message.includes('column') || error.message.includes('field')) {
+        console.error('🔴 Error de schema detectado:', error.message)
+        throw new Error('Error de configuración del sistema. Por favor contacte al administrador.')
+      }
+      
+      // Si es un error de producto no encontrado o ya desactivado
+      if (error.message.includes('no encontrado') || error.message.includes('desactivado')) {
+        throw error
+      }
+      
+      // Error genérico con el mensaje original
+      throw new Error(`Error al desactivar producto: ${error.message}`)
+    }
+    
+    throw new Error('Error inesperado al desactivar producto')
   }
 }
 

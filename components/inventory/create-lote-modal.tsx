@@ -31,6 +31,8 @@ import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useLotesMutations } from "@/hooks/use-lotes"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
 
 interface Product {
   id: number
@@ -75,6 +77,14 @@ export function CreateLoteModal({
   const [fechaProduccion, setFechaProduccion] = useState<Date>(new Date())
   const [fechaVencimiento, setFechaVencimiento] = useState<Date | undefined>()
   const [unidadProductivaId, setUnidadProductivaId] = useState("")
+
+  // Costos de Producción (opcional)
+  const [mostrarCostos, setMostrarCostos] = useState(false)
+  const [costoMateriaPrima, setCostoMateriaPrima] = useState("")
+  const [costoManoObra, setCostoManoObra] = useState("")
+  const [costoInsumos, setCostoInsumos] = useState("")
+  const [costoEnergia, setCostoEnergia] = useState("")
+  const [otrosCostos, setOtrosCostos] = useState("")
 
   // Obtener producto seleccionado
   const selectedProduct = productos.find((p) => p.id.toString() === productoId)
@@ -158,6 +168,15 @@ export function CreateLoteModal({
       return
     }
 
+    // Calcular costos si se ingresaron
+    const costos = mostrarCostos ? {
+      costo_materia_prima: costoMateriaPrima ? parseFloat(costoMateriaPrima) : 0,
+      costo_mano_obra: costoManoObra ? parseFloat(costoManoObra) : 0,
+      costo_insumos: costoInsumos ? parseFloat(costoInsumos) : 0,
+      costo_energia: costoEnergia ? parseFloat(costoEnergia) : 0,
+      otros_costos: otrosCostos ? parseFloat(otrosCostos) : 0,
+    } : null
+
     try {
       await createLote({
         producto_id: parseInt(productoId),
@@ -167,6 +186,7 @@ export function CreateLoteModal({
         fecha_vencimiento: fechaVencimiento?.toISOString() || null,
         unidad_productiva_id: parseInt(unidadProductivaId),
         estado: "disponible",
+        costos: costos,
       })
 
       toast({
@@ -193,6 +213,12 @@ export function CreateLoteModal({
     setFechaProduccion(new Date())
     setFechaVencimiento(undefined)
     setUnidadProductivaId("")
+    setMostrarCostos(false)
+    setCostoMateriaPrima("")
+    setCostoManoObra("")
+    setCostoInsumos("")
+    setCostoEnergia("")
+    setOtrosCostos("")
     onClose()
   }
 
@@ -378,6 +404,130 @@ export function CreateLoteModal({
                 )}
               </SelectContent>
             </Select>
+          </div>
+
+          <Separator />
+
+          {/* SECCIÓN: COSTOS DE PRODUCCIÓN (Opcional) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="mostrar_costos">Costos de Producción (Opcional)</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Registra los costos asociados a este lote
+                </p>
+              </div>
+              <Switch
+                id="mostrar_costos"
+                checked={mostrarCostos}
+                onCheckedChange={setMostrarCostos}
+              />
+            </div>
+
+            {mostrarCostos && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="costo_materia_prima">Materia Prima</Label>
+                    <Input
+                      id="costo_materia_prima"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={costoMateriaPrima}
+                      onChange={(e) => setCostoMateriaPrima(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="costo_mano_obra">Mano de Obra</Label>
+                    <Input
+                      id="costo_mano_obra"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={costoManoObra}
+                      onChange={(e) => setCostoManoObra(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="costo_insumos">Insumos</Label>
+                    <Input
+                      id="costo_insumos"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={costoInsumos}
+                      onChange={(e) => setCostoInsumos(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="costo_energia">Energía</Label>
+                    <Input
+                      id="costo_energia"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={costoEnergia}
+                      onChange={(e) => setCostoEnergia(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="otros_costos">Otros Costos</Label>
+                    <Input
+                      id="otros_costos"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={otrosCostos}
+                      onChange={(e) => setOtrosCostos(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">Costo Total Estimado:</span>
+                    <span className="text-lg font-bold text-primary">
+                      $
+                      {(
+                        (parseFloat(costoMateriaPrima) || 0) +
+                        (parseFloat(costoManoObra) || 0) +
+                        (parseFloat(costoInsumos) || 0) +
+                        (parseFloat(costoEnergia) || 0) +
+                        (parseFloat(otrosCostos) || 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                  {cantidad && parseFloat(cantidad) > 0 && (
+                    <div className="flex items-center justify-between mt-2 text-sm text-muted-foreground">
+                      <span>Costo Unitario:</span>
+                      <span>
+                        $
+                        {
+                          (
+                            (
+                              (parseFloat(costoMateriaPrima) || 0) +
+                              (parseFloat(costoManoObra) || 0) +
+                              (parseFloat(costoInsumos) || 0) +
+                              (parseFloat(costoEnergia) || 0) +
+                              (parseFloat(otrosCostos) || 0)
+                            ) / parseFloat(cantidad)
+                          ).toFixed(2)
+                        }
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

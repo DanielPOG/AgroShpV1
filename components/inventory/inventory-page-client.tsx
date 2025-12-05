@@ -9,7 +9,7 @@ import { CreateProductModal } from "@/components/inventory/create-product-modal"
 import { UpdateProductModal } from "@/components/inventory/update-product-modal"
 import { ProductHistoryModal } from "@/components/inventory/product-history-modal"
 import { AdjustStockModal } from "@/components/inventory/adjust-stock-modal"
-import { DeleteProductDialog } from "@/components/inventory/delete-product-dialog"
+import { DeactivateProductModal } from "@/components/inventory/deactivate-product-modal"
 import { PermanentDeleteProductDialog } from "@/components/inventory/permanent-delete-product-dialog"
 import { CreateLoteModal } from "@/components/inventory/create-lote-modal"
 import { CreateProductWithLoteModal } from "@/components/inventory/create-product-with-lote-modal"
@@ -46,7 +46,7 @@ export function InventoryPageClient() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false)
   const [isPermanentDeleteDialogOpen, setIsPermanentDeleteDialogOpen] = useState(false)
   const [productToPermanentDelete, setProductToPermanentDelete] = useState<{ id: number; nombre: string } | null>(null)
   const [isPermanentDeleting, setIsPermanentDeleting] = useState(false)
@@ -135,35 +135,21 @@ export function InventoryPageClient() {
     const product = products.find(p => p.id === productId)
     if (product) {
       setProductToDelete({ id: productId, nombre: product.nombre })
-      setIsDeleteDialogOpen(true)
+      setIsDeactivateModalOpen(true)
     }
   }
 
-  const handleConfirmDelete = async () => {
-    if (!productToDelete) return
-
-    try {
-      console.log('🗑️ Desactivando producto desde dropdown:', productToDelete.id)
-      await deleteProduct(productToDelete.id)
-      
+  const handleDeactivateSuccess = () => {
+    if (productToDelete) {
       // Actualización optimista: remover del estado local inmediatamente
       removeLocalProduct(productToDelete.id)
-      
-      toast({
-        title: "Producto desactivado",
-        description: `"${productToDelete.nombre}" ha sido desactivado. Puedes reactivarlo desde "Ver Inactivos".`,
-      })
-      
-      setIsDeleteDialogOpen(false)
-      setProductToDelete(null)
-    } catch (error) {
-      console.error('❌ Error al desactivar producto:', error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo desactivar el producto",
-        variant: "destructive",
-      })
     }
+    
+    setIsDeactivateModalOpen(false)
+    setProductToDelete(null)
+    
+    // Refetch silencioso para actualizar la lista
+    setTimeout(() => refetch(true), 200)
   }
 
   const handleReactivate = async (productId: number, productName: string) => {
@@ -500,15 +486,15 @@ export function InventoryPageClient() {
       )}
 
       {productToDelete && (
-        <DeleteProductDialog
-          isOpen={isDeleteDialogOpen}
-          isDeleting={isDeleting}
+        <DeactivateProductModal
+          productId={productToDelete.id}
           productName={productToDelete.nombre}
+          isOpen={isDeactivateModalOpen}
           onClose={() => {
-            setIsDeleteDialogOpen(false)
+            setIsDeactivateModalOpen(false)
             setProductToDelete(null)
           }}
-          onConfirm={handleConfirmDelete}
+          onSuccess={handleDeactivateSuccess}
         />
       )}
 

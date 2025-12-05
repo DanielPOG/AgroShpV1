@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
-import { getLoteById, updateLote, deleteLote } from '@/lib/db/lotes'
+import { getLoteById, updateLote, deleteLote, retirarLote, reactivarLote } from '@/lib/db/lotes'
 import { updateLoteSchema } from '@/lib/validations/lote.schema'
 import { z } from 'zod'
 import { ZodError } from 'zod'
@@ -150,9 +150,13 @@ export async function PUT(
 
 /**
  * DELETE /api/lotes/[id]
- * Elimina un lote
+ * Elimina, retira o reactiva un lote
  * 
- * Roles permitidos: Admin
+ * Query params:
+ * - action: "delete" (eliminación física), "retire" (cambiar estado a retirado), o "reactivar" (retirado → disponible)
+ * - motivo: razón de la acción (opcional)
+ * 
+ * Roles permitidos: Admin, Inventarista
  */
 export async function DELETE(
   request: NextRequest,
@@ -168,12 +172,12 @@ export async function DELETE(
       )
     }
 
-    // Verificar rol (solo Admin puede eliminar)
+    // Verificar rol
     const userRole = session.user.role
-    if (userRole !== 'Admin') {
+    if (userRole !== 'Admin' && userRole !== 'Inventarista') {
       return NextResponse.json(
         {
-          error: 'Acceso denegado. Solo Admin puede eliminar lotes.',
+          error: 'Acceso denegado. Solo Admin e Inventarista pueden eliminar/retirar lotes.',
         },
         { status: 403 }
       )
@@ -185,10 +189,27 @@ export async function DELETE(
     // Validar ID
     const { id } = idParamSchema.parse({ id: paramId })
 
-    // Eliminar lote
-    const result = await deleteLote(id)
+    // Obtener parámetros de query
+    const { searchParams } = new URL(request.url)
+    const action = searchParams.get('action') || 'retire' // Default: retirar
+    const motivo = searchParams.get('motivo') || undefined
 
-    return NextResponse.json(result, { status: 200 })
+    const usuario_id = Number(session.user.id)
+
+    // Ejecutar acción según el parámetro
+    if (action === 'delete') {
+      // Eliminación física (solo si no hay ventas)
+      const result = await deleteLote(id, usuario_id)
+      return NextResponse.json(result, { status: 200 })
+    } else if (action === 'reactivar') {
+      // Reactivar lote (cambiar de 'retirado' a 'disponible')
+      const result = await reactivarLote(id, usuario_id, motivo)
+      return NextResponse.json(result, { status: 200 })
+    } else {
+      // Retirar lote (cambiar estado a 'retirado')
+      const result = await retirarLote(id, usuario_id, motivo)
+      return NextResponse.json(result, { status: 200 })
+    }
   } catch (error) {
     console.error(`Error en DELETE /api/lotes/[id]:`, error)
 

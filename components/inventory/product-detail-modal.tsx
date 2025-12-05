@@ -10,14 +10,17 @@ import Image from "next/image"
 import { Package, DollarSign, AlertCircle, CheckCircle, Loader2, Trash2, RotateCcw, Plus } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { useProduct } from "@/hooks/use-products"
-import { useProductMutations } from "@/hooks/use-products"
+import { useProduct, useProductMutations } from "@/hooks/use-products"
 import { useLotesByProducto } from "@/hooks/use-lotes"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
 import { LotesList } from "./lotes-list"
 import { EditLoteModal } from "./edit-lote-modal"
 import { AdjustLoteStockModal } from "./adjust-lote-stock-modal"
+import { RetireLoteModal } from "./retire-lote-modal"
+import { ReactivateLoteModal } from "./reactivate-lote-modal"
+import { LoteDetailModal } from "./lote-detail-modal"
+import { DeactivateProductModal } from "./deactivate-product-modal"
 
 interface ProductDetailModalProps {
   productId: number | null
@@ -31,16 +34,20 @@ interface ProductDetailModalProps {
 
 export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDelete, onAdjustStock, onCreateLote }: ProductDetailModalProps) {
   const { toast } = useToast()
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
   const [selectedLoteId, setSelectedLoteId] = useState<number | null>(null)
+  const [selectedLoteCodigo, setSelectedLoteCodigo] = useState<string>("")
   const [isEditLoteOpen, setIsEditLoteOpen] = useState(false)
   const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false)
+  const [isRetireLoteOpen, setIsRetireLoteOpen] = useState(false)
+  const [isReactivateLoteOpen, setIsReactivateLoteOpen] = useState(false)
+  const [isLoteDetailOpen, setIsLoteDetailOpen] = useState(false)
   
   // Solo llamar al hook si hay un productId válido
   const shouldFetch = isOpen && productId !== null
   const { product, isLoading, error, refetch } = useProduct(shouldFetch ? productId : null)
   const { lotes, estadisticas, isLoading: lotesLoading, refetch: refetchLotes } = useLotesByProducto(shouldFetch ? productId : null)
-  const { deleteProduct, isDeleting } = useProductMutations()
+  const { deleteProduct, reactivateProduct, isDeleting, isUpdating } = useProductMutations()
 
   // Handlers para lotes
   const handleEditLote = (loteId: number) => {
@@ -53,30 +60,49 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
     setIsAdjustStockOpen(true)
   }
 
+  const handleRetireLote = (loteId: number, codigo: string) => {
+    setSelectedLoteId(loteId)
+    setSelectedLoteCodigo(codigo)
+    setIsRetireLoteOpen(true)
+  }
+  const handleReactivateLote = (loteId: number, codigo: string) => {
+    setSelectedLoteId(loteId)
+    setSelectedLoteCodigo(codigo)
+    setIsReactivateLoteOpen(true)
+  }
+
+  const handleViewLoteDetail = (loteId: number) => {
+    setSelectedLoteId(loteId)
+    setIsLoteDetailOpen(true)
+  }
+
   const handleLoteSuccess = () => {
     refetch()
     refetchLotes()
   }
 
-  const handleDelete = async () => {
+  const handleDeactivateSuccess = () => {
+    refetch()
+    refetchLotes()
+    onDelete()
+  }
+
+  const handleReactivate = async () => {
     if (!productId) return
 
     try {
-      console.log('🗑️ Iniciando eliminación del producto:', productId)
-      const result = await deleteProduct(productId)
-      console.log('✅ Producto eliminado exitosamente:', result)
-      
+      await reactivateProduct(productId)
       toast({
-        title: "Producto eliminado",
-        description: "El producto ha sido desactivado correctamente",
-        variant: "destructive",
+        title: "Producto reactivado",
+        description: "El producto ha sido reactivado exitosamente",
       })
-      onDelete()
+      refetch()
+      refetchLotes()
+      onUpdate()
     } catch (error) {
-      console.error('❌ Error al eliminar producto:', error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo eliminar el producto",
+        description: error instanceof Error ? error.message : "No se pudo reactivar el producto",
         variant: "destructive",
       })
     }
@@ -273,31 +299,38 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
                 )}
               </div>
               
-              {/* Estadísticas de lotes */}
+              {/* Estadísticas de lotes - Grid responsivo */}
               {estadisticas && estadisticas.total > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <div className="bg-muted/30 rounded-lg p-2 text-center">
-                    <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="text-lg font-bold">{estadisticas.total}</p>
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  {/* Total y Disponibles - Siempre visibles */}
+                  <div className="bg-muted/30 rounded-lg p-1.5 sm:p-2 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
+                    <p className="text-base sm:text-lg font-bold">{estadisticas.total}</p>
                   </div>
-                  <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center border border-green-200 dark:border-green-800">
-                    <p className="text-xs text-green-700 dark:text-green-300">Disponibles</p>
-                    <p className="text-lg font-bold text-green-700 dark:text-green-300">{estadisticas.disponibles}</p>
+                  <div className="bg-green-50 dark:bg-green-950 rounded-lg p-1.5 sm:p-2 text-center border border-green-200 dark:border-green-800">
+                    <p className="text-[10px] sm:text-xs text-green-700 dark:text-green-300">Disponibles</p>
+                    <p className="text-base sm:text-lg font-bold text-green-700 dark:text-green-300">{estadisticas.disponibles}</p>
                   </div>
-                  <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-2 text-center border border-orange-200 dark:border-orange-800">
-                    <p className="text-xs text-orange-700 dark:text-orange-300">Próximos</p>
-                    <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{estadisticas.proximos_vencer}</p>
+                  
+                  {/* Stock total - Ocupa 2 columnas en móvil */}
+                  <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-1.5 sm:p-2 text-center border border-blue-200 dark:border-blue-800 col-span-2">
+                    <p className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300">Stock en Lotes</p>
+                    <p className="text-base sm:text-lg font-bold text-blue-700 dark:text-blue-300">{estadisticas.cantidad_total} {product.unidad}</p>
                   </div>
-                  {estadisticas.vencidos > 0 && (
-                    <div className="bg-destructive/10 rounded-lg p-2 text-center border border-destructive/30">
-                      <p className="text-xs text-destructive">Vencidos</p>
-                      <p className="text-lg font-bold text-destructive">{estadisticas.vencidos}</p>
+                  
+                  {/* Próximos a vencer y Vencidos - Solo si existen */}
+                  {estadisticas.proximos_vencer > 0 && (
+                    <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-1.5 sm:p-2 text-center border border-orange-200 dark:border-orange-800">
+                      <p className="text-[10px] sm:text-xs text-orange-700 dark:text-orange-300">Próximos</p>
+                      <p className="text-base sm:text-lg font-bold text-orange-700 dark:text-orange-300">{estadisticas.proximos_vencer}</p>
                     </div>
                   )}
-                  <div className="bg-muted/30 rounded-lg p-2 text-center col-span-2">
-                    <p className="text-xs text-muted-foreground">Stock en Lotes</p>
-                    <p className="text-lg font-bold">{estadisticas.cantidad_total} {product.unidad}</p>
-                  </div>
+                  {estadisticas.vencidos > 0 && (
+                    <div className="bg-destructive/10 rounded-lg p-1.5 sm:p-2 text-center border border-destructive/30">
+                      <p className="text-[10px] sm:text-xs text-destructive">Vencidos</p>
+                      <p className="text-base sm:text-lg font-bold text-destructive">{estadisticas.vencidos}</p>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -307,21 +340,34 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
                   <Skeleton className="h-12 w-full" />
                 </div>
               ) : lotes && lotes.length > 0 ? (
-                <div className="max-h-64 overflow-y-auto pr-2 border rounded-lg">
-                  <LotesList 
-                    lotes={lotes} 
-                    showProductInfo={false}
-                    onEdit={handleEditLote}
-                    onAdjustStock={handleAdjustStock}
-                  />
+                <div className="space-y-2">
+                  {/* Contador de lotes */}
+                  <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                    <span>{lotes.length} lote{lotes.length !== 1 ? 's' : ''} encontrado{lotes.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  
+                  {/* Lista de lotes con scroll - Altura adaptable según cantidad */}
+                  <div className={`overflow-y-auto pr-1 border rounded-lg ${
+                    lotes.length <= 3 ? 'max-h-48' : lotes.length <= 5 ? 'max-h-64' : 'max-h-80'
+                  }`}>
+                    <LotesList 
+                      lotes={lotes} 
+                      showProductInfo={false}
+                      onEdit={handleEditLote}
+                      onAdjustStock={handleAdjustStock}
+                      onRetire={handleRetireLote}
+                      onReactivate={handleReactivateLote}
+                      onViewDetail={handleViewLoteDetail}
+                    />
+                  </div>
                 </div>
               ) : (
-                <div className="text-center py-4 text-muted-foreground text-xs sm:text-sm">
-                  <Package className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 opacity-50" />
-                  <p>No hay lotes registrados para este producto</p>
+                <div className="text-center py-6 sm:py-8 text-muted-foreground border rounded-lg bg-muted/20">
+                  <Package className="h-8 w-8 sm:h-10 sm:w-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs sm:text-sm font-medium mb-1">No hay lotes registrados</p>
                   {onCreateLote && (
-                    <Button variant="link" size="sm" onClick={onCreateLote} className="mt-2 text-xs">
-                      Crear primer lote
+                    <Button variant="link" size="sm" onClick={onCreateLote} className="mt-1 text-xs">
+                      + Crear primer lote
                     </Button>
                   )}
                 </div>
@@ -334,41 +380,22 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
 
         {/* Action Buttons - Fixed at bottom */}
         <div className="flex-shrink-0">
-          {!showDeleteConfirm ? (
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <Button className="flex-1 text-xs sm:text-sm" onClick={onClose}>
-                Cerrar
-              </Button>
-              <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)} className="text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Button className="flex-1 text-xs sm:text-sm" onClick={onClose}>
+              Cerrar
+            </Button>
+            {product.activo ? (
+              <Button variant="destructive" onClick={() => setShowDeactivateModal(true)} className="text-xs sm:text-sm" disabled={isDeleting}>
                 <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Eliminar
+                Desactivar
               </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-xs sm:text-sm">
-                  ¿Estás seguro de que deseas eliminar este producto? Esta acción lo marcará como inactivo.
-                </AlertDescription>
-              </Alert>
-              <div className="flex gap-2 sm:gap-3">
-                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1 text-xs sm:text-sm">
-                  Cancelar
-                </Button>
-                <Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="flex-1 text-xs sm:text-sm">
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                      Eliminando...
-                    </>
-                  ) : (
-                    "Confirmar"
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+            ) : (
+              <Button variant="default" onClick={handleReactivate} className="text-xs sm:text-sm bg-green-600 hover:bg-green-700" disabled={isUpdating}>
+                <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Reactivar
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
 
@@ -391,6 +418,47 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
           setSelectedLoteId(null)
         }}
         onSuccess={handleLoteSuccess}
+      />
+
+      <RetireLoteModal
+        loteId={selectedLoteId}
+        loteCodigo={selectedLoteCodigo}
+        isOpen={isRetireLoteOpen}
+        onClose={() => {
+          setIsRetireLoteOpen(false)
+          setSelectedLoteId(null)
+          setSelectedLoteCodigo("")
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+
+      <ReactivateLoteModal
+        loteId={selectedLoteId}
+        loteCodigo={selectedLoteCodigo}
+        isOpen={isReactivateLoteOpen}
+        onClose={() => {
+          setIsReactivateLoteOpen(false)
+          setSelectedLoteId(null)
+          setSelectedLoteCodigo("")
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+
+      <LoteDetailModal
+        loteId={selectedLoteId}
+        isOpen={isLoteDetailOpen}
+        onClose={() => {
+          setIsLoteDetailOpen(false)
+          setSelectedLoteId(null)
+        }}
+      />
+
+      <DeactivateProductModal
+        productId={productId}
+        productName={product?.nombre}
+        isOpen={showDeactivateModal}
+        onClose={() => setShowDeactivateModal(false)}
+        onSuccess={handleDeactivateSuccess}
       />
     </Dialog>
   )

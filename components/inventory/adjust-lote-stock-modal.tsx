@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useLote, useLotesMutations } from "@/hooks/use-lotes"
 import { useState, useEffect } from "react"
-import { Loader2, Plus, Minus } from "lucide-react"
+import { Loader2, Plus, Minus, AlertCircle } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -28,6 +28,18 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
   const [tipoAjuste, setTipoAjuste] = useState<'aumentar' | 'disminuir'>('aumentar')
   const [cantidad, setCantidad] = useState('')
   const [observaciones, setObservaciones] = useState('')
+
+  // Verificar si el lote no es disponible y cerrar el modal
+  useEffect(() => {
+    if (lote && lote.estado !== 'disponible') {
+      toast({
+        title: "No se puede ajustar stock",
+        description: `Este lote está "${lote.estado}". Solo se pueden ajustar lotes disponibles.`,
+        variant: "destructive",
+      })
+      onClose()
+    }
+  }, [lote, onClose, toast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,6 +105,16 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
         <DialogHeader>
           <DialogTitle>Ajustar Stock del Lote</DialogTitle>
           <DialogDescription>Aumenta o disminuye la cantidad del lote</DialogDescription>
+          
+          {/* Badge de advertencia si el producto está desactivado */}
+          {lote && !lote.productos?.activo && (
+            <Alert variant="default" className="bg-orange-50 border-orange-200 mt-3">
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-xs text-orange-800">
+                <strong>⚠️ Producto desactivado:</strong> Solo puedes reducir cantidades, no incrementar.
+              </AlertDescription>
+            </Alert>
+          )}
         </DialogHeader>
 
         {isLoading ? (

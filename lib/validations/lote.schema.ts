@@ -39,6 +39,7 @@ export const createLoteSchema = z
         invalid_type_error: 'Estado inválido',
       })
       .default('disponible'),
+    usuario_id: z.number().int().positive().optional(), // Se agrega automáticamente en el backend
   })
   .refine(
     (data) => {

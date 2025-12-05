@@ -188,8 +188,8 @@ export function ProductHistoryModal({ productId, isOpen, onClose }: ProductHisto
                               isSalida ? 'text-red-600' : 
                               'text-blue-600'
                             }`}>
-                              {movimiento.cantidad_movimiento > 0 ? '+' : ''}
-                              {movimiento.cantidad_movimiento}
+                              {isEntrada ? '+' : isSalida ? '-' : ''}
+                              {Math.abs(movimiento.cantidad_movimiento)}
                             </p>
                             <p className="text-[10px] sm:text-xs text-muted-foreground">{product.unidad}</p>
                           </div>

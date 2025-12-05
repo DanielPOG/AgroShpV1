@@ -129,7 +129,14 @@ export async function getLoteById(id: number) {
             descripcion: true,
             unidad: true,
             precio_unitario: true,
+            precio_mayorista: true,
+            stock_actual: true,
+            stock_minimo: true,
+            stock_maximo: true,
             es_perecedero: true,
+            dias_vencimiento: true,
+            tipo_medida: true,
+            activo: true,
             imagen_url: true,
             categoria: {
               select: {
@@ -137,6 +144,14 @@ export async function getLoteById(id: number) {
                 nombre: true,
                 icono: true,
                 color: true,
+              },
+            },
+            unidad_productiva: {
+              select: {
+                id: true,
+                codigo: true,
+                nombre: true,
+                tipo: true,
               },
             },
           },
@@ -148,6 +163,21 @@ export async function getLoteById(id: number) {
             nombre: true,
             tipo: true,
             ubicacion: true,
+          },
+        },
+        costos_produccion: {
+          select: {
+            id: true,
+            costo_materia_prima: true,
+            costo_mano_obra: true,
+            costo_insumos: true,
+            costo_energia: true,
+            otros_costos: true,
+            costo_total: true,
+            cantidad_producida: true,
+            costo_unitario: true,
+            fecha_registro: true,
+            observaciones: true,
           },
         },
       },
@@ -172,17 +202,23 @@ export async function getLoteById(id: number) {
  */
 export async function createLote(data: CreateLoteData) {
   try {
-    // Verificar que el producto existe
+    // Verificar que el producto existe y está activo
     const producto = await prisma.productos.findUnique({
       where: { id: data.producto_id },
       select: { 
         es_perecedero: true,
-        dias_vencimiento: true 
+        dias_vencimiento: true,
+        activo: true,
+        nombre: true
       },
     })
 
     if (!producto) {
       throw new Error('Producto no encontrado')
+    }
+
+    if (!producto.activo) {
+      throw new Error(`No se pueden crear lotes para el producto "${producto.nombre}" porque está desactivado`)
     }
 
     // Calcular fecha de vencimiento automáticamente si es perecedero
@@ -232,6 +268,7 @@ export async function createLote(data: CreateLoteData) {
         fecha_vencimiento: fechaVencimiento,
         unidad_productiva_id: data.unidad_productiva_id,
         estado: data.estado || 'disponible',
+        usuario_id: data.usuario_id,
       },
       include: {
         producto: {
@@ -267,13 +304,72 @@ export async function createLote(data: CreateLoteData) {
  */
 export async function updateLote(id: number, data: UpdateLoteData) {
   try {
-    // Verificar que el lote existe
+    // Verificar que el lote existe y obtener información del producto
     const existing = await prisma.lotes_productos.findUnique({
       where: { id },
+      include: {
+        producto: {
+          select: {
+            id: true,
+            nombre: true,
+            activo: true,
+          }
+        }
+      }
     })
 
     if (!existing) {
       throw new Error('Lote no encontrado')
+    }
+
+    // 🔒 VALIDACIÓN 1: Detectar y aplicar vencimiento automático
+    const hoy = getColombiaDate()
+    hoy.setHours(0, 0, 0, 0)
+    
+    const isVencido = existing.fecha_vencimiento && new Date(existing.fecha_vencimiento) < hoy
+    
+    // Si el lote está vencido por fecha pero aún no tiene el estado, actualizarlo automáticamente
+    // PERO solo si no están intentando cambiar el estado manualmente
+    if (isVencido && existing.estado !== 'vencido' && !data.estado) {
+      data.estado = 'vencido'
+      console.log(`🗓️ Lote ${existing.codigo_lote} detectado como vencido, cambiando estado automáticamente`)
+    }
+
+    // 🔒 VALIDACIÓN 2: Control de reactivación de lotes
+    if (data.estado === 'disponible') {
+      // Bloquear lotes vencidos (nunca se pueden reactivar)
+      if (existing.estado === 'vencido') {
+        throw new Error('No se puede reactivar un lote vencido. Los lotes vencidos no pueden volver a usarse.')
+      }
+      
+      // Permitir reactivar lotes retirados SOLO si no están vencidos por fecha
+      if (existing.estado === 'retirado') {
+        if (isVencido) {
+          throw new Error('No se puede reactivar este lote porque su fecha de vencimiento ya pasó.')
+        }
+        // Si llega aquí, es retirado pero no vencido → permitir reactivación
+        console.log(`✅ Reactivando lote ${existing.codigo_lote} de estado retirado a disponible`)
+      }
+      
+      // Si está vencido por fecha (aunque estado sea disponible), no permitir
+      if (isVencido) {
+        throw new Error('No se puede mantener disponible un lote cuya fecha de vencimiento ya pasó.')
+      }
+    }
+
+    // 🔒 VALIDACIÓN 3: Si producto está desactivado, aplicar restricciones
+    if (!existing.producto.activo) {
+      // Permitir solo cambios a estados no-disponibles o ajustes de cantidad
+      if (data.estado === 'disponible' && existing.estado !== 'disponible') {
+        throw new Error(`El producto "${existing.producto.nombre}" está desactivado. No se pueden activar lotes.`)
+      }
+      
+      // Bloquear incrementos de stock (solo permitir reducción o mantener)
+      if (data.cantidad && data.cantidad > Number(existing.cantidad)) {
+        throw new Error(`El producto "${existing.producto.nombre}" está desactivado. No se puede incrementar el stock de sus lotes.`)
+      }
+      
+      console.log(`⚠️ Editando lote de producto desactivado "${existing.producto.nombre}" - Cambios restringidos`)
     }
 
     // Actualizar lote
@@ -350,27 +446,319 @@ export async function updateLote(id: number, data: UpdateLoteData) {
 }
 
 /**
- * Eliminar un lote
+ * Reactivar un lote retirado (cambiar estado de 'retirado' a 'disponible')
  */
-export async function deleteLote(id: number) {
+export async function reactivarLote(id: number, usuario_id: number, motivo?: string) {
+  try {
+    // Verificar que el lote existe
+    const lote = await prisma.lotes_productos.findUnique({
+      where: { id },
+      include: {
+        producto: {
+          select: {
+            id: true,
+            nombre: true,
+            activo: true,
+          }
+        }
+      }
+    })
+
+    if (!lote) {
+      throw new Error('Lote no encontrado')
+    }
+
+    // Validar que el lote está retirado
+    if (lote.estado !== 'retirado') {
+      throw new Error(`El lote no está en estado retirado (estado actual: ${lote.estado})`)
+    }
+
+    // Validar que no está vencido por fecha
+    const hoy = getColombiaDate()
+    hoy.setHours(0, 0, 0, 0)
+    const isVencido = lote.fecha_vencimiento && new Date(lote.fecha_vencimiento) < hoy
+
+    if (isVencido) {
+      throw new Error('No se puede reactivar este lote porque su fecha de vencimiento ya pasó')
+    }
+
+    // Validar que el producto está activo
+    if (!lote.producto.activo) {
+      throw new Error(`No se puede reactivar el lote porque el producto "${lote.producto.nombre}" está desactivado`)
+    }
+
+    // Actualizar estado a disponible
+    const loteActualizado = await prisma.lotes_productos.update({
+      where: { id },
+      data: {
+        estado: 'disponible',
+      },
+      include: {
+        producto: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+            unidad: true,
+          },
+        },
+        unidad_productiva: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+          },
+        },
+      },
+    })
+
+    // Actualizar el usuario_id en el registro de auditoría que creó el trigger
+    await prisma.$executeRaw`
+      UPDATE auditoria 
+      SET usuario_id = ${usuario_id}
+      WHERE id = (
+        SELECT id 
+        FROM auditoria 
+        WHERE tabla = 'lotes_productos' 
+          AND registro_id = ${id}
+          AND usuario_id IS NULL
+          AND fecha >= NOW() - INTERVAL '5 seconds'
+        ORDER BY id DESC
+        LIMIT 1
+      )
+    `
+
+    // Actualizar historial_inventario con el usuario
+    await prisma.historial_inventario.updateMany({
+      where: {
+        producto_id: loteActualizado.producto_id,
+        referencia_id: id,
+        referencia_tipo: 'lote',
+        usuario_id: null,
+        fecha_movimiento: {
+          gte: new Date(Date.now() - 5000),
+        },
+      },
+      data: {
+        usuario_id: usuario_id,
+        observaciones: motivo || 'Lote reactivado',
+      },
+    })
+
+    console.log(`✅ Lote ${lote.codigo_lote} reactivado de retirado a disponible`)
+
+    return {
+      success: true,
+      message: `Lote ${lote.codigo_lote} reactivado exitosamente`,
+      lote: loteActualizado,
+    }
+  } catch (error) {
+    console.error('Error reactivating lote:', error)
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Error al reactivar lote')
+  }
+}
+
+/**
+ * Retirar un lote (cambiar estado a 'retirado')
+ * Usado cuando el lote está dañado, vencido, o se retira del inventario
+ */
+export async function retirarLote(id: number, usuario_id: number, motivo?: string) {
   try {
     // Verificar que el lote existe
     const existing = await prisma.lotes_productos.findUnique({
       where: { id },
+      include: {
+        producto: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
     })
 
     if (!existing) {
       throw new Error('Lote no encontrado')
     }
 
-    // Eliminar lote
+    if (existing.estado === 'retirado') {
+      throw new Error('El lote ya está retirado')
+    }
+
+    // Actualizar estado a 'retirado'
+    const lote = await prisma.lotes_productos.update({
+      where: { id },
+      data: {
+        estado: 'retirado',
+      },
+      include: {
+        producto: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+            unidad: true,
+          },
+        },
+        unidad_productiva: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+          },
+        },
+      },
+    })
+
+    // Actualizar el usuario_id en el registro de auditoría que creó el trigger
+    await prisma.$executeRaw`
+      UPDATE auditoria 
+      SET usuario_id = ${usuario_id}
+      WHERE id = (
+        SELECT id 
+        FROM auditoria 
+        WHERE tabla = 'lotes_productos' 
+          AND registro_id = ${id}
+          AND usuario_id IS NULL
+          AND fecha >= NOW() - INTERVAL '5 seconds'
+        ORDER BY id DESC
+        LIMIT 1
+      )
+    `
+
+    // Actualizar historial_inventario con el usuario
+    await prisma.historial_inventario.updateMany({
+      where: {
+        producto_id: lote.producto_id,
+        referencia_id: id,
+        referencia_tipo: 'lote',
+        usuario_id: null,
+        fecha_movimiento: {
+          gte: new Date(Date.now() - 5000),
+        },
+      },
+      data: {
+        usuario_id: usuario_id,
+        observaciones: motivo || 'Lote retirado',
+      },
+    })
+
+    return { 
+      success: true, 
+      message: `Lote ${existing.codigo_lote} retirado exitosamente`,
+      lote 
+    }
+  } catch (error) {
+    console.error('Error retirando lote:', error)
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Error al retirar lote')
+  }
+}
+
+/**
+ * Eliminar un lote físicamente (solo si no tiene ventas asociadas)
+ */
+export async function deleteLote(id: number, usuario_id: number) {
+  try {
+    // Verificar que el lote existe
+    const existing = await prisma.lotes_productos.findUnique({
+      where: { id },
+      include: {
+        producto: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
+    })
+
+    if (!existing) {
+      throw new Error('Lote no encontrado')
+    }
+
+    // Verificar si el lote tiene ventas asociadas
+    const ventasCount = await prisma.detalle_ventas.count({
+      where: { lote_id: id },
+    })
+
+    if (ventasCount > 0) {
+      throw new Error(
+        'No se puede eliminar el lote porque tiene ventas asociadas. Use "Retirar" en su lugar.'
+      )
+    }
+
+    // Verificar si el lote tiene movimientos asociados
+    const movimientosCount = await prisma.detalle_movimientos.count({
+      where: { lote_id: id },
+    })
+
+    if (movimientosCount > 0) {
+      throw new Error(
+        'No se puede eliminar el lote porque tiene movimientos asociados. Use "Retirar" en su lugar.'
+      )
+    }
+
+    // Verificar si el lote tiene costos de producción
+    const costosCount = await prisma.costos_produccion.count({
+      where: { lote_id: id },
+    })
+
+    if (costosCount > 0) {
+      throw new Error(
+        'No se puede eliminar el lote porque tiene costos de producción asociados. Use "Retirar" en su lugar.'
+      )
+    }
+
+    // Registrar en auditoría ANTES de eliminar
+    await prisma.auditoria.create({
+      data: {
+        tabla: 'lotes_productos',
+        registro_id: id,
+        accion: 'DELETE',
+        usuario_id: usuario_id,
+        datos_anteriores: {
+          codigo_lote: existing.codigo_lote,
+          cantidad: existing.cantidad,
+          producto: existing.producto.nombre,
+          estado: existing.estado,
+          motivo: 'Eliminación física - lote creado por error',
+        },
+        datos_nuevos: null,
+      },
+    })
+
+    // Eliminar lote (el trigger actualizará el stock automáticamente)
     await prisma.lotes_productos.delete({
       where: { id },
     })
 
-    return { success: true, message: 'Lote eliminado exitosamente' }
+    // Actualizar historial que creó el trigger
+    await prisma.historial_inventario.updateMany({
+      where: {
+        producto_id: existing.producto_id,
+        referencia_id: id,
+        referencia_tipo: 'lote',
+        usuario_id: null,
+        fecha_movimiento: {
+          gte: new Date(Date.now() - 5000),
+        },
+      },
+      data: {
+        usuario_id: usuario_id,
+        observaciones: 'Lote eliminado - creado por error',
+      },
+    })
+
+    return { 
+      success: true, 
+      message: `Lote ${existing.codigo_lote} eliminado permanentemente` 
+    }
   } catch (error) {
-    console.error('Error deleting lote:', error)
+    console.error('Error eliminando lote:', error)
     if (error instanceof Error) {
       throw error
     }

@@ -205,9 +205,11 @@ model lotes_productos {
   fecha_vencimiento    DateTime?             @db.Timestamptz(6)
   unidad_productiva_id Int?
   estado               String?               @default("disponible") @db.VarChar(20)
+  usuario_id           Int?
   created_at           DateTime?             @default(now()) @db.Timestamp(6)
   producto             productos?            @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   unidad_productiva    unidades_productivas? @relation(fields: [unidad_productiva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario              usuarios?             @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   detalle_ventas       detalle_ventas[]
   detalle_movimientos  detalle_movimientos[]
   costos_produccion    costos_produccion[]
@@ -592,6 +594,7 @@ model usuarios {
   updated_at                         DateTime?                    @default(now()) @db.Timestamp(6)
   rol                                roles?                       @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   ventas                             ventas[]
+  lotes_productos                    lotes_productos[]
   unidades_productivas               unidades_productivas[]
   sesiones_caja                      sesiones_caja[]
   movimientos_caja_usuario           movimientos_caja[]           @relation("movimientos_caja_usuario")

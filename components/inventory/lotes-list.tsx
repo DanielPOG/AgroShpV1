@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Package, Calendar, AlertTriangle, CheckCircle, XCircle, MoreVertical, Edit, RotateCcw, RefreshCw } from "lucide-react"
+import { Package, Calendar, AlertTriangle, CheckCircle, XCircle, MoreVertical, Edit, RotateCcw, RefreshCw, Trash2 } from "lucide-react"
 
 interface Lote {
   id: number
@@ -47,18 +47,24 @@ interface Lote {
 interface LotesListProps {
   lotes: Lote[]
   onViewDetails?: (loteId: number) => void
+  onViewDetail?: (loteId: number) => void
   onEdit?: (loteId: number) => void
   onAdjustStock?: (loteId: number) => void
   onChangeStatus?: (loteId: number) => void
+  onRetire?: (loteId: number, codigo: string) => void
+  onReactivate?: (loteId: number, codigo: string) => void
   showProductInfo?: boolean
 }
 
 export function LotesList({
   lotes,
   onViewDetails,
+  onViewDetail,
   onEdit,
   onAdjustStock,
   onChangeStatus,
+  onRetire,
+  onReactivate,
   showProductInfo = true,
 }: LotesListProps) {
   const getEstadoBadge = (estado: string) => {
@@ -221,10 +227,10 @@ export function LotesList({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {onViewDetails && (
-                            <DropdownMenuItem onClick={() => onViewDetails(lote.id)}>
+                          {(onViewDetails || onViewDetail) && (
+                            <DropdownMenuItem onClick={() => (onViewDetail || onViewDetails)?.(lote.id)}>
                               <Package className="mr-2 h-4 w-4" />
-                              Ver Detalles
+                              Ver Detalle
                             </DropdownMenuItem>
                           )}
                           {onEdit && (
@@ -243,6 +249,24 @@ export function LotesList({
                             <DropdownMenuItem onClick={() => onChangeStatus(lote.id)}>
                               <RefreshCw className="mr-2 h-4 w-4" />
                               Cambiar Estado
+                            </DropdownMenuItem>
+                          )}
+                          {onRetire && lote.estado !== 'retirado' && (
+                            <DropdownMenuItem 
+                              onClick={() => onRetire(lote.id, lote.codigo_lote)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Retirar Lote
+                            </DropdownMenuItem>
+                          )}
+                          {onReactivate && lote.estado === 'retirado' && (
+                            <DropdownMenuItem 
+                              onClick={() => onReactivate(lote.id, lote.codigo_lote)}
+                              className="text-green-600 focus:text-green-600"
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Reactivar Lote
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>

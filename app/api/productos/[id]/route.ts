@@ -152,6 +152,9 @@ export async function PUT(
  * DELETE /api/productos/[id]
  * Desactiva un producto (soft delete)
  * 
+ * Query params:
+ * - retireLotes: "true" para retirar todos los lotes disponibles automáticamente
+ * 
  * Roles permitidos: Admin
  */
 export async function DELETE(
@@ -192,8 +195,13 @@ export async function DELETE(
     const { id } = idParamSchema.parse({ id: paramId })
     console.log('🔍 DELETE - Producto ID:', id)
 
-    // Eliminar producto (soft delete) con auditoría
-    const result = await deleteProduct(id, Number(session.user.id))
+    // Obtener parámetro de query
+    const { searchParams } = new URL(request.url)
+    const retireLotes = searchParams.get('retireLotes') === 'true'
+    console.log('🔍 DELETE - Retirar lotes:', retireLotes)
+
+    // Eliminar producto (soft delete) con auditoría y opción de retirar lotes
+    const result = await deleteProduct(id, Number(session.user.id), retireLotes)
     console.log('✅ DELETE - Producto eliminado:', result)
 
     return NextResponse.json(result, { status: 200 })

@@ -19,9 +19,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('📍 GET /api/productos/[id]/lotes - Iniciando...')
+    
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
+      console.log('❌ No hay sesión autenticada')
       return NextResponse.json(
         { error: 'No autorizado. Debe iniciar sesión.' },
         { status: 401 }
@@ -30,12 +33,16 @@ export async function GET(
 
     // Await params (Next.js 15+)
     const { id: paramId } = await params
+    console.log('📦 Producto ID recibido:', paramId)
 
     // Validar ID
     const { id } = idParamSchema.parse({ id: paramId })
+    console.log('✅ ID validado:', id)
 
     // Obtener lotes del producto
+    console.log('🔍 Buscando lotes para producto:', id)
     const lotes = await getLotesByProducto(id)
+    console.log('📊 Lotes encontrados:', lotes.length)
 
     // Calcular estadísticas útiles para el frontend
     const ahora = new Date()

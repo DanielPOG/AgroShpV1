@@ -28,14 +28,24 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
   const { lote, isLoading, error } = useLote(shouldFetch ? loteId : null)
   const { updateLote, isUpdating } = useLotesMutations()
 
-  const [estado, setEstado] = useState<'disponible' | 'vencido' | 'retirado'>('disponible')
+  const [estado, setEstado] = useState<'disponible' | 'vencido'>('disponible')
 
   // Cargar estado del lote cuando se obtiene
   useEffect(() => {
     if (lote) {
-      setEstado(lote.estado as 'disponible' | 'vencido' | 'retirado')
+      // Si el lote está retirado, no se puede editar aquí
+      if (lote.estado === 'retirado') {
+        toast({
+          title: "Lote retirado",
+          description: "Este lote está retirado y no se puede cambiar de estado. Usa la acción 'Retirar Lote' para gestionar lotes.",
+          variant: "destructive",
+        })
+        onClose()
+        return
+      }
+      setEstado(lote.estado === 'vencido' ? 'vencido' : 'disponible')
     }
-  }, [lote])
+  }, [lote, onClose, toast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,15 +92,8 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
       label: 'Vencido',
       icon: <XCircle className="h-5 w-5" />,
       color: 'bg-destructive',
-      description: 'El lote ha superado su fecha de vencimiento',
+      description: 'El lote ha superado su fecha de vencimiento y no puede usarse',
       badge: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-    },
-    retirado: {
-      label: 'Retirado',
-      icon: <AlertCircle className="h-5 w-5" />,
-      color: 'bg-slate-500',
-      description: 'El lote ha sido retirado del inventario',
-      badge: 'bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-300'
     }
   }
 
@@ -100,6 +103,17 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Cambiar Estado del Lote</DialogTitle>
           <DialogDescription>Actualiza el estado actual del lote en el sistema</DialogDescription>
+          
+          {/* Badge de advertencia si el producto está desactivado */}
+          {lote && !lote.producto?.activo && (
+            <Alert variant="default" className="bg-orange-50 border-orange-200 mt-3">
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-xs sm:text-sm text-orange-800">
+                <strong>⚠️ Producto desactivado:</strong> Este lote pertenece a un producto desactivado. 
+                Solo puedes cambiar a estados no disponibles o reducir cantidades.
+              </AlertDescription>
+            </Alert>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-1 pr-3">
@@ -148,7 +162,12 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Solo puedes cambiar el estado. Para ajustar cantidades usa "Ajustar Stock".
+                  Solo puedes cambiar entre Disponible y Vencido. Para retirar el lote, usa el menú de acciones.
+                  {lote.fecha_vencimiento && new Date(lote.fecha_vencimiento) < new Date() && (
+                    <span className="block mt-1 text-orange-600 font-medium">
+                      ⚠️ Este lote tiene fecha de vencimiento pasada. Para ponerlo disponible, primero actualiza la fecha de vencimiento.
+                    </span>
+                  )}
                 </AlertDescription>
               </Alert>
 
@@ -156,7 +175,7 @@ export function EditLoteModal({ loteId, isOpen, onClose, onSuccess }: EditLoteMo
               <div className="space-y-3">
                 <Label className="text-sm sm:text-base font-semibold">Selecciona el nuevo estado</Label>
                 <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                  {(Object.keys(estadoInfo) as Array<'disponible' | 'vencido' | 'retirado'>).map((key) => (
+                  {(Object.keys(estadoInfo) as Array<'disponible' | 'vencido'>).map((key) => (
                     <Card
                       key={key}
                       className={`cursor-pointer transition-all hover:shadow-md ${

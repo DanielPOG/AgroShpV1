@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth.server'
 import { getLotes, createLote } from '@/lib/db/lotes'
 import { loteFiltersSchema, createLoteSchema } from '@/lib/validations/lote.schema'
 import { ZodError } from 'zod'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/lotes
@@ -111,12 +112,47 @@ export async function POST(request: NextRequest) {
 
     // Parsear body
     const body = await request.json()
+    const { costos, ...loteData } = body
 
-    // Validar datos
-    const validatedData = createLoteSchema.parse(body)
+    // Agregar usuario_id del usuario autenticado
+    const dataWithUser = {
+      ...loteData,
+      usuario_id: Number(session.user.id),
+    }
+
+    // Validar datos del lote
+    const validatedData = createLoteSchema.parse(dataWithUser)
 
     // Crear lote
     const lote = await createLote(validatedData)
+
+    // Si se proporcionaron costos, crear el registro de costos
+    if (costos) {
+      const costoTotal = 
+        (costos.costo_materia_prima || 0) +
+        (costos.costo_mano_obra || 0) +
+        (costos.costo_insumos || 0) +
+        (costos.costo_energia || 0) +
+        (costos.otros_costos || 0)
+
+      const costoUnitario = lote.cantidad > 0 ? costoTotal / lote.cantidad : 0
+
+      await prisma.costos_produccion.create({
+        data: {
+          producto_id: lote.producto_id,
+          lote_id: lote.id,
+          cantidad_producida: lote.cantidad,
+          costo_materia_prima: costos.costo_materia_prima || 0,
+          costo_mano_obra: costos.costo_mano_obra || 0,
+          costo_insumos: costos.costo_insumos || 0,
+          costo_energia: costos.costo_energia || 0,
+          otros_costos: costos.otros_costos || 0,
+          costo_total: costoTotal,
+          costo_unitario: costoUnitario,
+          fecha_registro: new Date(),
+        },
+      })
+    }
 
     return NextResponse.json(lote, { status: 201 })
   } catch (error) {

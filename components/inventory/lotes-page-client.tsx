@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, AlertTriangle, Package, Search } from "lucide-react"
 import { CreateLoteModal } from "@/components/inventory/create-lote-modal"
+import { EditLoteModal } from "@/components/inventory/edit-lote-modal"
+import { AdjustLoteStockModal } from "@/components/inventory/adjust-lote-stock-modal"
+import { RetireLoteModal } from "@/components/inventory/retire-lote-modal"
+import { ReactivateLoteModal } from "@/components/inventory/reactivate-lote-modal"
+import { LoteDetailModal } from "@/components/inventory/lote-detail-modal"
 import { LotesList } from "@/components/inventory/lotes-list"
 import { useLotes } from "@/hooks/use-lotes"
 import { useToast } from "@/hooks/use-toast"
@@ -17,6 +22,13 @@ import { Badge } from "@/components/ui/badge"
 export function LotesPageClient() {
   const { toast } = useToast()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [selectedLoteId, setSelectedLoteId] = useState<number | null>(null)
+  const [selectedLoteCodigo, setSelectedLoteCodigo] = useState<string>("") 
+  const [isEditLoteOpen, setIsEditLoteOpen] = useState(false)
+  const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false)
+  const [isRetireLoteOpen, setIsRetireLoteOpen] = useState(false)
+  const [isReactivateLoteOpen, setIsReactivateLoteOpen] = useState(false)
+  const [isLoteDetailOpen, setIsLoteDetailOpen] = useState(false)
   const [unidadesProductivas, setUnidadesProductivas] = useState<any[]>([])
   const [productos, setProductos] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -76,6 +88,37 @@ export function LotesPageClient() {
       description: "El lote ha sido creado exitosamente",
     })
     setIsCreateOpen(false)
+    refetch(true)
+  }
+
+  const handleEditLote = (loteId: number) => {
+    setSelectedLoteId(loteId)
+    setIsEditLoteOpen(true)
+  }
+
+  const handleAdjustStock = (loteId: number) => {
+    setSelectedLoteId(loteId)
+    setIsAdjustStockOpen(true)
+  }
+
+  const handleRetireLote = (loteId: number, codigo: string) => {
+    setSelectedLoteId(loteId)
+    setSelectedLoteCodigo(codigo)
+    setIsRetireLoteOpen(true)
+  }
+
+  const handleReactivateLote = (loteId: number, codigo: string) => {
+    setSelectedLoteId(loteId)
+    setSelectedLoteCodigo(codigo)
+    setIsReactivateLoteOpen(true)
+  }
+
+  const handleViewLoteDetail = (loteId: number) => {
+    setSelectedLoteId(loteId)
+    setIsLoteDetailOpen(true)
+  }
+
+  const handleLoteSuccess = () => {
     refetch(true)
   }
 
@@ -240,28 +283,66 @@ export function LotesPageClient() {
               </CardContent>
             </Card>
           ) : (
-            <LotesList lotes={todosLotes} showProductInfo={true} />
+            <LotesList 
+              lotes={todosLotes} 
+              showProductInfo={true}
+              onEdit={handleEditLote}
+              onAdjustStock={handleAdjustStock}
+              onRetire={handleRetireLote}
+              onReactivate={handleReactivateLote}
+              onViewDetail={handleViewLoteDetail}
+            />
           )}
         </TabsContent>
 
         <TabsContent value="disponibles" className="mt-6">
-          <LotesList lotes={lotesDisponibles} showProductInfo={true} />
+          <LotesList 
+            lotes={lotesDisponibles} 
+            showProductInfo={true}
+            onEdit={handleEditLote}
+            onAdjustStock={handleAdjustStock}
+            onRetire={handleRetireLote}
+            onReactivate={handleReactivateLote}
+            onViewDetail={handleViewLoteDetail}
+          />
         </TabsContent>
 
         <TabsContent value="proximos" className="mt-6">
           {loadingProximos ? (
             <Skeleton className="h-64 w-full" />
           ) : (
-            <LotesList lotes={lotesProximos || []} showProductInfo={true} />
+            <LotesList 
+              lotes={lotesProximos || []} 
+              showProductInfo={true}
+              onEdit={handleEditLote}
+              onAdjustStock={handleAdjustStock}
+              onRetire={handleRetireLote}
+              onReactivate={handleReactivateLote}
+              onViewDetail={handleViewLoteDetail}
+            />
           )}
         </TabsContent>
 
         <TabsContent value="vencidos" className="mt-6">
-          <LotesList lotes={lotesVencidos} showProductInfo={true} />
+          <LotesList 
+            lotes={lotesVencidos} 
+            showProductInfo={true}
+            onEdit={handleEditLote}
+            onAdjustStock={handleAdjustStock}
+            onRetire={handleRetireLote}
+            onReactivate={handleReactivateLote}
+            onViewDetail={handleViewLoteDetail}
+          />
         </TabsContent>
 
         <TabsContent value="retirados" className="mt-6">
-          <LotesList lotes={lotesRetirados} showProductInfo={true} />
+          <LotesList 
+            lotes={lotesRetirados} 
+            showProductInfo={true}
+            onRetire={handleRetireLote}
+            onReactivate={handleReactivateLote}
+            onViewDetail={handleViewLoteDetail}
+          />
         </TabsContent>
       </Tabs>
 
@@ -272,6 +353,60 @@ export function LotesPageClient() {
         onSuccess={handleLoteCreated}
         productos={productos}
         unidades={unidadesProductivas}
+      />
+
+      {/* Modales de gestión de lotes */}
+      <EditLoteModal
+        loteId={selectedLoteId}
+        isOpen={isEditLoteOpen}
+        onClose={() => {
+          setIsEditLoteOpen(false)
+          setSelectedLoteId(null)
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+      
+      <AdjustLoteStockModal
+        loteId={selectedLoteId}
+        isOpen={isAdjustStockOpen}
+        onClose={() => {
+          setIsAdjustStockOpen(false)
+          setSelectedLoteId(null)
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+
+      <RetireLoteModal
+        loteId={selectedLoteId}
+        loteCodigo={selectedLoteCodigo}
+        isOpen={isRetireLoteOpen}
+        onClose={() => {
+          setIsRetireLoteOpen(false)
+          setSelectedLoteId(null)
+          setSelectedLoteCodigo("")
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+
+      <ReactivateLoteModal
+        loteId={selectedLoteId}
+        loteCodigo={selectedLoteCodigo}
+        isOpen={isReactivateLoteOpen}
+        onClose={() => {
+          setIsReactivateLoteOpen(false)
+          setSelectedLoteId(null)
+          setSelectedLoteCodigo("")
+        }}
+        onSuccess={handleLoteSuccess}
+      />
+
+      <LoteDetailModal
+        loteId={selectedLoteId}
+        isOpen={isLoteDetailOpen}
+        onClose={() => {
+          setIsLoteDetailOpen(false)
+          setSelectedLoteId(null)
+        }}
       />
     </div>
   )

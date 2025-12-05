@@ -190,6 +190,55 @@ export function useLote(id: number | null) {
 }
 
 /**
+ * Hook para obtener un lote específico con información completa
+ * Incluye producto, usuario y unidad productiva
+ */
+export function useLoteById(id: number | null) {
+  const [lote, setLote] = useState<any | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchLote = useCallback(async () => {
+    if (!id) {
+      setLote(null)
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/lotes/${id}`)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al cargar lote')
+      }
+
+      const data = await response.json()
+      setLote(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido'
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    fetchLote()
+  }, [fetchLote])
+
+  return {
+    lote,
+    isLoading,
+    error,
+    refetch: fetchLote,
+  }
+}
+
+/**
  * Hook para obtener lotes de un producto específico con estadísticas
  */
 export function useLotesByProducto(producto_id: number | null) {

@@ -89,15 +89,57 @@ export function CreateLoteModal({
   // Obtener producto seleccionado
   const selectedProduct = productos.find((p) => p.id.toString() === productoId)
 
-  // Auto-generar código de lote sugerido
+  // Auto-generar código de lote basado en nombre del producto + fecha + secuencia
   useEffect(() => {
+    const generarCodigoLote = async () => {
+      if (!selectedProduct) return
+
+      try {
+        // Obtener primera letra del nombre del producto en mayúscula
+        const primeraLetra = selectedProduct.nombre.charAt(0).toUpperCase()
+        const fechaActual = format(new Date(), "yyMMdd") // AAMMDD formato
+        
+        // Obtener último código de lote para este producto
+        const response = await fetch(`/api/lotes?producto_id=${selectedProduct.id}&limit=1`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          const ultimoLote = data.data?.[0]
+          
+          // Extraer número secuencial del último lote
+          let numeroSecuencial = 1
+          
+          if (ultimoLote?.codigo_lote) {
+            // Intentar extraer el número al final del código
+            const match = ultimoLote.codigo_lote.match(/-?(\d+)$/)
+            if (match) {
+              numeroSecuencial = parseInt(match[1]) + 1
+            }
+          }
+          
+          // Formatear número con 3 dígitos
+          const numeroFormateado = numeroSecuencial.toString().padStart(3, "0")
+          
+          // Generar código: PrimeraLetra-AAMMDD-###
+          const nuevoCodigo = `${primeraLetra}-${fechaActual}-${numeroFormateado}`
+          setCodigoLote(nuevoCodigo)
+        } else {
+          // Si falla la consulta, usar número aleatorio
+          const random = Math.floor(Math.random() * 1000).toString().padStart(3, "0")
+          setCodigoLote(`${primeraLetra}-${fechaActual}-${random}`)
+        }
+      } catch (error) {
+        console.error("Error al generar código de lote:", error)
+        // Fallback: primera letra + fecha + aleatorio
+        const primeraLetra = selectedProduct.nombre.charAt(0).toUpperCase()
+        const fechaActual = format(new Date(), "yyMMdd")
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, "0")
+        setCodigoLote(`${primeraLetra}-${fechaActual}-${random}`)
+      }
+    }
+
     if (selectedProduct && !codigoLote) {
-      const prefix = selectedProduct.codigo.substring(0, 3).toUpperCase()
-      const date = format(new Date(), "yyyyMM")
-      const random = Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, "0")
-      setCodigoLote(`${prefix}-${date}-${random}`)
+      generarCodigoLote()
     }
   }, [selectedProduct, codigoLote])
 

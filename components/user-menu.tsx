@@ -26,6 +26,7 @@ export function UserMenu() {
     const { user, isLoading } = useAuth()
     const router = useRouter()
     const [isSigningOut, setIsSigningOut] = useState(false)
+    const [isOpen, setIsOpen] = useState(false)
 
     const handleLogout = async () => {
         setIsSigningOut(true)
@@ -66,12 +67,13 @@ export function UserMenu() {
     }
 
     return (
-        <DropdownMenu>
+        <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="ghost"
                     className="relative h-10 gap-2 hover:bg-accent"
                     disabled={isSigningOut}
+                    onClick={() => setIsOpen(!isOpen)}
                 >
                     <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-gradient-to-br from-primary to-chart-4 text-white text-sm font-semibold">
@@ -84,7 +86,7 @@ export function UserMenu() {
                     </div>
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-64" align="end">
+            <DropdownMenuContent className="w-64 z-[100]" align="end" sideOffset={5}>
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-2">
                         <div className="flex items-center gap-2">

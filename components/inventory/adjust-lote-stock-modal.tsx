@@ -49,7 +49,7 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
     if (isNaN(cantidadAjuste) || cantidadAjuste <= 0) {
       toast({
         title: "Error",
-        description: "Ingresa una cantidad válida",
+        description: "Ingresa una cantidad válida mayor a 0",
         variant: "destructive",
       })
       return
@@ -64,7 +64,7 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
     if (nuevaCantidad < 0) {
       toast({
         title: "Error",
-        description: "La cantidad no puede ser negativa",
+        description: "La cantidad no puede ser negativa. La cantidad máxima a disminuir es " + cantidadActual,
         variant: "destructive",
       })
       return
@@ -76,10 +76,19 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
         observaciones: observaciones || `Ajuste de stock: ${tipoAjuste === 'aumentar' ? '+' : '-'}${cantidadAjuste}`,
       })
 
-      toast({
-        title: "Stock ajustado",
-        description: `Se ${tipoAjuste === 'aumentar' ? 'aumentó' : 'disminuyó'} ${cantidadAjuste} unidades`,
-      })
+      // Mensaje especial si el lote quedó en 0
+      if (nuevaCantidad === 0) {
+        toast({
+          title: "Lote agotado",
+          description: `El lote ${lote.codigo_lote} quedó en 0 unidades. El stock del producto se actualizará automáticamente.`,
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Stock ajustado",
+          description: `Se ${tipoAjuste === 'aumentar' ? 'aumentó' : 'disminuyó'} ${cantidadAjuste} unidades. Nueva cantidad: ${nuevaCantidad}`,
+        })
+      }
 
       onSuccess()
       onClose()
@@ -101,21 +110,22 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Ajustar Stock del Lote</DialogTitle>
           <DialogDescription>Aumenta o disminuye la cantidad del lote</DialogDescription>
-          
-          {/* Badge de advertencia si el producto está desactivado */}
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto px-1 pr-3">
+          {/* Advertencia si el producto está desactivado */}
           {lote && !lote.producto?.activo && (
-            <Alert variant="default" className="bg-orange-50 border-orange-200 mt-3">
+            <Alert variant="default" className="bg-orange-50 border-orange-200 mb-4">
               <AlertCircle className="h-4 w-4 text-orange-600" />
               <AlertDescription className="text-xs text-orange-800">
-                <strong>⚠️ Producto desactivado:</strong> Solo puedes reducir cantidades, no incrementar.
+                <strong>⚠️ Producto desactivado:</strong> Solo puedes reducir cantidades.
               </AlertDescription>
             </Alert>
           )}
-        </DialogHeader>
 
         {isLoading ? (
           <div className="space-y-4">
@@ -178,17 +188,26 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
                 id="cantidad"
                 type="number"
                 step="0.01"
-                min="0.01"
+                min="0"
                 placeholder="Ej: 10"
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
                 required
               />
+              {tipoAjuste === 'disminuir' && (
+                <p className="text-xs text-muted-foreground">
+                  Máximo a disminuir: {lote.cantidad}
+                </p>
+              )}
             </div>
 
             {/* Cantidad resultante */}
-            {cantidad && !isNaN(parseFloat(cantidad)) && (
-              <Alert>
+            {cantidad && !isNaN(parseFloat(cantidad)) && parseFloat(cantidad) > 0 && (
+              <Alert className={
+                tipoAjuste === 'disminuir' && (Number(lote.cantidad) - parseFloat(cantidad)) === 0
+                  ? "border-orange-500 bg-orange-50 dark:bg-orange-950"
+                  : ""
+              }>
                 <AlertDescription className="flex justify-between items-center">
                   <span>Cantidad resultante:</span>
                   <span className="text-lg font-bold">
@@ -197,6 +216,11 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
                       : Number(lote.cantidad) - parseFloat(cantidad)}
                   </span>
                 </AlertDescription>
+                {tipoAjuste === 'disminuir' && (Number(lote.cantidad) - parseFloat(cantidad)) === 0 && (
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                    ⚠️ El lote quedará agotado (cantidad 0)
+                  </p>
+                )}
               </Alert>
             )}
 
@@ -234,6 +258,7 @@ export function AdjustLoteStockModal({ loteId, isOpen, onClose, onSuccess }: Adj
             </div>
           </form>
         ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   )

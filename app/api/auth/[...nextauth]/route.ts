@@ -34,7 +34,7 @@ export const authOptions: NextAuthOptions = {
                             email: credentials.email 
                         },
                         include: { 
-                            roles: true 
+                            rol: true 
                         }
                     })
 
@@ -66,7 +66,7 @@ export const authOptions: NextAuthOptions = {
                         id: user.id.toString(),
                         email: user.email,
                         name: `${user.nombre} ${user.apellido}`,
-                        role: user.roles?.nombre || 'Consulta',
+                        role: user.rol?.nombre || 'Consulta',
                     }
                 } catch (error) {
                     console.error('Error en authorize:', error)

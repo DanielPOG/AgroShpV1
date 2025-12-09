@@ -382,3 +382,44 @@ export function useLotesMutations() {
     isDeleting,
   }
 }
+
+/**
+ * Hook para gestionar costos de producción de lotes
+ */
+export function useCostosMutations() {
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  const updateCostos = async (loteId: number, data: {
+    costo_materia_prima: number
+    costo_mano_obra: number
+    costo_insumos: number
+    costo_energia: number
+    otros_costos: number
+    observaciones?: string | null
+  }) => {
+    setIsUpdating(true)
+    try {
+      const response = await fetch(`/api/lotes/${loteId}/costos`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al actualizar costos')
+      }
+
+      return await response.json()
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  return {
+    updateCostos,
+    isUpdating,
+  }
+}

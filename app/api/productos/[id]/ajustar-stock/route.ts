@@ -4,6 +4,7 @@ import { adjustStock } from '@/lib/db/products'
 import { adjustStockSchema } from '@/lib/validations/product.schema'
 import { idParamSchema } from '@/lib/validations/common.schema'
 import { ZodError } from 'zod'
+import { checkStockBajo } from '@/lib/db/alertas'
 
 /**
  * POST /api/productos/[id]/ajustar-stock
@@ -79,6 +80,14 @@ export async function POST(
 
     // Ajustar stock
     const result = await adjustStock(validatedData)
+
+    // ✅ Verificar alertas de stock bajo después de ajustar
+    try {
+      await checkStockBajo()
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+      // No falla la operación si falla la verificación de alertas
+    }
 
     return NextResponse.json(
       {

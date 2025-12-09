@@ -67,7 +67,7 @@ export const updateLoteSchema = z.object({
     .optional(),
   cantidad: z
     .number()
-    .positive('La cantidad debe ser mayor a 0')
+    .min(0, 'La cantidad no puede ser negativa')
     .optional(),
   usuario_id: z.number().int().positive().optional(), // Para registrar quién hizo el cambio
 })

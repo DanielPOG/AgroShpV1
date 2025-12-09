@@ -329,7 +329,7 @@ export const productFiltersSchema = z.object({
   activo: z.coerce.boolean().optional(),
   
   // Filtros por stock
-  stock_status: z.enum(['bajo', 'agotado', 'normal', 'alto']).nullable().optional(),
+  stock_status: z.enum(['bajo', 'agotado', 'disponible', 'sobre_exceso']).nullable().optional(),
   stock_min: z.coerce.number().min(0).optional(),
   stock_max: z.coerce.number().min(0).optional(),
   

@@ -4,6 +4,7 @@ import { getLotes, createLote } from '@/lib/db/lotes'
 import { loteFiltersSchema, createLoteSchema } from '@/lib/validations/lote.schema'
 import { ZodError } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { checkLotesProximosVencer } from '@/lib/db/alertas'
 
 /**
  * GET /api/lotes
@@ -135,7 +136,12 @@ export async function POST(request: NextRequest) {
         (costos.costo_energia || 0) +
         (costos.otros_costos || 0)
 
-      const costoUnitario = lote.cantidad > 0 ? costoTotal / lote.cantidad : 0
+      // Convertir Decimal a number para cálculos
+      const cantidadNum = typeof lote.cantidad === 'number' 
+        ? lote.cantidad 
+        : Number(lote.cantidad.toString())
+      
+      const costoUnitario = cantidadNum > 0 ? costoTotal / cantidadNum : 0
 
       await prisma.costos_produccion.create({
         data: {
@@ -152,6 +158,14 @@ export async function POST(request: NextRequest) {
           fecha_registro: new Date(),
         },
       })
+    }
+
+    // ✅ Verificar alertas de lotes próximos a vencer después de crear
+    try {
+      await checkLotesProximosVencer()
+    } catch (alertError) {
+      console.error('Error al verificar alertas de vencimiento:', alertError)
+      // No falla la operación si falla la verificación de alertas
     }
 
     return NextResponse.json(lote, { status: 201 })

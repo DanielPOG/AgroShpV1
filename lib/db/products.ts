@@ -97,24 +97,35 @@ export async function getProducts(filters?: ProductFilters) {
   }
 
   // Filtro por estado de stock
+  let filterStockStatusAfter = false
+  let stockStatusFilter = null
+  
   if (filters?.stock_status) {
+    stockStatusFilter = filters.stock_status
+    
     switch (filters.stock_status) {
-      case 'bajo':
-        // Stock bajo: cuando stock_actual <= stock_minimo pero > 0
-        // Usamos un enfoque más simple sin comparación de campos
-        where.stock_actual = {
-          gt: 0,
-          lte: 20  // Consideramos bajo stock cuando tiene 20 unidades o menos
-        }
-        break
       case 'agotado':
+        // Agotado: stock_actual <= 0
         where.stock_actual = { lte: 0 }
         break
+      case 'bajo':
+        // Bajo stock: 0 < stock_actual <= stock_minimo
+        // Como Prisma no permite comparar columnas, filtramos después de la consulta
+        where.stock_actual = { gt: 0 }
+        where.stock_minimo = { not: null }
+        filterStockStatusAfter = true
+        break
       case 'disponible':
-        // Disponible: stock_actual > 20
-        where.stock_actual = {
-          gt: 20
-        }
+        // Disponible: stock_minimo < stock_actual < stock_maximo (o sin límites definidos)
+        // Como requiere comparar columnas, filtramos después de la consulta
+        where.stock_actual = { gt: 0 }
+        filterStockStatusAfter = true
+        break
+      case 'sobre_exceso':
+        // Sobre exceso: stock_actual >= stock_maximo
+        // Como Prisma no permite comparar columnas, filtramos después de la consulta
+        where.stock_maximo = { not: null }
+        filterStockStatusAfter = true
         break
     }
   }
@@ -168,11 +179,13 @@ export async function getProducts(filters?: ProductFilters) {
   }
 
   try {
-    const [products, total] = await Promise.all([
-      prisma.productos.findMany({
+    // Si necesitamos filtrar por comparación de columnas, obtenemos datos y filtramos después
+    let products, total
+    
+    if (filterStockStatusAfter) {
+      // Obtener todos los productos que cumplan el where básico
+      const allProducts = await prisma.productos.findMany({
         where,
-        skip,
-        take: limit,
         orderBy,
         select: {
           id: true,
@@ -214,9 +227,94 @@ export async function getProducts(filters?: ProductFilters) {
             },
           },
         },
-      }),
-      prisma.productos.count({ where }),
-    ])
+      })
+      
+      // Filtrar según el estado de stock
+      const filtered = allProducts.filter(p => {
+        const stockActual = Number(p.stock_actual) || 0
+        const stockMinimo = p.stock_minimo ? Number(p.stock_minimo) : null
+        const stockMaximo = p.stock_maximo ? Number(p.stock_maximo) : null
+        
+        switch (stockStatusFilter) {
+          case 'bajo':
+            // Bajo: 0 < stock_actual <= stock_minimo
+            return stockMinimo !== null && stockActual > 0 && stockActual <= stockMinimo
+          
+          case 'disponible':
+            // Disponible: stock_minimo < stock_actual < stock_maximo
+            // O si no hay límites definidos, cualquier stock > 0
+            if (stockMaximo !== null && stockActual >= stockMaximo) {
+              return false // Es sobre exceso
+            }
+            if (stockMinimo !== null && stockActual <= stockMinimo) {
+              return false // Es bajo o agotado
+            }
+            return stockActual > 0
+          
+          case 'sobre_exceso':
+            // Sobre exceso: stock_actual >= stock_maximo
+            return stockMaximo !== null && stockActual >= stockMaximo
+          
+          default:
+            return true
+        }
+      })
+      
+      // Aplicar paginación manualmente
+      total = filtered.length
+      products = filtered.slice(skip, skip + limit)
+    } else {
+      // Para otros filtros (agotado), usar la consulta normal con paginación de Prisma
+      [products, total] = await Promise.all([
+        prisma.productos.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy,
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+            descripcion: true,
+            precio_unitario: true,
+            precio_mayorista: true,
+            stock_actual: true,
+            stock_minimo: true,
+            stock_maximo: true,
+            unidad: true,
+            tipo_medida: true,
+            imagen_url: true,
+            es_perecedero: true,
+            dias_vencimiento: true,
+            activo: true,
+            created_at: true,
+            categoria: {
+              select: {
+                id: true,
+                nombre: true,
+                icono: true,
+                color: true,
+              },
+            },
+            unidad_productiva: {
+              select: {
+                id: true,
+                codigo: true,
+                nombre: true,
+              },
+            },
+            proveedor: {
+              select: {
+                id: true,
+                nombre: true,
+                contacto_telefono: true,
+              },
+            },
+          },
+        }),
+        prisma.productos.count({ where }),
+      ])
+    }
 
     return {
       data: products,
@@ -795,6 +893,16 @@ export async function adjustStock(data: AdjustStockData) {
         fecha: fechaMovimiento,
       },
     })
+
+    // 🔔 Verificar alertas de stock después del ajuste
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el stock mejoró
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+      // No fallar el ajuste de stock por un error en las alertas
+    }
 
     return {
       product: updatedProduct,

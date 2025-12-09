@@ -76,9 +76,11 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
     setIsLoteDetailOpen(true)
   }
 
-  const handleLoteSuccess = () => {
-    refetch()
-    refetchLotes()
+  const handleLoteSuccess = async () => {
+    // Actualizar datos del modal
+    await Promise.all([refetch(), refetchLotes()])
+    // Notificar al padre para que actualice la lista (sin timeout)
+    onUpdate()
   }
 
   const handleDeactivateSuccess = () => {
@@ -148,20 +150,39 @@ export function ProductDetailModal({ productId, isOpen, onClose, onUpdate, onDel
   }
 
   const getStockStatus = () => {
-    if (product.stock_actual === 0) {
+    // Convertir a números para asegurar comparaciones correctas
+    const stockActual = Number(product.stock_actual)
+    const stockMinimo = Number(product.stock_minimo)
+    const stockMaximo = product.stock_maximo ? Number(product.stock_maximo) : null
+    
+    // 1. Agotado: stock_actual = 0
+    if (stockActual === 0) {
       return {
         label: "Agotado",
         icon: <AlertCircle className="h-4 w-4" />,
         className: "bg-destructive text-destructive-foreground",
       }
     }
-    if (product.stock_actual <= product.stock_minimo) {
+    
+    // 2. Sobre Exceso: stock_actual >= stock_maximo (si existe)
+    if (stockMaximo !== null && stockActual >= stockMaximo) {
+      return {
+        label: "Sobre Exceso",
+        icon: <AlertCircle className="h-4 w-4" />,
+        className: "bg-purple-500 text-white",
+      }
+    }
+    
+    // 3. Bajo Stock: 0 < stock_actual < stock_minimo
+    if (stockActual < stockMinimo) {
       return {
         label: "Bajo Stock",
         icon: <AlertCircle className="h-4 w-4" />,
         className: "bg-orange-accent text-white",
       }
     }
+    
+    // 4. Disponible: stock_minimo <= stock_actual < stock_maximo (o sin máximo)
     return {
       label: "Disponible",
       icon: <CheckCircle className="h-4 w-4" />,

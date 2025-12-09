@@ -86,40 +86,84 @@ CREATE OR REPLACE FUNCTION sync_stock_on_lote_update()
 RETURNS TRIGGER AS $$
 DECLARE
     diferencia DECIMAL(10,2);
+    cantidad_a_restar DECIMAL(10,2);
 BEGIN
-    -- CASO 1: Cambio de disponible a vencido/retirado
+    -- CASO 1: Cambio de estado disponible → vencido/retirado
+    -- CRÍTICO: Detectar si también cambió la cantidad para evitar doble resta
     IF OLD.estado = 'disponible' AND NEW.estado != 'disponible' THEN
-        UPDATE productos SET stock_actual = stock_actual - OLD.cantidad WHERE id = OLD.producto_id;
+        -- Si la cantidad también cambió, usar la diferencia (no OLD.cantidad)
+        IF OLD.cantidad != NEW.cantidad THEN
+            diferencia := OLD.cantidad - NEW.cantidad;
+            cantidad_a_restar := diferencia;
+        ELSE
+            -- Solo cambió el estado, restar toda la cantidad del lote
+            cantidad_a_restar := NEW.cantidad;
+        END IF;
         
-        INSERT INTO historial_inventario (producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
-            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id)
-        SELECT p.id, 'salida', p.stock_actual + OLD.cantidad, OLD.cantidad, p.stock_actual, NEW.id,
-            'lote', 'Lote ' || NEW.codigo_lote || ' cambió a estado: ' || NEW.estado, NEW.usuario_id
-        FROM productos p WHERE p.id = OLD.producto_id;
+        UPDATE productos 
+        SET stock_actual = stock_actual - cantidad_a_restar 
+        WHERE id = OLD.producto_id;
+        
+        INSERT INTO historial_inventario (
+            producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
+            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id
+        )
+        SELECT 
+            p.id, 'salida', p.stock_actual + cantidad_a_restar, cantidad_a_restar, 
+            p.stock_actual, NEW.id, 'lote', 
+            'Lote ' || NEW.codigo_lote || ' cambió a estado: ' || NEW.estado, 
+            NEW.usuario_id
+        FROM productos p 
+        WHERE p.id = OLD.producto_id;
+        
+        RETURN NEW; -- CRÍTICO: Salir aquí para evitar ejecutar CASO 3
     END IF;
     
-    -- CASO 2: Cambio de vencido/retirado a disponible
+    -- CASO 2: Cambio de vencido/retirado → disponible
     IF OLD.estado != 'disponible' AND NEW.estado = 'disponible' THEN
-        UPDATE productos SET stock_actual = stock_actual + NEW.cantidad WHERE id = NEW.producto_id;
+        UPDATE productos 
+        SET stock_actual = stock_actual + NEW.cantidad 
+        WHERE id = NEW.producto_id;
         
-        INSERT INTO historial_inventario (producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
-            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id)
-        SELECT p.id, 'entrada', p.stock_actual - NEW.cantidad, NEW.cantidad, p.stock_actual, NEW.id,
-            'lote', 'Lote ' || NEW.codigo_lote || ' reactivado a disponible', NEW.usuario_id
-        FROM productos p WHERE p.id = NEW.producto_id;
+        INSERT INTO historial_inventario (
+            producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
+            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id
+        )
+        SELECT 
+            p.id, 'entrada', p.stock_actual - NEW.cantidad, NEW.cantidad, 
+            p.stock_actual, NEW.id, 'lote', 
+            'Lote ' || NEW.codigo_lote || ' reactivado a disponible', 
+            NEW.usuario_id
+        FROM productos p 
+        WHERE p.id = NEW.producto_id;
+        
+        RETURN NEW; -- CRÍTICO: Salir aquí para evitar ejecutar CASO 3
     END IF;
     
-    -- CASO 3: Cambio de cantidad (solo si está disponible)
-    IF NEW.estado = 'disponible' AND OLD.cantidad != NEW.cantidad THEN
+    -- CASO 3: Solo cambio de cantidad (ambos estados = disponible)
+    -- Este caso SOLO se ejecuta si el estado NO cambió
+    IF NEW.estado = 'disponible' AND OLD.estado = 'disponible' AND OLD.cantidad != NEW.cantidad THEN
         diferencia := NEW.cantidad - OLD.cantidad;
-        UPDATE productos SET stock_actual = stock_actual + diferencia WHERE id = NEW.producto_id;
         
-        INSERT INTO historial_inventario (producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
-            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id)
-        SELECT p.id, CASE WHEN diferencia > 0 THEN 'entrada' ELSE 'salida' END,
-            p.stock_actual - diferencia, ABS(diferencia), p.stock_actual, NEW.id,
-            'lote', 'Ajuste de cantidad en lote: ' || NEW.codigo_lote, NEW.usuario_id
-        FROM productos p WHERE p.id = NEW.producto_id;
+        UPDATE productos 
+        SET stock_actual = stock_actual + diferencia 
+        WHERE id = NEW.producto_id;
+        
+        INSERT INTO historial_inventario (
+            producto_id, tipo_movimiento, cantidad_anterior, cantidad_movimiento,
+            cantidad_nueva, referencia_id, referencia_tipo, observaciones, usuario_id
+        )
+        SELECT 
+            p.id, 
+            CASE WHEN diferencia > 0 THEN 'entrada' ELSE 'salida' END,
+            p.stock_actual - diferencia, 
+            ABS(diferencia), 
+            p.stock_actual, 
+            NEW.id, 'lote', 
+            'Ajuste de cantidad en lote: ' || NEW.codigo_lote, 
+            NEW.usuario_id
+        FROM productos p 
+        WHERE p.id = NEW.producto_id;
     END IF;
     
     RETURN NEW;

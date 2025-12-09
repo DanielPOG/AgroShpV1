@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,10 +8,11 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Image from "next/image"
-import { Package, Calendar, AlertCircle, CheckCircle, XCircle, Clock, Building2, User, MapPin } from "lucide-react"
+import { Package, Calendar, AlertCircle, CheckCircle, XCircle, Clock, Building2, User, MapPin, Pencil } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useLoteById } from "@/hooks/use-lotes"
+import { EditCostosLoteModal } from "./edit-costos-lote-modal"
 
 interface LoteDetailModalProps {
   loteId: number | null
@@ -19,9 +21,12 @@ interface LoteDetailModalProps {
 }
 
 export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProps) {
+  // Estados para el modal de edición de costos
+  const [isEditCostosOpen, setIsEditCostosOpen] = useState(false)
+  
   // Solo llamar al hook si hay un loteId válido
   const shouldFetch = isOpen && loteId !== null
-  const { lote, isLoading, error } = useLoteById(shouldFetch ? loteId : null)
+  const { lote, isLoading, error, refetch } = useLoteById(shouldFetch ? loteId : null)
 
   // No renderizar el modal si no hay ID o no está abierto
   if (!isOpen || !loteId) return null
@@ -116,7 +121,7 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
               <div>
                 <h3 className="text-base sm:text-lg font-semibold mb-1">Lote {lote.codigo_lote}</h3>
                 <p className="text-xs text-muted-foreground">
-                  Creado {lote.fecha_creacion ? format(new Date(lote.fecha_creacion), "dd 'de' MMMM, yyyy", { locale: es }) : 'N/A'}
+                  Creado {lote.created_at ? format(new Date(lote.created_at), "dd 'de' MMMM, yyyy", { locale: es }) : format(new Date(lote.fecha_produccion), "dd 'de' MMMM, yyyy", { locale: es })}
                 </p>
               </div>
               <Badge className={`text-xs ${estadoBadge.className}`}>
@@ -130,7 +135,7 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
                 <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <div>
                   <p className="text-xs text-muted-foreground">Cantidad Actual</p>
-                  <p className="font-semibold">{lote.cantidad_actual} {producto?.unidad || 'unidades'}</p>
+                  <p className="font-semibold">{Number(lote.cantidad).toFixed(2)} {producto?.unidad || 'kg'}</p>
                 </div>
               </div>
 
@@ -138,7 +143,12 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
                 <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <div>
                   <p className="text-xs text-muted-foreground">Cantidad Inicial</p>
-                  <p className="font-semibold">{lote.cantidad_inicial} {producto?.unidad || 'unidades'}</p>
+                  <p className="font-semibold">
+                    {lote.costos_produccion?.[0]?.cantidad_producida 
+                      ? Number(lote.costos_produccion[0].cantidad_producida).toFixed(2)
+                      : Number(lote.cantidad).toFixed(2)
+                    } {producto?.unidad || 'kg'}
+                  </p>
                 </div>
               </div>
 
@@ -289,13 +299,26 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
           )}
 
           {/* Información de Costos de Producción */}
-          {lote.costos_produccion && lote.costos_produccion.length > 0 && (
+          {lote.costos_produccion && lote.costos_produccion.length > 0 ? (
             <>
               <Separator />
               <div className="space-y-3">
-                <h3 className="text-base font-semibold flex items-center gap-2">
-                  💰 Costos de Producción
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    💰 Costos de Producción
+                  </h3>
+                  {lote.estado === 'disponible' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditCostosOpen(true)}
+                      className="h-8 text-xs"
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Editar Costos
+                    </Button>
+                  )}
+                </div>
                 
                 <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                   {lote.costos_produccion.map((costo: any) => (
@@ -387,6 +410,34 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
                 </div>
               </div>
             </>
+          ) : (
+            // Si no hay costos, mostrar mensaje y botón para agregar
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold flex items-center gap-2">
+                    💰 Costos de Producción
+                  </h3>
+                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="flex items-center justify-between">
+                    <span>No se han registrado costos para este lote</span>
+                    {lote.estado === 'disponible' && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setIsEditCostosOpen(true)}
+                        className="h-8 text-xs ml-2"
+                      >
+                        Agregar Costos
+                      </Button>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </>
           )}
 
           {/* Información del usuario que creó el lote */}
@@ -412,6 +463,17 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
           </Button>
         </div>
       </DialogContent>
+
+      {/* Modal de Edición de Costos */}
+      <EditCostosLoteModal
+        loteId={loteId}
+        isOpen={isEditCostosOpen}
+        onClose={() => setIsEditCostosOpen(false)}
+        onSuccess={() => {
+          setIsEditCostosOpen(false)
+          refetch() // Recargar datos del lote
+        }}
+      />
     </Dialog>
   )
 }

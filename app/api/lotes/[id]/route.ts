@@ -4,6 +4,7 @@ import { getLoteById, updateLote, deleteLote, retirarLote, reactivarLote } from 
 import { updateLoteSchema } from '@/lib/validations/lote.schema'
 import { z } from 'zod'
 import { ZodError } from 'zod'
+import { checkLotesProximosVencer, checkStockBajo } from '@/lib/db/alertas'
 
 const idParamSchema = z.object({
   id: z.string().regex(/^\d+$/).transform(Number),
@@ -119,6 +120,18 @@ export async function PUT(
 
     // Actualizar lote
     const lote = await updateLote(id, validatedData)
+
+    // ✅ Verificar alertas después de actualizar
+    try {
+      // Verificar alertas de vencimiento
+      await checkLotesProximosVencer()
+      
+      // Verificar alertas de stock bajo/agotado (el trigger ya actualizó stock_actual)
+      await checkStockBajo()
+    } catch (alertError) {
+      console.error('Error al verificar alertas:', alertError)
+      // No falla la operación si falla la verificación de alertas
+    }
 
     return NextResponse.json(lote, { status: 200 })
   } catch (error) {

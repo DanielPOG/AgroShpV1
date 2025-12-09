@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Grid3x3, List, Package, Loader2, AlertCircle } from "lucide-react"
+import { Plus, Grid3x3, List, Package, Loader2, AlertCircle, CheckSquare, XSquare, Trash2, RotateCcw } from "lucide-react"
 import { ProductCard } from "@/components/inventory/product-card"
 import { ProductDetailModal } from "@/components/inventory/product-detail-modal"
 import { CreateProductModal } from "@/components/inventory/create-product-modal"
@@ -10,6 +10,7 @@ import { UpdateProductModal } from "@/components/inventory/update-product-modal"
 import { ProductHistoryModal } from "@/components/inventory/product-history-modal"
 import { AdjustStockModal } from "@/components/inventory/adjust-stock-modal"
 import { DeactivateProductModal } from "@/components/inventory/deactivate-product-modal"
+import { BulkDeactivateModal } from "@/components/inventory/bulk-deactivate-modal"
 import { PermanentDeleteProductDialog } from "@/components/inventory/permanent-delete-product-dialog"
 import { CreateLoteModal } from "@/components/inventory/create-lote-modal"
 import { CreateProductWithLoteModal } from "@/components/inventory/create-product-with-lote-modal"
@@ -33,10 +34,15 @@ export function InventoryPageClient() {
     page: 1, 
     limit: 20, 
     sortBy: null,
-    activo: true  // Solo mostrar productos activos por defecto
+    activo: true
   })
   const { products, pagination, isLoading, error, refetch, updateLocalProduct, addLocalProduct, removeLocalProduct } = useProducts(filters)
   const { deleteProduct, isDeleting } = useProductMutations()
+  
+  // Estados de selección múltiple
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set())
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false)
   
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
@@ -47,6 +53,7 @@ export function InventoryPageClient() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false)
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false)
+  const [isBulkDeactivateModalOpen, setIsBulkDeactivateModalOpen] = useState(false)
   const [isPermanentDeleteDialogOpen, setIsPermanentDeleteDialogOpen] = useState(false)
   const [productToPermanentDelete, setProductToPermanentDelete] = useState<{ id: number; nombre: string } | null>(null)
   const [isPermanentDeleting, setIsPermanentDeleting] = useState(false)
@@ -115,7 +122,7 @@ export function InventoryPageClient() {
     }
 
     if (newFilters.stock_status && newFilters.stock_status !== 'all') {
-      apiFilters.stock_status = newFilters.stock_status as 'bajo' | 'disponible' | 'agotado'
+      apiFilters.stock_status = newFilters.stock_status as 'bajo' | 'disponible' | 'agotado' | 'sobre_exceso'
     }
 
     setFilters(apiFilters)
@@ -149,7 +156,7 @@ export function InventoryPageClient() {
     setProductToDelete(null)
     
     // Refetch silencioso para actualizar la lista
-    setTimeout(() => refetch(true), 200)
+    refetch(true)
   }
 
   const handleReactivate = async (productId: number, productName: string) => {
@@ -236,17 +243,12 @@ export function InventoryPageClient() {
       title: "Producto creado",
       description: "El producto ha sido creado correctamente",
     })
-    // Refetch silencioso sin mostrar loading
-    setTimeout(() => refetch(true), 200)
+    refetch(true)
   }
 
   const handleProductUpdated = () => {
-    toast({
-      title: "Producto actualizado",
-      description: "El producto ha sido actualizado correctamente",
-    })
-    // Refetch silencioso sin mostrar loading
-    setTimeout(() => refetch(true), 200)
+    // Refetch inmediato y silencioso
+    refetch(true)
   }
 
   const handleProductDeleted = () => {
@@ -263,6 +265,101 @@ export function InventoryPageClient() {
     setIsDetailOpen(false)
     setSelectedProductId(null)
   }
+
+  // ========================================
+  // FUNCIONES DE SELECCIÓN MÚLTIPLE
+  // ========================================
+  
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode)
+    setSelectedProducts(new Set())
+  }
+
+  const toggleProductSelection = (productId: number) => {
+    const newSelection = new Set(selectedProducts)
+    if (newSelection.has(productId)) {
+      newSelection.delete(productId)
+    } else {
+      newSelection.add(productId)
+    }
+    setSelectedProducts(newSelection)
+  }
+
+  const selectAllProducts = () => {
+    const allIds = new Set(products.map(p => p.id))
+    setSelectedProducts(allIds)
+  }
+
+  const clearSelection = () => {
+    setSelectedProducts(new Set())
+  }
+
+  const handleBulkDeactivate = async () => {
+    if (selectedProducts.size === 0) return
+    
+    // Abrir modal de confirmación con verificación de lotes
+    setIsBulkDeactivateModalOpen(true)
+  }
+
+  const handleBulkDeactivateSuccess = () => {
+    // Limpiar selección
+    setSelectedProducts(new Set())
+    setSelectionMode(false)
+    
+    // Refetch para actualizar la lista
+    refetch(true)
+  }
+
+  const handleBulkReactivate = async () => {
+    if (selectedProducts.size === 0) return
+
+    setIsBulkProcessing(true)
+    let successCount = 0
+    let errorCount = 0
+
+    try {
+      const promises = Array.from(selectedProducts).map(async (productId) => {
+        try {
+          const response = await fetch(`/api/productos/${productId}/reactivar`, {
+            method: 'PATCH',
+          })
+
+          if (response.ok) {
+            successCount++
+            removeLocalProduct(productId)
+          } else {
+            errorCount++
+          }
+        } catch (error) {
+          errorCount++
+        }
+      })
+
+      await Promise.all(promises)
+
+      toast({
+        title: "Productos reactivados",
+        description: `${successCount} producto(s) reactivado(s) correctamente${errorCount > 0 ? `, ${errorCount} fallido(s)` : ''}`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      })
+
+      setSelectedProducts(new Set())
+      setSelectionMode(false)
+      refetch(true)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al reactivar los productos",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkProcessing(false)
+    }
+  }
+
+  // ========================================
+  // FIN FUNCIONES DE SELECCIÓN MÚLTIPLE
+  // ========================================
 
   // Loading skeleton
   if (isLoading) {
@@ -307,46 +404,120 @@ export function InventoryPageClient() {
   return (
     <>
       {/* Filters Bar */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="mb-6 space-y-4">
         <InventoryFilters onFilterChange={handleFilterChange} />
-        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
-          {/* Toggle Ver Inactivos */}
-          <Button
-            variant={showInactive ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowInactive(!showInactive)}
-            className="h-10"
-          >
-            {showInactive ? "Ver Activos" : "Ver Inactivos"}
-          </Button>
-          
-          <div className="flex gap-1 border border-border rounded-lg p-1">
+        
+        {/* Action Buttons - Responsive layout */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {/* Modo de Selección */}
             <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              variant={selectionMode ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode("grid")}
-              className="h-8"
+              onClick={toggleSelectionMode}
+              className="h-9"
             >
-              <Grid3x3 className="h-4 w-4" />
+              <CheckSquare className="mr-2 h-4 w-4" />
+              {selectionMode ? "Cancelar" : "Seleccionar"}
             </Button>
+
+            {/* Toggle Ver Inactivos */}
             <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
+              variant={showInactive ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode("list")}
-              className="h-8"
+              onClick={() => setShowInactive(!showInactive)}
+              className="h-9"
             >
-              <List className="h-4 w-4" />
+              {showInactive ? "Ver Activos" : "Ver Inactivos"}
             </Button>
+            
+            {/* View Mode Toggle */}
+            <div className="flex gap-1 border border-border rounded-lg p-0.5">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="h-8 px-3"
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="h-8 px-3"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
+
+          {/* Nuevo Producto Button */}
           <Button 
             onClick={() => setIsCreateWithLoteOpen(true)} 
-            className="flex-1 sm:flex-initial"
+            className="w-full sm:w-auto"
+            size="sm"
           >
             <Plus className="mr-2 h-4 w-4" />
             Nuevo Producto con Lote
           </Button>
         </div>
       </div>
+
+      {/* Barra de Acciones de Selección Múltiple */}
+      {selectionMode && selectedProducts.size > 0 && (
+        <div className="mb-4 p-4 bg-primary/10 border border-primary rounded-lg flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <span className="font-semibold">
+              {selectedProducts.size} producto(s) seleccionado(s)
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearSelection}
+            >
+              <XSquare className="mr-2 h-4 w-4" />
+              Limpiar selección
+            </Button>
+            {products.length > 0 && selectedProducts.size < products.length && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={selectAllProducts}
+              >
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Seleccionar todos
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {!showInactive ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDeactivate}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Desactivar seleccionados
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleBulkReactivate}
+                disabled={isBulkProcessing}
+              >
+                {isBulkProcessing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                Reactivar seleccionados
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Products Grid/List */}
       <div
@@ -372,6 +543,9 @@ export function InventoryPageClient() {
               setIsPermanentDeleteDialogOpen(true)
             } : undefined}
             showInactive={showInactive}
+            selectionMode={selectionMode}
+            isSelected={selectedProducts.has(product.id)}
+            onSelect={(selected) => toggleProductSelection(product.id)}
           />
         ))}
       </div>
@@ -479,8 +653,8 @@ export function InventoryPageClient() {
             setSelectedProduct(null)
           }}
           onSuccess={() => {
-            // Refetch silencioso sin mostrar loading
-            setTimeout(() => refetch(true), 200)
+            // Refetch inmediato
+            refetch(true)
           }}
         />
       )}
@@ -495,6 +669,15 @@ export function InventoryPageClient() {
             setProductToDelete(null)
           }}
           onSuccess={handleDeactivateSuccess}
+        />
+      )}
+
+      {isBulkDeactivateModalOpen && (
+        <BulkDeactivateModal
+          productIds={Array.from(selectedProducts)}
+          isOpen={isBulkDeactivateModalOpen}
+          onClose={() => setIsBulkDeactivateModalOpen(false)}
+          onSuccess={handleBulkDeactivateSuccess}
         />
       )}
 
@@ -525,8 +708,7 @@ export function InventoryPageClient() {
             })
             setIsCreateLoteOpen(false)
             setSelectedProductId(null)
-            // Refetch silencioso
-            setTimeout(() => refetch(true), 200)
+            refetch(true)
           }}
           productos={products}
           unidades={unidadesProductivas}
@@ -540,8 +722,7 @@ export function InventoryPageClient() {
           onClose={() => setIsCreateWithLoteOpen(false)}
           onSuccess={() => {
             setIsCreateWithLoteOpen(false)
-            // Refetch silencioso
-            setTimeout(() => refetch(true), 200)
+            refetch(true)
           }}
           categorias={categories}
           unidades={unidadesProductivas}

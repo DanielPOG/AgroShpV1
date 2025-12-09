@@ -62,18 +62,20 @@ export function LotesPageClient() {
       try {
         const [unidadesRes, productosRes] = await Promise.all([
           fetch('/api/unidades'),
-          fetch('/api/productos?limit=100')
+          fetch('/api/productos?limit=100&activo=true') // Solo productos activos
         ])
         
         if (unidadesRes.ok) {
           const unidadesData = await unidadesRes.json()
-          // La API de unidades retorna un array directamente
-          setUnidadesProductivas(Array.isArray(unidadesData) ? unidadesData : [])
+          // La API de unidades retorna { data: [], pagination: {} }
+          setUnidadesProductivas(unidadesData.data || [])
         }
         
         if (productosRes.ok) {
           const productosData = await productosRes.json()
-          setProductos(productosData.data || [])
+          // Filtrar solo productos activos en el cliente también (doble validación)
+          const productosActivos = (productosData.data || []).filter((p: any) => p.activo !== false)
+          setProductos(productosActivos)
         }
       } catch (error) {
         console.error('Error fetching data:', error)

@@ -127,6 +127,9 @@ export async function POST(request: NextRequest) {
             connect: { id: loteData.unidad_productiva_id }
           },
           estado: 'disponible',
+          usuario: {
+            connect: { id: Number(session.user.id) }
+          },
         },
       })
 

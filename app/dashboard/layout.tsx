@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth.server'
 import { Sidebar } from '@/components/sidebar'
+import { AlertasPollingProvider } from '@/components/providers/alertas-polling-provider'
 
 /**
  * Layout del Dashboard - Server Component
@@ -8,6 +9,7 @@ import { Sidebar } from '@/components/sidebar'
  * ✅ Verifica autenticación en el servidor
  * ✅ Incluye Sidebar en todas las páginas del dashboard
  * ✅ Usa auth() de NextAuth para sesión segura
+ * ✅ Incluye polling automático de alertas cada 5 minutos
  */
 export default async function DashboardLayout({
   children,
@@ -32,9 +34,11 @@ export default async function DashboardLayout({
 
       {/* Contenido principal con scroll */}
       <main className="flex-1 overflow-y-auto bg-background">
-        <div className="container max-w-7xl mx-auto p-6 lg:p-8">
-          {children}
-        </div>
+        <AlertasPollingProvider pollingInterval={300000}>
+          <div className="container max-w-7xl mx-auto p-6 lg:p-8">
+            {children}
+          </div>
+        </AlertasPollingProvider>
       </main>
     </div>
   )

@@ -289,6 +289,16 @@ export async function createLote(data: CreateLoteData) {
       },
     })
 
+    // 🔔 Verificar alertas de stock después de crear el lote
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el stock mejoró
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+      // No fallar la creación del lote por un error en las alertas
+    }
+
     return lote
   } catch (error) {
     console.error('Error creating lote:', error)
@@ -372,12 +382,23 @@ export async function updateLote(id: number, data: UpdateLoteData) {
       console.log(`⚠️ Editando lote de producto desactivado "${existing.producto.nombre}" - Cambios restringidos`)
     }
 
+    // 🔍 Log especial si el lote queda en 0
+    if (data.cantidad !== undefined && data.cantidad === 0) {
+      console.log(`📦 Lote ${existing.codigo_lote} será agotado (cantidad → 0)`)
+      
+      // 🔒 VALIDACIÓN AUTOMÁTICA: Si cantidad es 0, cambiar estado a 'retirado'
+      if (!data.estado && existing.estado === 'disponible') {
+        data.estado = 'retirado'
+        console.log(`🔄 Estado del lote cambiado automáticamente a 'retirado' por cantidad 0`)
+      }
+    }
+
     // Actualizar lote
     const lote = await prisma.lotes_productos.update({
       where: { id },
       data: {
         ...(data.estado && { estado: data.estado }),
-        ...(data.cantidad && { cantidad: data.cantidad }),
+        ...(data.cantidad !== undefined && { cantidad: data.cantidad }),
       },
       include: {
         producto: {
@@ -400,6 +421,15 @@ export async function updateLote(id: number, data: UpdateLoteData) {
 
     // Los triggers de auditoría e historial ya manejan el registro automáticamente
     // con el usuario_id que viene en el lote
+
+    // 🔔 Verificar alertas de stock después de actualizar el lote
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el stock mejoró
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+    }
 
     return lote
   } catch (error) {
@@ -498,6 +528,15 @@ export async function reactivarLote(id: number, usuario_id: number, motivo?: str
 
     console.log(`✅ Lote ${lote.codigo_lote} reactivado de retirado a disponible`)
 
+    // 🔔 Verificar alertas de stock después de reactivar el lote
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el stock mejoró
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+    }
+
     return {
       success: true,
       message: `Lote ${lote.codigo_lote} reactivado exitosamente`,
@@ -579,6 +618,15 @@ export async function retirarLote(id: number, usuario_id: number, motivo?: strin
           observaciones: motivo,
         },
       })
+    }
+
+    // 🔔 Verificar alertas de stock después de retirar el lote
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el problema se resolvió
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
     }
 
     return { 
@@ -674,6 +722,15 @@ export async function deleteLote(id: number, usuario_id: number) {
         observaciones: 'Lote eliminado - creado por error',
       },
     })
+
+    // 🔔 Verificar alertas de stock después de eliminar el lote
+    try {
+      const { checkStockBajo, limpiarAlertasResueltas } = await import('./alertas')
+      await checkStockBajo()
+      await limpiarAlertasResueltas() // Limpiar alertas resueltas si el problema se resolvió
+    } catch (alertError) {
+      console.error('Error al verificar alertas de stock:', alertError)
+    }
 
     return { 
       success: true, 

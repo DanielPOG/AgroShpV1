@@ -40,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`font-sans antialiased`}>
-        <SessionProvider session={null}>
+        <SessionProvider>
           {children}
           <Toaster />
         </SessionProvider>

@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,28 +46,65 @@ interface ProductCardProps {
   onDelete?: () => void
   onHistory?: () => void
   onAdjustStock?: () => void
-  onReactivate?: () => void  // Nueva prop para reactivar
-  onPermanentDelete?: () => void  // Nueva prop para eliminar de BD
-  showInactive?: boolean  // Indica si estamos viendo productos inactivos
+  onReactivate?: () => void
+  onPermanentDelete?: () => void
+  showInactive?: boolean
+  // Selección múltiple
+  isSelected?: boolean
+  onSelect?: (selected: boolean) => void
+  selectionMode?: boolean
 }
 
-export function ProductCard({ product, viewMode, onClick, onEdit, onDelete, onHistory, onAdjustStock, onReactivate, onPermanentDelete, showInactive }: ProductCardProps) {
+export function ProductCard({ 
+  product, 
+  viewMode, 
+  onClick, 
+  onEdit, 
+  onDelete, 
+  onHistory, 
+  onAdjustStock, 
+  onReactivate, 
+  onPermanentDelete, 
+  showInactive,
+  isSelected = false,
+  onSelect,
+  selectionMode = false
+}: ProductCardProps) {
   // Determinar estado del stock
   const getStockStatus = () => {
-    if (product.stock_actual === 0) {
+    // Convertir a números para asegurar comparaciones correctas
+    const stockActual = Number(product.stock_actual)
+    const stockMinimo = Number(product.stock_minimo)
+    const stockMaximo = product.stock_maximo ? Number(product.stock_maximo) : null
+    
+    // 1. Agotado: stock_actual = 0
+    if (stockActual === 0) {
       return {
         label: "Agotado",
         icon: <AlertCircle className="h-3 w-3" />,
         className: "bg-destructive text-destructive-foreground",
       }
     }
-    if (product.stock_actual <= product.stock_minimo) {
+    
+    // 2. Sobre Exceso: stock_actual >= stock_maximo (si existe)
+    if (stockMaximo !== null && stockActual >= stockMaximo) {
+      return {
+        label: "Sobre Exceso",
+        icon: <AlertCircle className="h-3 w-3" />,
+        className: "bg-purple-500 text-white",
+      }
+    }
+    
+    // 3. Bajo Stock: 0 < stock_actual < stock_minimo
+    if (stockActual < stockMinimo) {
       return {
         label: "Bajo Stock",
         icon: <AlertCircle className="h-3 w-3" />,
         className: "bg-orange-accent text-white",
       }
     }
+    
+    // 4. Disponible: stock_minimo <= stock_actual < stock_maximo (o sin máximo)
     return {
       label: "Disponible",
       icon: <CheckCircle className="h-3 w-3" />,
@@ -85,9 +123,18 @@ export function ProductCard({ product, viewMode, onClick, onEdit, onDelete, onHi
 
   if (viewMode === "list") {
     return (
-      <Card className="group hover:shadow-lg transition-all">
+      <Card className={`group hover:shadow-lg transition-all ${isSelected ? 'ring-2 ring-primary' : ''}`}>
         <CardContent className="p-4">
           <div className="flex gap-4">
+            {selectionMode && onSelect && (
+              <div className="flex items-center pt-1">
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={onSelect}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
             <div 
               className="relative h-20 w-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
               onClick={onClick}
@@ -181,9 +228,19 @@ export function ProductCard({ product, viewMode, onClick, onEdit, onDelete, onHi
   }
 
   return (
-    <Card className="group hover:shadow-lg transition-all overflow-hidden">
+    <Card className={`group hover:shadow-lg transition-all overflow-hidden ${isSelected ? 'ring-2 ring-primary' : ''}`}>
       <CardContent className="p-0">
         <div className="relative h-48 bg-muted overflow-hidden">
+          {selectionMode && onSelect && (
+            <div className="absolute top-2 left-2 z-20">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={onSelect}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-background"
+              />
+            </div>
+          )}
           <div 
             className="absolute inset-0 cursor-pointer" 
             onClick={onClick}

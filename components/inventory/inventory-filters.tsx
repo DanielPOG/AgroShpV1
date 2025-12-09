@@ -87,7 +87,8 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
     (filters.stock_status && filters.stock_status !== "all")
 
   return (
-    <div className="space-y-4 flex-1">
+    <div className="space-y-3 flex-1 w-full">
+      {/* Header con botón limpiar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
@@ -101,30 +102,31 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Búsqueda */}
-        <div className="space-y-2 sm:col-span-2">
-          <label className="text-sm font-medium text-muted-foreground">Buscar</label>
+      {/* Grid responsive de filtros */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+        {/* Búsqueda - ocupa 2 columnas en pantallas grandes */}
+        <div className="space-y-1.5 sm:col-span-2 xl:col-span-2">
+          <label className="text-xs font-medium text-muted-foreground">Buscar</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Nombre o código..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-9"
             />
           </div>
         </div>
 
         {/* Categoría */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Categoría</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Categoría</label>
           <Select
             value={filters.categoria_id}
             onValueChange={(value) => handleFilterChange("categoria_id", value)}
             disabled={loadingCategories}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
             <SelectContent>
@@ -140,14 +142,14 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
         </div>
 
         {/* Unidad Productiva */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Unidad Productiva</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Unidad Productiva</label>
           <Select
             value={filters.unidad_productiva_id}
             onValueChange={(value) => handleFilterChange("unidad_productiva_id", value)}
             disabled={loadingUnits}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
             <SelectContent>
@@ -162,10 +164,10 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
         </div>
 
         {/* Tipo de Medida */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Tipo</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Tipo</label>
           <Select value={filters.tipo_medida} onValueChange={(value) => handleFilterChange("tipo_medida", value)}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue placeholder="Todos" />
             </SelectTrigger>
             <SelectContent>
@@ -179,10 +181,10 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
         </div>
 
         {/* Estado de Stock */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Estado</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Estado</label>
           <Select value={filters.stock_status} onValueChange={(value) => handleFilterChange("stock_status", value)}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue placeholder="Todos" />
             </SelectTrigger>
             <SelectContent>
@@ -190,6 +192,7 @@ export function InventoryFilters({ onFilterChange }: InventoryFiltersProps) {
               <SelectItem value="disponible">Disponible</SelectItem>
               <SelectItem value="bajo">Bajo Stock</SelectItem>
               <SelectItem value="agotado">Agotado</SelectItem>
+              <SelectItem value="sobre_exceso">Sobre Exceso</SelectItem>
             </SelectContent>
           </Select>
         </div>

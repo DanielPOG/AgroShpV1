@@ -1,6 +1,60 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { checkStockBajo } from './alertas'
+import { getCashSessionSummary } from './cash-sessions'
+
+/**
+ * Validar si hay suficiente efectivo en caja para dar cambio
+ * @param sessionId - ID de la sesión de caja activa
+ * @param montoVenta - Monto total de la venta
+ * @param montoPagado - Monto que paga el cliente
+ * @returns Objeto con validación y datos de efectivo
+ */
+export async function validarCambioDisponible(
+  sessionId: number,
+  montoVenta: number,
+  montoPagado: number
+) {
+  console.log('\n💵 VALIDANDO CAMBIO DISPONIBLE:', {
+    sessionId,
+    montoVenta,
+    montoPagado,
+    cambioRequerido: montoPagado - montoVenta
+  })
+
+  const cambioRequerido = montoPagado - montoVenta
+  
+  // Si no requiere cambio, está OK
+  if (cambioRequerido <= 0) {
+    return {
+      tieneEfectivo: true,
+      efectivoDisponible: 0,
+      cambioRequerido: 0,
+      mensaje: 'No requiere cambio'
+    }
+  }
+
+  // Obtener resumen de la sesión de caja
+  const summary = await getCashSessionSummary(sessionId)
+  const efectivoDisponible = summary.efectivoEsperado
+
+  console.log('📊 Efectivo disponible en caja:', {
+    efectivoDisponible,
+    cambioRequerido,
+    suficiente: efectivoDisponible >= cambioRequerido
+  })
+
+  const tieneEfectivo = efectivoDisponible >= cambioRequerido
+
+  return {
+    tieneEfectivo,
+    efectivoDisponible,
+    cambioRequerido,
+    mensaje: tieneEfectivo
+      ? 'Efectivo suficiente para dar cambio'
+      : `Efectivo insuficiente. Disponible: $${efectivoDisponible.toLocaleString('es-CO')}, Necesario: $${cambioRequerido.toLocaleString('es-CO')}`
+  }
+}
 
 /**
  * Interfaz para crear una venta
@@ -176,6 +230,11 @@ async function getLoteDisponibleFIFO(
 /**
  * Descontar stock de lotes usando FIFO
  * Puede usar múltiples lotes si uno solo no tiene suficiente cantidad
+ * 
+ * ⚠️ IMPORTANTE: Esta función SOLO actualiza los lotes_productos.
+ * El stock del producto se actualiza AUTOMÁTICAMENTE por el trigger SQL
+ * cuando el lote cambia de estado o cantidad. NO actualizar manualmente
+ * el producto aquí para evitar DOBLE DESCUENTO.
  */
 async function descontarStockDeLotes(
   productoId: number,
@@ -195,7 +254,7 @@ async function descontarStockDeLotes(
     const cantidadADescontar = Math.min(cantidadRestante, cantidadEnLote)
     const nuevaCantidad = cantidadEnLote - cantidadADescontar
 
-    // Actualizar cantidad del lote
+    // ✅ SOLO actualizar el lote - el trigger SQL actualizará el producto automáticamente
     await tx.lotes_productos.update({
       where: { id: lote.id },
       data: {
@@ -230,7 +289,7 @@ async function descontarStockDeLotes(
  * Crear una nueva venta completa
  * Usa transacción para garantizar consistencia de datos
  */
-export async function createSale(data: CreateSaleData) {
+export async function createSale(data: CreateSaleData, sessionId?: number) {
   try {
     console.log(`🛒 Iniciando creación de venta con ${data.items.length} items`)
 
@@ -264,6 +323,95 @@ export async function createSale(data: CreateSaleData) {
           impuesto: impuesto.toFixed(2),
           total: total.toFixed(2),
         })
+
+        // 1.5. Validar cambio disponible si es pago en efectivo
+        if (sessionId) {
+          // Verificar si algún pago es en efectivo
+          const pagosEfectivo = data.pagos.filter(p => {
+            // Asumimos que el método de pago ID 1 es efectivo
+            // En producción, verificar contra la tabla metodos_pago
+            return p.metodo_pago_id === 1
+          })
+
+          if (pagosEfectivo.length > 0) {
+            // Calcular monto total pagado en efectivo
+            const montoPagadoEfectivo = pagosEfectivo.reduce((sum, p) => sum + p.monto, 0)
+            
+            // Solo validar si el monto pagado es mayor que el total (requiere cambio)
+            if (montoPagadoEfectivo > total) {
+              // Obtener resumen fuera de la transacción para no bloquear
+              const efectivoDisponible = await prisma.$queryRaw<[{ efectivo_esperado: number }]>`
+                SELECT 
+                  COALESCE(
+                    (SELECT fondo_inicial FROM sesiones_caja WHERE id = ${sessionId}),
+                    0
+                  ) + 
+                  COALESCE(
+                    (SELECT SUM(total) FROM ventas v 
+                     WHERE EXISTS (
+                       SELECT 1 FROM pagos_venta pv 
+                       INNER JOIN metodos_pago mp ON pv.metodo_pago_id = mp.id
+                       WHERE pv.venta_id = v.id AND LOWER(mp.nombre) = 'efectivo'
+                     )
+                     AND v.fecha_venta >= (SELECT fecha_apertura FROM sesiones_caja WHERE id = ${sessionId})
+                    ),
+                    0
+                  ) +
+                  COALESCE(
+                    (SELECT SUM(monto) FROM movimientos_caja 
+                     WHERE sesion_caja_id = ${sessionId} 
+                     AND tipo_movimiento = 'ingreso_adicional' 
+                     AND metodo_pago = 'efectivo'
+                    ),
+                    0
+                  ) -
+                  COALESCE(
+                    (SELECT SUM(monto) FROM retiros_caja 
+                     WHERE sesion_caja_id = ${sessionId} 
+                     AND estado = 'aprobado'
+                    ),
+                    0
+                  ) -
+                  COALESCE(
+                    (SELECT SUM(monto) FROM gastos_caja 
+                     WHERE sesion_caja_id = ${sessionId}
+                    ),
+                    0
+                  ) -
+                  COALESCE(
+                    (SELECT SUM(monto) FROM movimientos_caja 
+                     WHERE sesion_caja_id = ${sessionId} 
+                     AND tipo_movimiento = 'egreso_operativo' 
+                     AND metodo_pago = 'efectivo'
+                    ),
+                    0
+                  ) as efectivo_esperado
+              `
+              
+              const efectivo = efectivoDisponible[0]?.efectivo_esperado || 0
+              const cambioRequerido = montoPagadoEfectivo - total
+              
+              console.log('💵 Validación de cambio:', {
+                efectivoDisponible: efectivo,
+                montoPagado: montoPagadoEfectivo,
+                montoVenta: total,
+                cambioRequerido,
+                suficiente: efectivo >= cambioRequerido
+              })
+
+              if (efectivo < cambioRequerido) {
+                throw new Error(
+                  `⚠️ Efectivo insuficiente para dar cambio. ` +
+                  `Disponible en caja: $${efectivo.toLocaleString('es-CO')}, ` +
+                  `Cambio requerido: $${cambioRequerido.toLocaleString('es-CO')}. ` +
+                  `Sugerencia: Use pago exacto, tarjeta o pago mixto.`
+                )
+              }
+
+              console.log('✅ Efectivo suficiente para dar cambio')
+            }
+          }
+        }
 
         // 2. Generar código único de venta
         const codigoVenta = `VTA-${Date.now()}-${Math.floor(Math.random() * 1000)
@@ -326,15 +474,11 @@ export async function createSale(data: CreateSaleData) {
             )
           }
 
-          // Actualizar stock actual del producto
-          await tx.productos.update({
-            where: { id: item.producto_id },
-            data: {
-              stock_actual: {
-                decrement: item.cantidad,
-              },
-            },
-          })
+          // ❌ REMOVIDO: NO actualizar stock manualmente - el trigger SQL lo hace automáticamente
+          // El stock se actualiza por el trigger cuando se descuenta el lote en descontarStockDeLotes()
+          // Mantener este UPDATE causaría DOBLE DESCUENTO
+          
+          console.log(`  ✅ Stock del producto ${producto!.nombre} será actualizado automáticamente por el trigger SQL`)
 
           // ✅ NUEVO: Registrar en historial_inventario para trazabilidad completa
           const stockNuevo = stockAnterior - item.cantidad

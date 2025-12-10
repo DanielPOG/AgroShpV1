@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MovimientoModal } from "@/components/caja/movimiento-modal"
+import { MovimientosGuiaModal } from "@/components/caja/movimientos-guia-modal"
 import { MovimientosList } from "@/components/caja/movimientos-list"
 import { useToast } from "@/hooks/use-toast"
 import { 
@@ -18,7 +19,8 @@ import {
   DollarSign,
   AlertCircle,
   Loader2,
-  Clock
+  Clock,
+  HelpCircle
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -53,6 +55,8 @@ export default function MovimientosPage() {
   const [movimientosPendientes, setMovimientosPendientes] = useState<Movimiento[]>([])
   const [isLoadingMovimientos, setIsLoadingMovimientos] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [showGuia, setShowGuia] = useState(false)
+  const [efectivoDisponible, setEfectivoDisponible] = useState(0)
   const [totales, setTotales] = useState({
     ingresos: 0,
     egresos: 0,
@@ -91,6 +95,7 @@ export default function MovimientosPage() {
       if (response.ok) {
         setMovimientos(data.movimientos || [])
         calcularTotales(data.movimientos || [])
+        calcularEfectivoDisponible(data.movimientos || [])
       }
     } catch (error) {
       console.error("Error al cargar movimientos:", error)
@@ -126,6 +131,27 @@ export default function MovimientosPage() {
       egresos,
       neto: ingresos - egresos
     })
+  }
+
+  const calcularEfectivoDisponible = (movs: Movimiento[]) => {
+    if (!session) return
+
+    const fondoInicial = Number(session.fondo_inicial || 0)
+    const ventasEfectivo = Number(session.total_ventas_efectivo || 0)
+    const retiros = Number(session.total_retiros || 0)
+    const gastos = Number(session.total_gastos || 0)
+
+    // Movimientos solo en efectivo
+    const ingresosEfectivo = movs
+      .filter(m => m.tipo_movimiento === "ingreso_adicional" && m.metodo_pago === "efectivo")
+      .reduce((sum, m) => sum + Number(m.monto), 0)
+
+    const egresosEfectivo = movs
+      .filter(m => m.tipo_movimiento === "egreso_operativo" && m.metodo_pago === "efectivo")
+      .reduce((sum, m) => sum + Number(m.monto), 0)
+
+    const disponible = fondoInicial + ventasEfectivo + ingresosEfectivo - retiros - gastos - egresosEfectivo
+    setEfectivoDisponible(Math.max(0, disponible))
   }
 
   const handleMovimientoCreado = () => {
@@ -166,14 +192,23 @@ export default function MovimientosPage() {
             Sesión: {session?.codigo_sesion}
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Movimiento
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowGuia(true)}
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Ayuda
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Movimiento
+          </Button>
+        </div>
       </div>
 
       {/* Cards de Totales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Ingresos Adicionales</CardTitle>
@@ -207,6 +242,21 @@ export default function MovimientosPage() {
             <div className={`text-2xl font-bold ${totales.neto >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ${totales.neto.toLocaleString('es-CO')}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Efectivo en Caja</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              ${efectivoDisponible.toLocaleString('es-CO')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Efectivo físico disponible
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -277,6 +327,12 @@ export default function MovimientosPage() {
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleMovimientoCreado}
         sesionCajaId={session?.id || 0}
+      />
+
+      {/* Modal de Guía */}
+      <MovimientosGuiaModal
+        open={showGuia}
+        onClose={() => setShowGuia(false)}
       />
     </div>
   )

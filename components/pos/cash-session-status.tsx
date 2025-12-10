@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,10 +25,16 @@ interface CashSession {
 }
 
 interface CashSessionSummary {
+  ventas: {
+    efectivo: number
+    total: number
+  }
   movimientos: {
     total: number
     ingresos: number
     egresos: number
+    ingresosEfectivo: number
+    egresosEfectivo: number
   }
   retiros: {
     total: number
@@ -41,7 +47,12 @@ interface CashSessionSummary {
   efectivoEsperado: number
 }
 
-export function CashSessionStatus() {
+// ✨ NUEVO: Exponer métodos del componente
+export interface CashSessionStatusRef {
+  refresh: () => Promise<void>
+}
+
+export const CashSessionStatus = forwardRef<CashSessionStatusRef>((props, ref) => {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<CashSession | null>(null)
@@ -68,6 +79,13 @@ export function CashSessionStatus() {
       setLoading(false)
     }
   }
+
+  // ✨ NUEVO: Exponer función refresh al padre
+  useImperativeHandle(ref, () => ({
+    refresh: async () => {
+      await loadSession()
+    }
+  }))
 
   const handleOpenSuccess = () => {
     loadSession()
@@ -194,15 +212,83 @@ export function CashSessionStatus() {
               </div>
             </div>
 
-            {/* Efectivo Esperado */}
+            {/* Efectivo Esperado con desglose */}
             {summary && (
               <div className="pt-2 border-t border-green-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-green-700">Efectivo Esperado:</span>
-                  <span className="text-lg font-bold text-green-900">
-                    ${summary.efectivoEsperado.toLocaleString("es-CO")}
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-green-700">Efectivo en Caja:</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-lg font-bold ${
+                      summary.efectivoEsperado < 10000 ? 'text-red-600' :
+                      summary.efectivoEsperado < 50000 ? 'text-yellow-600' :
+                      'text-green-900'
+                    }`}>
+                      ${summary.efectivoEsperado.toLocaleString("es-CO")}
+                    </span>
+                    {summary.efectivoEsperado < 10000 && (
+                      <Badge variant="destructive" className="text-xs">
+                        ⚠️ Bajo
+                      </Badge>
+                    )}
+                    {summary.efectivoEsperado >= 10000 && summary.efectivoEsperado < 50000 && (
+                      <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-300">
+                        ⚠️ Limitado
+                      </Badge>
+                    )}
+                  </div>
                 </div>
+                
+                {/* Alerta si efectivo está muy bajo */}
+                {summary.efectivoEsperado < 20000 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2 mb-2">
+                    <p className="text-xs text-yellow-800">
+                      <strong>💡 Aviso:</strong> El efectivo en caja está bajo. 
+                      {summary.efectivoEsperado < 10000 
+                        ? ' Considera recibir más efectivo o sugerir pagos digitales.'
+                        : ' Puede que no puedas dar cambio para billetes grandes.'}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Desglose de cálculo */}
+                <div className="bg-white/50 rounded-md p-2 space-y-1 text-xs">
+                  <div className="flex justify-between text-green-700">
+                    <span>✓ Fondo Inicial:</span>
+                    <span className="font-medium">${session.fondo_inicial.toLocaleString("es-CO")}</span>
+                  </div>
+                  {summary.ventas.efectivo > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>✓ Ventas (Efectivo):</span>
+                      <span className="font-medium text-green-600">+${summary.ventas.efectivo.toLocaleString("es-CO")}</span>
+                    </div>
+                  )}
+                  {summary.movimientos.ingresosEfectivo > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>✓ Ingresos (Efectivo):</span>
+                      <span className="font-medium text-green-600">+${summary.movimientos.ingresosEfectivo.toLocaleString("es-CO")}</span>
+                    </div>
+                  )}
+                  {summary.retiros.monto > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>✗ Retiros:</span>
+                      <span className="font-medium text-red-600">-${summary.retiros.monto.toLocaleString("es-CO")}</span>
+                    </div>
+                  )}
+                  {summary.gastos.monto > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>✗ Gastos:</span>
+                      <span className="font-medium text-red-600">-${summary.gastos.monto.toLocaleString("es-CO")}</span>
+                    </div>
+                  )}
+                  {summary.movimientos.egresosEfectivo > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>✗ Egresos (Efectivo):</span>
+                      <span className="font-medium text-red-600">-${summary.movimientos.egresosEfectivo.toLocaleString("es-CO")}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Totales de transacciones */}
                 <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
                   <div className="text-center">
                     <p className="text-green-700">Movimientos</p>
@@ -232,4 +318,4 @@ export function CashSessionStatus() {
       />
     </>
   )
-}
+})

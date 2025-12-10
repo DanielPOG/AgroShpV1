@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useProducts } from "@/hooks/use-products"
@@ -12,7 +12,7 @@ import { BarcodeScanner } from "@/components/pos/barcode-scanner"
 import { ProductGrid } from "@/components/pos/product-grid"
 import { Cart } from "@/components/pos/cart"
 import { CheckoutModal, type PaymentData } from "@/components/pos/checkout-modal"
-import { CashSessionStatus } from "@/components/pos/cash-session-status"
+import { CashSessionStatus, type CashSessionStatusRef } from "@/components/pos/cash-session-status"
 import { useToast } from "@/hooks/use-toast"
 import { Search, Zap, X, ShoppingCart, ChevronUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -21,6 +21,9 @@ export default function POSPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { user, isAuthenticated, isLoading: authLoading, hasPermission } = useAuth()
+  
+  // ✨ NUEVO: Referencia para refrescar el estado de caja
+  const cashSessionRef = useRef<CashSessionStatusRef>(null)
   
   // Store de Zustand para el carrito
   const { items: cartItems, addItem, updateQuantity, removeItem, clearCart, getItemCount } = useCartStore()
@@ -40,6 +43,27 @@ export default function POSPage() {
 
   // Filtrar solo productos con stock
   const availableProducts = products?.filter((p) => Number(p.stock_actual) > 0) || []
+
+  // Verificar lotes vencidos al cargar POS
+  useEffect(() => {
+    const checkVencimientos = async () => {
+      try {
+        const response = await fetch('/api/lotes/check-vencimientos')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.vencidos > 0) {
+            console.log(`🚫 ${data.vencidos} lotes vencidos actualizados`)
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar vencimientos:', error)
+      }
+    }
+
+    if (isAuthenticated) {
+      checkVencimientos()
+    }
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -157,11 +181,18 @@ export default function POSPage() {
   }
 
   /**
-   * Completar checkout y limpiar carrito
+   * ✨ NUEVO: Callback después de venta exitosa para refrescar datos
    */
-  const handleCheckoutComplete = () => {
-    clearCart()
-    setIsCheckoutOpen(false)
+  const handleSaleComplete = async () => {
+    console.log('🔄 Refrescando estado de caja después de venta...')
+    
+    // Refrescar el estado de caja
+    if (cashSessionRef.current) {
+      await cashSessionRef.current.refresh()
+      console.log('✅ Estado de caja actualizado')
+    }
+    
+    // Mostrar notificación
     toast({
       title: "🎉 Venta Completada",
       description: "La venta ha sido registrada exitosamente",
@@ -252,7 +283,7 @@ export default function POSPage() {
 
             {/* Cash Session Status */}
             <div className="mb-4">
-              <CashSessionStatus />
+              <CashSessionStatus ref={cashSessionRef} />
             </div>
 
             <div className="space-y-2 sm:space-y-3">
@@ -394,7 +425,8 @@ export default function POSPage() {
         open={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
         items={cartItems}
-        onComplete={handleCheckoutComplete}
+        clearCart={clearCart}
+        onSaleComplete={handleSaleComplete}
       />
     </>
   )

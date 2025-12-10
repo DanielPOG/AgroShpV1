@@ -19,7 +19,7 @@ type RouteContext = {
  */
 export async function GET(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -30,6 +30,7 @@ export async function GET(
       )
     }
 
+    const params = await context.params
     const movimientoId = parseInt(params.id)
     const movimiento = await getMovimientoCajaById(movimientoId)
 
@@ -43,7 +44,7 @@ export async function GET(
     return NextResponse.json({ movimiento })
 
   } catch (error) {
-    console.error(`Error en GET /api/caja/movimientos/${params.id}:`, error)
+    console.error('Error en GET /api/caja/movimientos/[id]:', error)
     return NextResponse.json(
       { error: "Error al obtener movimiento" },
       { status: 500 }
@@ -57,7 +58,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -77,6 +78,7 @@ export async function PUT(
       )
     }
 
+    const params = await context.params
     const movimientoId = parseInt(params.id)
     const userId = parseInt(session.user.id)
 
@@ -89,7 +91,7 @@ export async function PUT(
     })
 
   } catch (error) {
-    console.error(`Error en PUT /api/caja/movimientos/${params.id}:`, error)
+    console.error('Error en PUT /api/caja/movimientos/[id]:', error)
 
     if (error instanceof Error) {
       return NextResponse.json(
@@ -111,7 +113,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -122,6 +124,7 @@ export async function DELETE(
       )
     }
 
+    const params = await context.params
     const movimientoId = parseInt(params.id)
     const userId = parseInt(session.user.id)
 
@@ -137,7 +140,7 @@ export async function DELETE(
     })
 
   } catch (error) {
-    console.error(`Error en DELETE /api/caja/movimientos/${params.id}:`, error)
+    console.error('Error en DELETE /api/caja/movimientos/[id]:', error)
 
     if (error instanceof Error) {
       return NextResponse.json(

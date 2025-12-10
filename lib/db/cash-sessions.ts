@@ -237,27 +237,49 @@ export async function getCashSessionSummary(sessionId: number) {
     throw new Error('Sesión no encontrada')
   }
 
-  // Calcular totales
+  // Calcular totales de movimientos (solo efectivo)
+  const totalIngresosEfectivo = movimientos
+    .filter((m) => m.tipo_movimiento === 'ingreso_adicional' && m.metodo_pago === 'efectivo')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  const totalEgresosEfectivo = movimientos
+    .filter((m) => m.tipo_movimiento === 'egreso_operativo' && m.metodo_pago === 'efectivo')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  // Totales generales (todos los métodos)
   const totalIngresos = movimientos
-    .filter((m) => m.tipo_movimiento === 'ingreso')
+    .filter((m) => m.tipo_movimiento === 'ingreso_adicional')
     .reduce((sum, m) => sum + Number(m.monto), 0)
 
   const totalEgresos = movimientos
-    .filter((m) => m.tipo_movimiento === 'egreso')
+    .filter((m) => m.tipo_movimiento === 'egreso_operativo')
     .reduce((sum, m) => sum + Number(m.monto), 0)
 
   const totalRetiros = retiros.reduce((sum, r) => sum + Number(r.monto), 0)
   const totalGastos = gastos.reduce((sum, g) => sum + Number(g.monto), 0)
 
+  // Efectivo esperado = fondo inicial + ventas efectivo + ingresos efectivo - retiros - gastos - egresos efectivo
+  const ventasEfectivo = Number(session.total_ventas_efectivo || 0)
   const efectivoEsperado =
-    Number(session.fondo_inicial) + totalIngresos - totalEgresos - totalRetiros - totalGastos
+    Number(session.fondo_inicial) + 
+    ventasEfectivo + 
+    totalIngresosEfectivo - 
+    totalRetiros - 
+    totalGastos - 
+    totalEgresosEfectivo
 
   return {
     session,
+    ventas: {
+      efectivo: ventasEfectivo,
+      total: Number(session.total_ventas || 0),
+    },
     movimientos: {
       total: movimientos.length,
       ingresos: totalIngresos,
       egresos: totalEgresos,
+      ingresosEfectivo: totalIngresosEfectivo,
+      egresosEfectivo: totalEgresosEfectivo,
     },
     retiros: {
       total: retiros.length,

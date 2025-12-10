@@ -34,6 +34,8 @@ export async function registerSaleInCashMovements(data: {
   metodoPagoNombre: string
 }) {
   console.log(`💰 Registrando venta en movimientos de caja: ${data.codigoVenta}`)
+  console.log(`   - Método: ${data.metodoPagoNombre} (ID: ${data.metodoPagoId})`)
+  console.log(`   - Monto: $${data.total}`)
 
   const movement = await createCashMovement({
     sesion_caja_id: data.sessionId,
@@ -47,6 +49,8 @@ export async function registerSaleInCashMovements(data: {
   // ✅ NUEVO: Actualizar totales por método de pago en sesiones_caja
   const metodoPagoLower = data.metodoPagoNombre.toLowerCase()
   
+  console.log(`🔍 DEBUG: Analizando método de pago "${data.metodoPagoNombre}" (lowercase: "${metodoPagoLower}")`)
+  
   let campoActualizar: 
     | 'total_ventas_efectivo' 
     | 'total_ventas_nequi' 
@@ -56,15 +60,23 @@ export async function registerSaleInCashMovements(data: {
 
   if (metodoPagoLower.includes('efectivo') || metodoPagoLower.includes('cash')) {
     campoActualizar = 'total_ventas_efectivo'
+    console.log(`   ✓ Detectado como EFECTIVO`)
   } else if (metodoPagoLower.includes('nequi')) {
     campoActualizar = 'total_ventas_nequi'
+    console.log(`   ✓ Detectado como NEQUI`)
   } else if (metodoPagoLower.includes('tarjeta') || metodoPagoLower.includes('card')) {
     campoActualizar = 'total_ventas_tarjeta'
+    console.log(`   ✓ Detectado como TARJETA`)
   } else if (metodoPagoLower.includes('transferencia') || metodoPagoLower.includes('bancolombia')) {
     campoActualizar = 'total_ventas_transferencia'
+    console.log(`   ✓ Detectado como TRANSFERENCIA`)
+  } else {
+    console.log(`   ⚠️ NO se detectó el tipo de método (no coincide con ningún patrón)`)
   }
 
   if (campoActualizar) {
+    console.log(`🔄 Actualizando campo "${campoActualizar}" con incremento de +$${data.total}`)
+    
     await prisma.sesiones_caja.update({
       where: { id: data.sessionId },
       data: {
@@ -73,9 +85,11 @@ export async function registerSaleInCashMovements(data: {
         }
       }
     })
-    console.log(`✅ Actualizado ${campoActualizar}: +$${data.total}`)
+    console.log(`✅ Campo ${campoActualizar} actualizado exitosamente`)
+  } else {
+    console.log(`⚠️ NO se actualizó ningún campo de sesión (método no reconocido)`)
   }
 
-  console.log(`✅ Venta registrada en movimientos de caja: ID ${movement.id}`)
+  console.log(`✅ Movimiento de caja registrado: ID ${movement.id}`)
   return movement
 }

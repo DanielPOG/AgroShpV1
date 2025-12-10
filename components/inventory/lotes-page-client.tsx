@@ -56,10 +56,23 @@ export function LotesPageClient() {
     limit: 100 
   })
 
-  // Cargar datos iniciales
+  // Cargar datos iniciales y verificar vencimientos
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Verificar lotes vencidos primero
+        const vencimientosRes = await fetch('/api/lotes/check-vencimientos')
+        if (vencimientosRes.ok) {
+          const vencimientosData = await vencimientosRes.json()
+          if (vencimientosData.vencidos > 0) {
+            toast({
+              title: "Lotes vencidos actualizados",
+              description: `Se actualizaron ${vencimientosData.vencidos} lotes vencidos`,
+              variant: "destructive",
+            })
+          }
+        }
+
         const [unidadesRes, productosRes] = await Promise.all([
           fetch('/api/unidades'),
           fetch('/api/productos?limit=100&activo=true') // Solo productos activos
@@ -82,7 +95,7 @@ export function LotesPageClient() {
       }
     }
     fetchData()
-  }, [])
+  }, [toast])
 
   const handleLoteCreated = () => {
     toast({

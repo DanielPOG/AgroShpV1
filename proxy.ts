@@ -26,13 +26,19 @@ export async function proxy(request: NextRequest) {
     const isDashboard = pathname.startsWith('/dashboard')
     const isApiRoute = pathname.startsWith('/api')
     const isPublicApi = pathname.startsWith('/api/public')
+    const isCronRoute = pathname === '/api/lotes/check-vencimientos'
 
     // Permitir rutas públicas de API sin autenticación
     if (isPublicApi) {
         return NextResponse.next()
     }
 
-    // Proteger rutas de API (excepto auth)
+    // Permitir Vercel Cron para verificación de lotes vencidos
+    if (isCronRoute) {
+        return NextResponse.next()
+    }
+
+    // Proteger rutas de API (excepto auth y cron)
     if (isApiRoute && !pathname.startsWith('/api/auth')) {
         if (!token) {
             return NextResponse.json(

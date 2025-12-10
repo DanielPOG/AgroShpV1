@@ -564,6 +564,7 @@ export async function retirarLote(id: number, usuario_id: number, motivo?: strin
         producto: {
           select: {
             nombre: true,
+            stock_actual: true,
           },
         },
       },
@@ -577,7 +578,20 @@ export async function retirarLote(id: number, usuario_id: number, motivo?: strin
       throw new Error('El lote ya está retirado')
     }
 
+    // 📊 Log del estado ANTES de retirar
+    console.log('\n📦 RETIRO DE LOTE:')
+    console.log(`  Lote: ${existing.codigo_lote}`)
+    console.log(`  Producto: ${existing.producto?.nombre}`)
+    console.log(`  Cantidad en lote: ${existing.cantidad}`)
+    console.log(`  Stock actual del producto: ${existing.producto?.stock_actual}`)
+    console.log(`  Motivo: ${motivo || 'Sin especificar'}`)
+    console.log('\n⚠️ IMPORTANTE: NO se descuenta stock manualmente aquí')
+    console.log('✅ El trigger SQL sync_stock_on_lote_update() lo hará automáticamente')
+    console.log('   cuando detecte el cambio de estado (disponible → retirado)\n')
+
     // Actualizar estado a 'retirado'
+    // ⚠️ CRÍTICO: NO descontar stock manualmente
+    // El trigger SQL se encarga de todo automáticamente
     const lote = await prisma.lotes_productos.update({
       where: { id },
       data: {

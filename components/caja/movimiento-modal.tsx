@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react"
+import { Loader2, AlertCircle, TrendingUp, TrendingDown, HelpCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { MovimientosGuiaModal } from "./movimientos-guia-modal"
 
 type TipoMovimiento = "ingreso_adicional" | "egreso_operativo"
 type MetodoPago = "efectivo" | "nequi" | "tarjeta" | "transferencia"
@@ -29,6 +30,7 @@ export function MovimientoModal({
 }: MovimientoModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showGuia, setShowGuia] = useState(false)
   const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovimiento>("ingreso_adicional")
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo")
   const [monto, setMonto] = useState("")
@@ -115,11 +117,23 @@ export function MovimientoModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Registrar Movimiento de Caja</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Registrar Movimiento de Caja</DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowGuia(true)}
+                title="Ver guía de uso"
+              >
+                <HelpCircle className="h-5 w-5 text-muted-foreground hover:text-blue-600" />
+              </Button>
+            </div>
+          </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Tipo de Movimiento */}
@@ -235,5 +249,12 @@ export function MovimientoModal({
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* Modal de Guía */}
+    <MovimientosGuiaModal 
+      open={showGuia} 
+      onClose={() => setShowGuia(false)} 
+    />
+  </>
   )
 }

@@ -86,22 +86,71 @@ export async function checkLotesProximosVencer() {
       }
     }
 
-    // 3. Marcar lotes vencidos
-    const lotesVencidos = await prisma.lotes_productos.updateMany({
-      where: {
-        estado: 'disponible',
-        fecha_vencimiento: {
-          lt: ahora,
+    // 3. Marcar lotes vencidos - SOLO cambiar estado
+    // ⚠️ CRÍTICO: NO descontar stock manualmente aquí
+    // El trigger SQL sync_stock_on_lote_update() se ejecuta automáticamente
+    // cuando cambia el estado y maneja el descuento de stock correctamente
+    const lotesVencidos = await prisma.$transaction(async (tx) => {
+      // Obtener lotes que están vencidos pero aún marcados como disponibles
+      const lotesParaVencer = await tx.lotes_productos.findMany({
+        where: {
+          estado: 'disponible',
+          fecha_vencimiento: {
+            lt: ahora,
+          },
         },
-      },
-      data: {
-        estado: 'vencido',
-      },
-    })
+        include: {
+          producto: {
+            select: {
+              id: true,
+              nombre: true,
+              stock_actual: true,
+            },
+          },
+        },
+      })
 
-    if (lotesVencidos.count > 0) {
-      console.log(`🚫 ${lotesVencidos.count} lotes marcados como vencidos`)
-    }
+      if (lotesParaVencer.length === 0) {
+        return { count: 0, detalles: [] }
+      }
+
+      // Log del estado ANTES de marcar como vencidos
+      console.log('\n📊 Estado ANTES de marcar lotes como vencidos:')
+      lotesParaVencer.forEach(lote => {
+        console.log(`  - Lote ${lote.codigo_lote}: cantidad=${lote.cantidad}, producto="${lote.producto?.nombre}", stock_actual=${lote.producto?.stock_actual}`)
+      })
+
+      // SOLO cambiar estado a 'vencido'
+      // El trigger SQL se encargará de:
+      // 1. Detectar cambio de estado (disponible → vencido)
+      // 2. Restar automáticamente la cantidad del lote del stock del producto
+      // 3. Crear registro en historial_inventario
+      await tx.lotes_productos.updateMany({
+        where: {
+          id: { in: lotesParaVencer.map(l => l.id) },
+        },
+        data: {
+          estado: 'vencido',
+        },
+      })
+
+      // Log de confirmación
+      console.log(`\n🚫 ${lotesParaVencer.length} lotes marcados como vencidos`)
+      console.log('✅ Trigger SQL sync_stock_on_lote_update() ejecutará automáticamente:')
+      console.log('   1. Descontar stock de productos afectados')
+      console.log('   2. Crear registros en historial_inventario')
+      console.log('   3. Evitar doble descuento (solo resta si cantidad > 0)\n')
+      
+      return {
+        count: lotesParaVencer.length,
+        detalles: lotesParaVencer.map(l => ({
+          codigo_lote: l.codigo_lote,
+          producto: l.producto?.nombre,
+          cantidad: Number(l.cantidad),
+          stock_antes: Number(l.producto?.stock_actual),
+        })),
+      }
+    })
 
     console.log(
       `✅ Verificación completada: ${lotes7Dias.length} lotes próximos a vencer, ${lotesVencidos.count} lotes vencidos`

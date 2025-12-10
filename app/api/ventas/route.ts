@@ -167,27 +167,40 @@ export async function POST(request: NextRequest) {
     console.log(`   - Items: ${validatedData.items.length}`)
     console.log(`   - Métodos de pago: ${validatedData.pagos.length}`)
 
-    // Crear venta
+    // Crear venta (pasar sessionId para validación de cambio)
     const venta = await createSale({
       ...validatedData,
       usuario_id: Number(session.user.id),
-    })
+    }, cashSession.id)
 
     // ⭐ NUEVO: Registrar venta en movimientos de caja
     try {
+      console.log(`🔍 DEBUG: Procesando ${venta.pagos_venta.length} pagos para integración con caja`)
+      
       // Para cada método de pago, registrar el movimiento
       for (const pago of venta.pagos_venta) {
+        const metodoPagoNombre = pago.metodo_pago?.nombre || 'Desconocido'
+        
+        console.log(`📌 DEBUG Pago:`, {
+          metodo_pago_id: pago.metodo_pago_id,
+          metodo_pago_objeto: pago.metodo_pago,
+          metodo_pago_nombre: metodoPagoNombre,
+          monto: pago.monto
+        })
+        
         await registerSaleInCashMovements({
           sessionId: cashSession.id,
           ventaId: venta.id,
           codigoVenta: venta.codigo_venta,
           total: Number(pago.monto),
           metodoPagoId: pago.metodo_pago_id,
-          metodoPagoNombre: pago.metodo_pago?.nombre || 'Desconocido',
+          metodoPagoNombre,
         })
       }
+      console.log(`✅ Todos los pagos registrados en movimientos de caja`)
     } catch (movementError) {
       console.error('⚠️ Error al registrar movimiento de caja:', movementError)
+      console.error('⚠️ Stack trace:', movementError instanceof Error ? movementError.stack : 'No stack')
       // No fallar la venta por error en movimiento
       // La venta ya está creada, solo loguear el error
     }

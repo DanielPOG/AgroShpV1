@@ -100,7 +100,15 @@ export async function createMovimientoCaja(data: MovimientoCajaCreate) {
   // Verificar que la sesión esté abierta
   const sesion = await prisma.sesiones_caja.findUnique({
     where: { id: data.sesion_caja_id },
-    select: { id: true, estado: true, codigo_sesion: true }
+    select: { 
+      id: true, 
+      estado: true, 
+      codigo_sesion: true,
+      fondo_inicial: true,
+      total_ventas_efectivo: true,
+      total_retiros: true,
+      total_gastos: true,
+    }
   })
 
   if (!sesion) {
@@ -109,6 +117,50 @@ export async function createMovimientoCaja(data: MovimientoCajaCreate) {
 
   if (sesion.estado !== 'abierta') {
     throw new Error('La sesión de caja no está abierta')
+  }
+
+  // Si es EGRESO y método EFECTIVO, validar que haya suficiente efectivo
+  if (data.tipo_movimiento === TIPOS_MOVIMIENTO.EGRESO_OPERATIVO && data.metodo_pago === 'efectivo') {
+    // Calcular efectivo disponible actual
+    const fondoInicial = Number(sesion.fondo_inicial)
+    const ventasEfectivo = Number(sesion.total_ventas_efectivo || 0)
+    const retiros = Number(sesion.total_retiros || 0)
+    const gastos = Number(sesion.total_gastos || 0)
+
+    // Obtener ingresos y egresos adicionales (movimientos previos)
+    const movimientos = await prisma.movimientos_caja.findMany({
+      where: {
+        sesion_caja_id: data.sesion_caja_id,
+        venta_id: null,
+        metodo_pago: 'efectivo',
+      },
+      select: {
+        tipo_movimiento: true,
+        monto: true,
+      }
+    })
+
+    let ingresosAdicionales = 0
+    let egresosOperativos = 0
+
+    movimientos.forEach(mov => {
+      const monto = Number(mov.monto)
+      if (mov.tipo_movimiento === TIPOS_MOVIMIENTO.INGRESO_ADICIONAL) {
+        ingresosAdicionales += monto
+      } else if (mov.tipo_movimiento === TIPOS_MOVIMIENTO.EGRESO_OPERATIVO) {
+        egresosOperativos += monto
+      }
+    })
+
+    // Efectivo disponible = Fondo + Ventas + Ingresos - Retiros - Gastos - Egresos
+    const efectivoDisponible = fondoInicial + ventasEfectivo + ingresosAdicionales - retiros - gastos - egresosOperativos
+
+    if (data.monto > efectivoDisponible) {
+      throw new Error(
+        `Efectivo insuficiente. Disponible: $${efectivoDisponible.toLocaleString('es-CO')}. ` +
+        `Intentas retirar: $${data.monto.toLocaleString('es-CO')}`
+      )
+    }
   }
 
   // Determinar si requiere autorización

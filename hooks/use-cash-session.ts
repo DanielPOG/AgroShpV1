@@ -12,6 +12,8 @@ interface CashSession {
   total_ventas_nequi: number
   total_ventas_tarjeta: number
   total_ventas_transferencia: number
+  total_retiros: number
+  total_gastos: number
   caja: {
     id: number
     nombre: string

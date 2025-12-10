@@ -176,6 +176,9 @@ model detalle_ventas {
   lote            lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   venta           ventas?          @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([venta_id], map: "idx_detalle_ventas_venta")
+  @@index([producto_id, lote_id], map: "idx_detalle_ventas_producto_lote")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -300,6 +303,7 @@ model cajas {
   created_at    DateTime?       @default(now()) @db.Timestamp(6)
   updated_at    DateTime?       @default(now()) @db.Timestamp(6)
   sesiones_caja sesiones_caja[]
+  turnos_caja   turnos_caja[]
 
   @@index([activa], map: "idx_cajas_activa")
 }
@@ -334,6 +338,7 @@ model sesiones_caja {
   gastos_caja                gastos_caja[]
   movimientos_caja           movimientos_caja[]
   retiros_caja               retiros_caja[]
+  turnos_caja                turnos_caja[]
   caja                       cajas              @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cajero                     usuarios           @relation(fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -444,6 +449,34 @@ model arqueos_caja {
   @@index([sesion_caja_id], map: "idx_arqueos_sesion")
   @@index([tipo_arqueo], map: "idx_arqueos_tipo")
   @@index([fecha_arqueo], map: "idx_arqueos_fecha")
+}
+
+/// Modelo para gestión de turnos de caja
+model turnos_caja {
+  id              Int           @id @default(autoincrement())
+  sesion_caja_id  Int
+  cajero_id       Int
+  caja_id         Int
+  tipo_relevo     String        @db.VarChar(30)
+  fecha_inicio    DateTime      @default(now()) @db.Timestamp(6)
+  fecha_fin       DateTime?     @db.Timestamp(6)
+  monto_inicial   Decimal       @db.Decimal(10, 2)
+  monto_final     Decimal?      @db.Decimal(10, 2)
+  diferencia      Decimal?      @db.Decimal(10, 2)
+  duracion_minutos Int?
+  estado          String        @default("activo") @db.VarChar(20)
+  motivo_suspension String?
+  observaciones   String?
+  created_at      DateTime?     @default(now()) @db.Timestamp(6)
+  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cajero          usuarios      @relation("turnos_cajero", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  caja            cajas         @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([sesion_caja_id], map: "idx_turnos_caja_sesion")
+  @@index([cajero_id], map: "idx_turnos_caja_cajero")
+  @@index([caja_id], map: "idx_turnos_caja_id")
+  @@index([estado], map: "idx_turnos_caja_estado")
+  @@index([fecha_inicio], map: "idx_turnos_caja_fecha")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -609,6 +642,7 @@ model usuarios {
   sesiones_caja                         sesiones_caja[]
   solicitudes_transferencia_respuesta   solicitudes_transferencia[] @relation("solicitudes_respuesta")
   solicitudes_transferencia_solicitante solicitudes_transferencia[] @relation("solicitudes_solicitante")
+  turnos_caja                           turnos_caja[]               @relation("turnos_cajero")
   unidades_productivas                  unidades_productivas[]
   rol                                   roles?                      @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   ventas                                ventas[]
@@ -635,6 +669,7 @@ model ventas {
   observaciones        String?
   created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   cliente_id           Int?
+  deleted_at           DateTime?              @db.Timestamptz(6)
   descuentos_aplicados descuentos_aplicados[]
   detalle_ventas       detalle_ventas[]
   movimientos_caja     movimientos_caja[]
@@ -645,4 +680,6 @@ model ventas {
   @@index([estado], map: "idx_ventas_estado")
   @@index([fecha_venta], map: "idx_ventas_fecha")
   @@index([usuario_id], map: "idx_ventas_usuario")
+  @@index([fecha_venta, usuario_id], map: "idx_ventas_fecha_usuario")
+  @@index([cliente_id], map: "idx_ventas_cliente")
 }

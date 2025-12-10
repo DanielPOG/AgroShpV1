@@ -17,6 +17,12 @@ import {
   Menu,
   X,
   PackageCheck,
+  Settings,
+  Wallet,
+  Banknote,
+  Receipt,
+  Calculator,
+  Clock,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -57,10 +63,52 @@ const navigation = [
     roles: ["Admin", "Cajero"] 
   },
   { 
+    name: "Movimientos de Caja", 
+    href: "/dashboard/caja/movimientos", 
+    icon: Wallet, 
+    roles: ["Admin", "Cajero"],
+    description: "Ingresos y egresos adicionales"
+  },
+  { 
+    name: "Retiros de Caja", 
+    href: "/dashboard/caja/retiros", 
+    icon: Banknote, 
+    roles: ["Admin", "Cajero"],
+    description: "Solicitudes y autorizaciones de retiros"
+  },
+  { 
+    name: "Gastos de Caja", 
+    href: "/dashboard/caja/gastos", 
+    icon: Receipt, 
+    roles: ["Admin", "Cajero"],
+    description: "Registro de gastos operativos"
+  },
+  { 
+    name: "Arqueos de Caja", 
+    href: "/dashboard/caja/arqueos", 
+    icon: Calculator, 
+    roles: ["Admin", "Cajero", "Supervisor"],
+    description: "Conteo físico y cierre de caja"
+  },
+  { 
+    name: "Turnos de Caja", 
+    href: "/dashboard/caja/turnos", 
+    icon: Clock, 
+    roles: ["Admin", "Cajero", "Supervisor"],
+    description: "Gestión de turnos y relevos"
+  },
+  { 
     name: "Reportes", 
     href: "/dashboard/reportes", 
     icon: BarChart3, 
     roles: ["Admin", "Inventarista", "Consulta"] 
+  },
+  { 
+    name: "Configuración", 
+    href: "/dashboard/configuracion/cajas", 
+    icon: Settings, 
+    roles: ["Admin"],
+    description: "Gestión de cajas y configuración"
   },
   { 
     name: "Catálogo Público", 

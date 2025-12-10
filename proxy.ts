@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 /**
- * Middleware para proteger rutas y manejar autenticación
+ * Proxy para proteger rutas y manejar autenticación (Next.js 15)
  * 
  * Rutas protegidas:
  * - /dashboard/* - Requiere autenticación
@@ -13,7 +13,7 @@ import { getToken } from 'next-auth/jwt'
  * - /catalogo - Catálogo público alternativo
  * - /login - Página de login
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // Obtener token de sesión

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { useProducts } from "@/hooks/use-products"
+import { useCartStore } from "@/store/cart-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -10,55 +12,62 @@ import { BarcodeScanner } from "@/components/pos/barcode-scanner"
 import { ProductGrid } from "@/components/pos/product-grid"
 import { Cart } from "@/components/pos/cart"
 import { CheckoutModal, type PaymentData } from "@/components/pos/checkout-modal"
-import { ManualEntryModal } from "@/components/pos/manual-entry-modal"
-import { mockProducts, type Product } from "@/lib/mock-data"
+import { CashSessionStatus } from "@/components/pos/cash-session-status"
 import { useToast } from "@/hooks/use-toast"
-import { Search, Zap, X, Plus, ShoppingCart, ChevronUp, Loader2 } from "lucide-react"
+import { Search, Zap, X, ShoppingCart, ChevronUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-interface CartItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  image: string
-  unit: string
-}
 
 export default function POSPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const { user, isAuthenticated, isLoading, hasPermission } = useAuth()
-  const [cartItems, setCartItems] = useState<CartItem[]>([])
+  const { user, isAuthenticated, isLoading: authLoading, hasPermission } = useAuth()
+  
+  // Store de Zustand para el carrito
+  const { items: cartItems, addItem, updateQuantity, removeItem, clearCart, getItemCount } = useCartStore()
+  
+  // Estado local
   const [searchQuery, setSearchQuery] = useState("")
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
-  const [availableProducts] = useState(mockProducts.filter((p) => p.stock > 0))
+
+  // Cargar productos con stock disponible
+  const { products, isLoading: productsLoading, error } = useProducts({
+    activo: true,
+    limit: 100,
+    page: 1,
+    sortBy: null,
+  })
+
+  // Filtrar solo productos con stock
+  const availableProducts = products?.filter((p) => Number(p.stock_actual) > 0) || []
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push("/login")
       return
     }
     
     // Verificar que tenga permisos de POS
-    if (!isLoading && isAuthenticated && !hasPermission('pos') && !hasPermission('all')) {
+    if (!authLoading && isAuthenticated && !hasPermission('pos') && !hasPermission('all')) {
       router.push("/dashboard")
       return
     }
-  }, [isAuthenticated, isLoading, hasPermission, router])
+  }, [isAuthenticated, authLoading, hasPermission, router])
 
+  // Atajos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // F2: Focus en búsqueda
       if (e.key === "F2") {
         e.preventDefault()
         document.getElementById("search")?.focus()
       }
+      // Enter: Abrir checkout si hay items
       if (e.key === "Enter" && cartItems.length > 0 && !isCheckoutOpen) {
         e.preventDefault()
         setIsCheckoutOpen(true)
       }
+      // Escape: Cerrar modal o limpiar búsqueda
       if (e.key === "Escape") {
         e.preventDefault()
         if (isCheckoutOpen) {
@@ -73,13 +82,18 @@ export default function POSPage() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [cartItems.length, isCheckoutOpen])
 
+  /**
+   * Manejar escaneo de código de barras
+   */
   const handleBarcodeScan = (barcode: string) => {
-    const product = mockProducts.find((p) => p.barcode === barcode)
+    // Buscar producto por código de barras (código del producto)
+    const product = availableProducts.find((p) => p.codigo === barcode)
+    
     if (product) {
-      addToCart(product)
+      handleAddToCart(product)
       toast({
         title: "Producto Agregado",
-        description: `${product.name} añadido al carrito`,
+        description: `${product.nombre} añadido al carrito`,
       })
     } else {
       toast({
@@ -90,77 +104,95 @@ export default function POSPage() {
     }
   }
 
-  const addToCart = (product: Product) => {
-    const existingItem = cartItems.find((item) => item.id === product.id)
-    if (existingItem) {
-      setCartItems(cartItems.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)))
-    } else {
-      setCartItems([
-        ...cartItems,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: 1,
-          image: product.image,
-          unit: product.unit,
-        },
-      ])
-    }
-  }
+  /**
+   * Agregar producto al carrito
+   */
+  const handleAddToCart = (product: any) => {
+    // Validar stock disponible
+    const currentItem = cartItems.find((item) => item.id === product.id)
+    const currentQuantity = currentItem?.cantidad || 0
+    const stockDisponible = Number(product.stock_actual)
 
-  const handleManualEntry = (product: { name: string; price: number }) => {
-    const manualProduct: CartItem = {
-      id: `manual-${Date.now()}`,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      image: "/generic-product-display.png",
-      unit: "unidad",
+    if (currentQuantity >= stockDisponible) {
+      toast({
+        title: "Stock Insuficiente",
+        description: `Solo hay ${stockDisponible} unidades disponibles de ${product.nombre}`,
+        variant: "destructive",
+      })
+      return
     }
 
-    setCartItems([...cartItems, manualProduct])
-
-    toast({
-      title: "Producto Agregado",
-      description: `${product.name} agregado manualmente al carrito`,
+    // Agregar al store de Zustand
+    addItem({
+      id: product.id,
+      nombre: product.nombre,
+      codigo: product.codigo,
+      precio: Number(product.precio_unitario),
+      stock: stockDisponible,
+      imagen: product.imagen_url,
+      unidad: product.unidad,
+      es_perecedero: product.es_perecedero,
+      categoria: product.categoria ? {
+        nombre: product.categoria.nombre,
+        color: product.categoria.color,
+        icono: product.categoria.icono || undefined,
+      } : undefined,
     })
   }
 
-  const updateQuantity = (id: string, quantity: number) => {
-    if (quantity < 1) return
-    setCartItems(cartItems.map((item) => (item.id === id ? { ...item, quantity } : item)))
-  }
-
-  const removeItem = (id: string) => {
-    setCartItems(cartItems.filter((item) => item.id !== id))
-  }
-
+  /**
+   * Abrir modal de checkout
+   */
   const handleCheckout = () => {
-    if (cartItems.length === 0) return
+    if (cartItems.length === 0) {
+      toast({
+        title: "Carrito Vacío",
+        description: "Agrega productos antes de proceder al pago",
+        variant: "destructive",
+      })
+      return
+    }
     setIsCheckoutOpen(true)
     setIsCartOpen(false)
   }
 
-  const handleCheckoutComplete = (paymentData: PaymentData) => {
-    toast({
-      title: "Venta Completada",
-      description: `Venta registrada con método: ${paymentData.method}`,
-    })
-    setCartItems([])
+  /**
+   * Completar checkout y limpiar carrito
+   */
+  const handleCheckoutComplete = () => {
+    clearCart()
     setIsCheckoutOpen(false)
+    toast({
+      title: "🎉 Venta Completada",
+      description: "La venta ha sido registrada exitosamente",
+    })
   }
 
+  /**
+   * Limpiar todo el carrito
+   */
+  const handleClearCart = () => {
+    if (cartItems.length === 0) return
+    
+    clearCart()
+    toast({
+      title: "Carrito Limpiado",
+      description: "Todos los productos han sido eliminados",
+    })
+  }
+
+  /**
+   * Filtrar productos por búsqueda
+   */
   const filteredProducts = availableProducts.filter(
     (product) =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase()),
+      product.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.categoria?.nombre.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
-
-  if (isLoading || !isAuthenticated || !user) {
+  // Estados de carga
+  if (authLoading || !isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -171,36 +203,56 @@ export default function POSPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <p className="text-destructive font-semibold">Error al cargar productos</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Reintentar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const cartItemCount = getItemCount()
+
   return (
     <>
       {/* Products and Cart Container */}
       <div className="flex flex-col lg:flex-row h-full overflow-hidden">
         {/* Left Panel - Products */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          {/* Header */}
           <div className="p-2 sm:p-4 lg:p-6 border-b border-border bg-card shrink-0">
             <div className="flex items-center justify-between mb-2 sm:mb-4">
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground truncate">Punto de Venta</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Terminal POS AgroShop</p>
+                <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground truncate">
+                  Punto de Venta
+                </h1>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                  Terminal POS AgroShop - {user.name}
+                </p>
               </div>
               <div className="flex gap-1 sm:gap-2 shrink-0">
                 <Button
                   variant="outline"
-                  onClick={() => setIsManualEntryOpen(true)}
+                  onClick={handleClearCart}
                   size="icon"
+                  disabled={cartItems.length === 0}
                   className="h-8 w-8 sm:h-10 sm:w-10"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setCartItems([])}
-                  size="icon"
-                  className="h-8 w-8 sm:h-10 sm:w-10"
+                  title="Limpiar carrito"
                 >
                   <X className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </div>
+            </div>
+
+            {/* Cash Session Status */}
+            <div className="mb-4">
+              <CashSessionStatus />
             </div>
 
             <div className="space-y-2 sm:space-y-3">
@@ -210,35 +262,58 @@ export default function POSPage() {
                 <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Buscar... (F2)"
+                  placeholder="Buscar productos... (F2)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-7 sm:pl-10 text-sm h-8 sm:h-10"
                 />
+                {searchQuery && (
+                  <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">
+                    {filteredProducts.length}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 min-h-0">
-            {filteredProducts.length > 0 ? (
-              <ProductGrid products={filteredProducts} onSelectProduct={addToCart} />
+            {productsLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="flex flex-col items-center gap-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Cargando productos...</p>
+                </div>
+              </div>
+            ) : filteredProducts.length > 0 ? (
+              <ProductGrid products={filteredProducts} onSelectProduct={handleAddToCart} />
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-xs sm:text-sm text-muted-foreground">No se encontraron productos</p>
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium">No se encontraron productos</p>
+                  <p className="text-xs text-muted-foreground">
+                    {searchQuery ? "Intenta con otra búsqueda" : "No hay productos disponibles con stock"}
+                  </p>
+                </div>
               </div>
             )}
           </div>
 
+          {/* Keyboard shortcuts info */}
           <div className="p-2 sm:p-3 border-t border-border bg-card shrink-0 hidden sm:block">
             <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
               <Zap className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
               <span className="truncate">
                 <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Enter</kbd> Finalizar
+                {' · '}
+                <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">F2</kbd> Buscar
+                {' · '}
+                <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Esc</kbd> Cancelar
               </span>
             </div>
           </div>
         </div>
 
+        {/* Right Panel - Cart (Desktop) */}
         <div className="hidden lg:block w-96 border-l border-border bg-card shrink-0 overflow-hidden">
           <Cart
             items={cartItems}
@@ -249,6 +324,7 @@ export default function POSPage() {
         </div>
       </div>
 
+      {/* Floating Cart Button (Mobile) */}
       {cartItems.length > 0 && (
         <Button
           size="lg"
@@ -264,6 +340,7 @@ export default function POSPage() {
         </Button>
       )}
 
+      {/* Mobile Cart Drawer */}
       <div
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 bg-gradient-to-b from-card to-card/95 border-t-4 border-primary shadow-[0_-10px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300 lg:hidden rounded-t-3xl overflow-hidden",
@@ -312,19 +389,13 @@ export default function POSPage() {
         />
       )}
 
+      {/* Checkout Modal */}
       <CheckoutModal
         open={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
-        total={cartTotal * 1.19}
         items={cartItems}
         onComplete={handleCheckoutComplete}
       />
-
-      <ManualEntryModal
-        open={isManualEntryOpen}
-        onClose={() => setIsManualEntryOpen(false)}
-        onAdd={handleManualEntry}
-      />
-    </div>
+    </>
   )
 }

@@ -8,23 +8,31 @@ import { Trash2, Plus, Minus, ShoppingCart, Package } from "lucide-react"
 import Image from "next/image"
 
 interface CartItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  image: string
-  unit: string
+  id: number
+  nombre: string
+  precio: number
+  cantidad: number
+  imagen?: string
+  unidad: string
+  stock: number
+  codigo: string
+  es_perecedero: boolean
+  categoria?: {
+    nombre: string
+    color: string
+    icono?: string
+  }
 }
 
 interface CartProps {
   items: CartItem[]
-  onUpdateQuantity: (id: string, quantity: number) => void
-  onRemoveItem: (id: string) => void
+  onUpdateQuantity: (id: number, quantity: number) => void
+  onRemoveItem: (id: number) => void
   onCheckout: () => void
 }
 
 export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: CartProps) {
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const subtotal = items.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
   const tax = subtotal * 0.19
   const total = subtotal + tax
 
@@ -63,14 +71,19 @@ export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: Cart
                 <CardContent className="p-3">
                   <div className="flex gap-3">
                     <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 border-2 border-border shadow-sm">
-                      <Image src={item.image || "/placeholder.svg"} alt={item.name} fill className="object-cover" />
+                      <Image 
+                        src={item.imagen || "/placeholder.svg"} 
+                        alt={item.nombre} 
+                        fill 
+                        className="object-cover" 
+                      />
                     </div>
 
                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                       <div>
-                        <p className="font-semibold text-sm text-foreground truncate leading-tight">{item.name}</p>
+                        <p className="font-semibold text-sm text-foreground truncate leading-tight">{item.nombre}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          ${item.price.toLocaleString("es-CO")} / {item.unit}
+                          ${item.precio.toLocaleString("es-CO")} / {item.unidad}
                         </p>
                       </div>
 
@@ -80,22 +93,24 @@ export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: Cart
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                            onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                            onClick={() => onUpdateQuantity(item.id, Math.max(1, item.cantidad - 1))}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
                           <Input
                             type="number"
-                            value={item.quantity}
+                            value={item.cantidad}
                             onChange={(e) => onUpdateQuantity(item.id, Number.parseInt(e.target.value) || 1)}
                             className="h-7 w-12 text-center text-sm p-0 border-0 bg-transparent font-semibold"
                             min="1"
+                            max={item.stock}
                           />
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => onUpdateQuantity(item.id, item.cantidad + 1)}
+                            disabled={item.cantidad >= item.stock}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
@@ -114,7 +129,7 @@ export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: Cart
 
                     <div className="text-right flex-shrink-0 flex flex-col justify-center">
                       <p className="font-bold text-sm text-primary">
-                        ${(item.price * item.quantity).toLocaleString("es-CO")}
+                        ${(item.precio * item.cantidad).toLocaleString("es-CO")}
                       </p>
                       <p className="text-[10px] text-muted-foreground">Total</p>
                     </div>

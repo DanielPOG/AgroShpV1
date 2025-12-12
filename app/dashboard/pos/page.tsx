@@ -89,6 +89,11 @@ export default function POSPage() {
         e.preventDefault()
         document.getElementById("search")?.focus()
       }
+      // F4: Abrir cajón de dinero
+      if (e.key === "F4") {
+        e.preventDefault()
+        handleOpenDrawer()
+      }
       // Enter: Abrir checkout si hay items
       if (e.key === "Enter" && cartItems.length > 0 && !isCheckoutOpen) {
         e.preventDefault()
@@ -209,6 +214,38 @@ export default function POSPage() {
   }
 
   /**
+   * ✨ NUEVO: Abrir cajón de dinero manualmente (F4)
+   */
+  const handleOpenDrawer = async () => {
+    try {
+      const response = await fetch('/api/caja/abrir-cajon', {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        toast({
+          title: "💰 Cajón Abierto",
+          description: "El cajón de dinero se abrió correctamente",
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Error al Abrir Cajón",
+          description: error.error || "No se pudo abrir el cajón",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error al abrir cajón:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo comunicar con la impresora",
+        variant: "destructive",
+      })
+    }
+  }
+
+  /**
    * Limpiar todo el carrito
    */
   const handleClearCart = () => {
@@ -301,6 +338,15 @@ export default function POSPage() {
               </Button>
               <Button
                 variant="outline"
+                onClick={handleOpenDrawer}
+                size="icon"
+                className="h-8 w-8 sm:h-10 sm:w-10 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30"
+                title="Abrir cajón (F4)"
+              >
+                <span className="text-xs sm:text-sm font-bold text-amber-600">💰</span>
+              </Button>
+              <Button
+                variant="outline"
                 onClick={handleClearCart}
                 size="icon"
                 disabled={cartItems.length === 0}
@@ -380,6 +426,8 @@ export default function POSPage() {
                   <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Enter</kbd> Finalizar
                   {' · '}
                   <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">F2</kbd> Buscar
+                  {' · '}
+                  <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">F4</kbd> Abrir Cajón
                   {' · '}
                   <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Esc</kbd> Cancelar
                 </span>

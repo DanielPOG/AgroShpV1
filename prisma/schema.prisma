@@ -173,7 +173,7 @@ model detalle_ventas {
   cantidad        Decimal          @db.Decimal(10, 2)
   precio_unitario Decimal          @db.Decimal(10, 2)
   subtotal        Decimal          @db.Decimal(10, 2)
-  observaciones   String?          @db.VarChar(500) // ✨ Para productos ficticios
+  observaciones   String?          @db.VarChar(500)
   lote            lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   venta           ventas?          @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -339,9 +339,9 @@ model sesiones_caja {
   gastos_caja                gastos_caja[]
   movimientos_caja           movimientos_caja[]
   retiros_caja               retiros_caja[]
-  turnos_caja                turnos_caja[]
   caja                       cajas              @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cajero                     usuarios           @relation(fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turnos_caja                turnos_caja[]
 
   @@index([caja_id], map: "idx_sesiones_caja")
   @@index([cajero_id], map: "idx_sesiones_cajero")
@@ -457,24 +457,24 @@ model arqueos_caja {
 
 /// Modelo para gestión de turnos de caja
 model turnos_caja {
-  id              Int           @id @default(autoincrement())
-  sesion_caja_id  Int
-  cajero_id       Int
-  caja_id         Int
-  tipo_relevo     String        @db.VarChar(30)
-  fecha_inicio    DateTime      @default(now()) @db.Timestamp(6)
-  fecha_fin       DateTime?     @db.Timestamp(6)
-  monto_inicial   Decimal       @db.Decimal(10, 2)
-  monto_final     Decimal?      @db.Decimal(10, 2)
-  diferencia      Decimal?      @db.Decimal(10, 2)
-  duracion_minutos Int?
-  estado          String        @default("activo") @db.VarChar(20)
+  id                Int           @id @default(autoincrement())
+  sesion_caja_id    Int
+  cajero_id         Int
+  caja_id           Int
+  tipo_relevo       String        @db.VarChar(30)
+  fecha_inicio      DateTime      @default(now()) @db.Timestamp(6)
+  fecha_fin         DateTime?     @db.Timestamp(6)
+  monto_inicial     Decimal       @db.Decimal(10, 2)
+  monto_final       Decimal?      @db.Decimal(10, 2)
+  diferencia        Decimal?      @db.Decimal(10, 2)
+  duracion_minutos  Int?
+  estado            String        @default("activo") @db.VarChar(20)
   motivo_suspension String?
-  observaciones   String?
-  created_at      DateTime?     @default(now()) @db.Timestamp(6)
-  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cajero          usuarios      @relation("turnos_cajero", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  caja            cajas         @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  observaciones     String?
+  created_at        DateTime?     @default(now()) @db.Timestamp(6)
+  caja              cajas         @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cajero            usuarios      @relation("turnos_cajero", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja       sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_turnos_caja_sesion")
   @@index([cajero_id], map: "idx_turnos_caja_cajero")

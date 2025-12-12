@@ -1,9 +1,13 @@
+// Forzar runtime de Node.js (no Edge) para soportar serialport
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
 import { createSale, getSales } from '@/lib/db/sales'
 import { createSaleSchema, salesFiltersSchema } from '@/lib/validations/sale.schema'
 import { validateCashSessionForSale, registerSaleInCashMovements } from '@/lib/db/cash-integration'
 import { ZodError } from 'zod'
+import { getPrinter, type VentaData } from '@/lib/printer/escpos-printer'
 
 /**
  * GET /api/ventas
@@ -204,6 +208,52 @@ export async function POST(request: NextRequest) {
       console.error('⚠️ Stack trace:', movementError instanceof Error ? movementError.stack : 'No stack')
       // No fallar la venta por error en movimiento
       // La venta ya está creada, solo loguear el error
+    }
+
+    // 🖨️ NUEVO: Imprimir ticket y abrir cajón de dinero
+    try {
+      console.log(`🖨️ Iniciando impresión de ticket para venta ${venta.codigo_venta}`)
+      
+      // Preparar datos para impresión
+      const ventaData: VentaData = {
+        codigo_venta: venta.codigo_venta,
+        items: venta.detalle_ventas?.map(item => ({
+          nombre: item.producto?.nombre || 'Producto',
+          cantidad: item.cantidad,
+          precio: Number(item.precio_unitario),
+        })) || [],
+        subtotal: Number(venta.subtotal),
+        descuento: venta.descuento_global ? Number(venta.descuento_global) : undefined,
+        total: Number(venta.total),
+        cliente_nombre: venta.cliente?.nombre || validatedData.cliente_nombre,
+        fecha: venta.fecha_venta,
+        requiere_factura: venta.requiere_factura,
+        factura_generada: venta.factura_generada,
+      }
+
+      // Calcular efectivo recibido y cambio si hay pago en efectivo
+      const pagoEfectivo = venta.pagos_venta.find(p => 
+        p.metodo_pago?.nombre.toLowerCase().includes('efectivo')
+      )
+      
+      if (pagoEfectivo) {
+        // Si es pago mixto, sumar todos los montos para calcular total recibido
+        const totalRecibido = venta.pagos_venta.reduce((sum, p) => sum + Number(p.monto), 0)
+        ventaData.efectivo_recibido = totalRecibido
+        ventaData.cambio = totalRecibido - Number(venta.total)
+      }
+
+      // Obtener instancia de impresora e imprimir
+      const printer = getPrinter()
+      await printer.printVentaAndOpenDrawer(ventaData)
+      
+      console.log(`✅ Ticket impreso y cajón abierto exitosamente`)
+    } catch (printerError) {
+      console.error('⚠️ Error al imprimir ticket:', printerError)
+      console.error('⚠️ Stack trace:', printerError instanceof Error ? printerError.stack : 'No stack')
+      // No fallar la venta por error de impresión
+      // La venta ya está guardada, solo loguear el error
+      // El usuario puede reimprimir manualmente si es necesario
     }
 
     return NextResponse.json(venta, { status: 201 })

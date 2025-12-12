@@ -9,7 +9,8 @@
     "start": "next start",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset && npm run db:seed"
+    "db:reset": "prisma migrate reset && npm run db:seed",
+    "test:printer": "tsx scripts/test-printer.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -54,6 +55,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "embla-carousel-react": "8.5.1",
+    "escpos": "^3.0.0-alpha.6",
     "input-otp": "1.4.1",
     "jspdf": "^3.0.4",
     "lucide-react": "^0.454.0",
@@ -67,6 +69,7 @@
     "react-hook-form": "^7.60.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
+    "serialport": "^13.0.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
@@ -81,6 +84,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/serialport": "^8.0.5",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tsx": "^4.19.2",

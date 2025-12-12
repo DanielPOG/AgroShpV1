@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { 
+import {
   Banknote,
   Clock,
   CheckCircle2,
@@ -62,9 +62,9 @@ interface RetirosListProps {
   canCancel?: boolean
 }
 
-export function RetirosList({ 
-  retiros, 
-  onUpdate, 
+export function RetirosList({
+  retiros,
+  onUpdate,
   canAuthorize = false,
   canComplete = false,
   canCancel = false
@@ -110,12 +110,25 @@ export function RetirosList({
   }
 
   const handleAction = async (id: number, action: "autorizar" | "rechazar" | "completar" | "cancelar") => {
+    // ✅ Validar que el ID existe
+    if (!id || isNaN(id)) {
+      console.error('❌ ID de retiro inválido:', id)
+      toast({
+        title: "Error",
+        description: "ID de retiro inválido",
+        variant: "destructive"
+      })
+      return
+    }
+
+    console.log(`📤 Enviando acción "${action}" para retiro ID: ${id}`)
+
     setIsProcessing(id)
     setActionType(action)
 
     try {
       let response
-      
+
       if (action === "cancelar") {
         response = await fetch(`/api/caja/retiros/${id}`, {
           method: "DELETE",
@@ -152,6 +165,9 @@ export function RetirosList({
         description: data.message,
       })
 
+      // 🔔 Disparar evento global para refrescar panel de efectivo
+      window.dispatchEvent(new CustomEvent('cash-session-updated'))
+
       onUpdate()
     } catch (error) {
       console.error(`Error al ${action} retiro:`, error)
@@ -179,8 +195,18 @@ export function RetirosList({
   }
 
   return (
-    <div className="space-y-3">
-      {retiros.map((retiro) => {
+    <div className="space-y-4">
+      {retiros.map((retiro, index) => {
+        // ✅ DEBUG: Verificar estructura del retiro
+        if (index === 0) {
+          console.log('📋 Primer retiro en lista:', {
+            id: retiro.id,
+            monto: retiro.monto,
+            estado: retiro.estado,
+            completo: retiro
+          })
+        }
+
         const esPendiente = retiro.estado === "pendiente"
         const esAutorizado = retiro.estado === "autorizado"
         const esCompletado = retiro.estado === "completado"

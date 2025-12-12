@@ -6,7 +6,7 @@ import type { OpenCashSessionData, CloseCashSessionData } from '@/lib/validation
  */
 export async function getActiveCashSession(userId: number) {
   console.log(`🔍 Buscando sesión activa para usuario ${userId}`)
-  
+
   const session = await prisma.sesiones_caja.findFirst({
     where: {
       cajero_id: userId,
@@ -56,7 +56,7 @@ export async function getActiveCashSession(userId: number) {
  */
 export async function getEfectivoDisponible(sessionId: number): Promise<number> {
   console.log(`\n💰 [getEfectivoDisponible] Calculando efectivo para sesión ${sessionId}`)
-  
+
   // 1. Obtener sesión
   const session = await prisma.sesiones_caja.findUnique({
     where: { id: sessionId },
@@ -65,18 +65,20 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
       codigo_sesion: true,
       fondo_inicial: true,
       total_ventas_efectivo: true,
+      total_retiros: true,
+      total_gastos: true,
     }
   })
-  
+
   if (!session) {
     console.error(`❌ [getEfectivoDisponible] Sesión ${sessionId} no encontrada`)
     throw new Error('Sesión no encontrada')
   }
-  
+
   console.log(`📊 [getEfectivoDisponible] Sesión: ${session.codigo_sesion}`)
   console.log(`   💵 Fondo inicial: $${Number(session.fondo_inicial).toLocaleString('es-CO')}`)
   console.log(`   💵 Ventas efectivo: $${Number(session.total_ventas_efectivo || 0).toLocaleString('es-CO')}`)
-  
+
   // 2. Obtener movimientos de efectivo (ingresos y egresos extra)
   const movimientos = await prisma.movimientos_caja.findMany({
     where: {
@@ -93,65 +95,142 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
       descripcion: true
     }
   })
-  
+
   const ingresosEfectivo = movimientos
     .filter(m => m.tipo_movimiento === 'ingreso_adicional')
     .reduce((sum, m) => sum + Number(m.monto), 0)
-  
+
   const egresosEfectivo = movimientos
     .filter(m => m.tipo_movimiento === 'egreso_operativo')
     .reduce((sum, m) => sum + Number(m.monto), 0)
-  
+
   console.log(`   💵 Ingresos extra (${movimientos.filter(m => m.tipo_movimiento === 'ingreso_adicional').length}): $${ingresosEfectivo.toLocaleString('es-CO')}`)
   console.log(`   💵 Egresos extra (${movimientos.filter(m => m.tipo_movimiento === 'egreso_operativo').length}): -$${egresosEfectivo.toLocaleString('es-CO')}`)
-  
-  // 3. Obtener retiros aprobados
-  const retiros = await prisma.retiros_caja.findMany({
-    where: {
-      sesion_caja_id: sessionId,
-      estado: 'aprobado'
-    },
-    select: {
-      id: true,
-      monto: true,
-      motivo: true
-    }
-  })
-  
-  const totalRetiros = retiros.reduce((sum, r) => sum + Number(r.monto), 0)
-  console.log(`   💵 Retiros (${retiros.length}): -$${totalRetiros.toLocaleString('es-CO')}`)
-  
-  // 4. Obtener gastos pagados en efectivo
+
+  // 3. Retiros completados (ya están en session.total_retiros)
+  const totalRetiros = Number(session.total_retiros || 0)
+  console.log(`   💵 Retiros completados: -$${totalRetiros.toLocaleString('es-CO')}`)
+
+  // 4. Gastos pagados en efectivo (ya están en session.total_gastos)
   // TODO FASE 3: Filtrar por metodo_pago cuando se agregue el campo
   // Por ahora asumimos que todos los gastos son en efectivo
-  const gastos = await prisma.gastos_caja.findMany({
-    where: {
-      sesion_caja_id: sessionId
-    },
-    select: {
-      id: true,
-      monto: true,
-      categoria_gasto: true,
-      descripcion: true
-    }
-  })
-  
-  const totalGastos = gastos.reduce((sum, g) => sum + Number(g.monto), 0)
-  console.log(`   💵 Gastos (${gastos.length}): -$${totalGastos.toLocaleString('es-CO')}`)
-  
+  const totalGastos = Number(session.total_gastos || 0)
+  console.log(`   💵 Gastos en efectivo: -$${totalGastos.toLocaleString('es-CO')}`)
+
   // 5. CÁLCULO FINAL
-  const efectivoDisponible = 
+  const efectivoDisponible =
     Number(session.fondo_inicial) +
     Number(session.total_ventas_efectivo || 0) +
     ingresosEfectivo -
     egresosEfectivo -
     totalRetiros -
     totalGastos
-  
+
   console.log(`\n   ✅ EFECTIVO DISPONIBLE: $${efectivoDisponible.toLocaleString('es-CO')}`)
   console.log(`   ${efectivoDisponible < 0 ? '⚠️ FALTANTE DETECTADO' : efectivoDisponible < 50000 ? '⚠️ EFECTIVO BAJO' : '✅ EFECTIVO SUFICIENTE'}`)
-  
+
   return efectivoDisponible
+}
+
+/**
+ * 🛡️ FASE 4: Validar si hay suficiente efectivo para una operación
+ * 
+ * Valida que haya efectivo disponible antes de realizar operaciones que requieran efectivo.
+ * Previene efectivo negativo y proporciona mensajes descriptivos.
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @param montoRequerido - Monto que se necesita en efectivo
+ * @returns Objeto con validación y mensaje descriptivo
+ */
+export async function validarEfectivoSuficiente(
+  sessionId: number,
+  montoRequerido: number
+): Promise<{
+  valido: boolean
+  efectivoDisponible: number
+  mensaje: string
+  alertaBajoEfectivo: boolean
+}> {
+  console.log(`\n🛡️ [validarEfectivoSuficiente] Validando $${montoRequerido.toLocaleString('es-CO')} para sesión ${sessionId}`)
+
+  const efectivoDisponible = await getEfectivoDisponible(sessionId)
+  const efectivoDespues = efectivoDisponible - montoRequerido
+
+  // Validar si hay suficiente efectivo
+  if (efectivoDisponible < montoRequerido) {
+    console.error(`❌ [validarEfectivoSuficiente] Efectivo insuficiente`)
+    return {
+      valido: false,
+      efectivoDisponible,
+      mensaje: `Efectivo insuficiente. Disponible: $${efectivoDisponible.toLocaleString('es-CO')}, Requerido: $${montoRequerido.toLocaleString('es-CO')}`,
+      alertaBajoEfectivo: false
+    }
+  }
+
+  // Verificar si quedará con poco efectivo
+  const alertaBajoEfectivo = efectivoDespues < 50000 && efectivoDespues >= 0
+
+  if (alertaBajoEfectivo) {
+    console.warn(`⚠️ [validarEfectivoSuficiente] Alerta: Efectivo quedará bajo ($${efectivoDespues.toLocaleString('es-CO')})`)
+  }
+
+  console.log(`✅ [validarEfectivoSuficiente] Validación exitosa`)
+
+  return {
+    valido: true,
+    efectivoDisponible,
+    mensaje: alertaBajoEfectivo
+      ? `⚠️ Advertencia: Efectivo quedará bajo ($${efectivoDespues.toLocaleString('es-CO')}). ¿Deseas continuar?`
+      : 'Efectivo suficiente para la operación',
+    alertaBajoEfectivo
+  }
+}
+
+/**
+ * 📊 FASE 4: Verificar estado del efectivo en caja
+ * 
+ * Proporciona un análisis del estado del efectivo sin requerir monto de operación.
+ * Útil para dashboards y alertas preventivas.
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @returns Estado del efectivo con alertas
+ */
+export async function verificarEstadoEfectivo(sessionId: number): Promise<{
+  efectivoDisponible: number
+  estado: 'critico' | 'bajo' | 'normal' | 'alto'
+  mensaje: string
+  alerta: boolean
+}> {
+  const efectivoDisponible = await getEfectivoDisponible(sessionId)
+
+  let estado: 'critico' | 'bajo' | 'normal' | 'alto'
+  let mensaje: string
+  let alerta: boolean
+
+  if (efectivoDisponible < 0) {
+    estado = 'critico'
+    mensaje = `🔴 CRÍTICO: Faltante de efectivo ($${Math.abs(efectivoDisponible).toLocaleString('es-CO')})`
+    alerta = true
+  } else if (efectivoDisponible < 50000) {
+    estado = 'bajo'
+    mensaje = `🟡 BAJO: Efectivo disponible ($${efectivoDisponible.toLocaleString('es-CO')}). Considere hacer retiros parciales o ajustes.`
+    alerta = true
+  } else if (efectivoDisponible < 200000) {
+    estado = 'normal'
+    mensaje = `🟢 NORMAL: Efectivo disponible ($${efectivoDisponible.toLocaleString('es-CO')})`
+    alerta = false
+  } else {
+    estado = 'alto'
+    mensaje = `🔵 ALTO: Efectivo disponible ($${efectivoDisponible.toLocaleString('es-CO')}). Considere realizar retiros para seguridad.`
+    alerta = false
+  }
+
+  return {
+    efectivoDisponible,
+    estado,
+    mensaje,
+    alerta
+  }
 }
 
 /**
@@ -159,7 +238,7 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
  */
 export async function openCashSession(userId: number, data: OpenCashSessionData) {
   console.log(`🔓 Abriendo nueva sesión de caja para usuario ${userId}`)
-  
+
   // Verificar que no tenga otra sesión abierta
   const existingSession = await getActiveCashSession(userId)
   if (existingSession) {
@@ -343,7 +422,7 @@ export async function getCashSessionSummary(sessionId: number) {
       orderBy: { fecha_movimiento: 'desc' },
     }),
     prisma.retiros_caja.findMany({
-      where: { sesion_caja_id: sessionId, estado: 'aprobado' },
+      where: { sesion_caja_id: sessionId, estado: 'completado' },
     }),
     prisma.gastos_caja.findMany({
       where: { sesion_caja_id: sessionId },
@@ -354,13 +433,42 @@ export async function getCashSessionSummary(sessionId: number) {
     throw new Error('Sesión no encontrada')
   }
 
-  // Calcular totales de movimientos (solo efectivo)
+  // ✅ Calcular totales de movimientos DESGLOSADOS por método de pago
+
+  // EFECTIVO
   const totalIngresosEfectivo = movimientos
     .filter((m) => m.tipo_movimiento === 'ingreso_adicional' && m.metodo_pago === 'efectivo')
     .reduce((sum, m) => sum + Number(m.monto), 0)
 
   const totalEgresosEfectivo = movimientos
     .filter((m) => m.tipo_movimiento === 'egreso_operativo' && m.metodo_pago === 'efectivo')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  // NEQUI
+  const totalIngresosNequi = movimientos
+    .filter((m) => m.tipo_movimiento === 'ingreso_adicional' && m.metodo_pago === 'nequi')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  const totalEgresosNequi = movimientos
+    .filter((m) => m.tipo_movimiento === 'egreso_operativo' && m.metodo_pago === 'nequi')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  // TARJETA
+  const totalIngresosTarjeta = movimientos
+    .filter((m) => m.tipo_movimiento === 'ingreso_adicional' && m.metodo_pago === 'tarjeta')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  const totalEgresosTarjeta = movimientos
+    .filter((m) => m.tipo_movimiento === 'egreso_operativo' && m.metodo_pago === 'tarjeta')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  // TRANSFERENCIA
+  const totalIngresosTransferencia = movimientos
+    .filter((m) => m.tipo_movimiento === 'ingreso_adicional' && m.metodo_pago === 'transferencia')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+
+  const totalEgresosTransferencia = movimientos
+    .filter((m) => m.tipo_movimiento === 'egreso_operativo' && m.metodo_pago === 'transferencia')
     .reduce((sum, m) => sum + Number(m.monto), 0)
 
   // Totales generales (todos los métodos)
@@ -377,9 +485,9 @@ export async function getCashSessionSummary(sessionId: number) {
 
   // Calcular ventas en efectivo
   const ventasEfectivo = Number(session.total_ventas_efectivo || 0)
-  
+
   // Calcular total de ventas (todos los métodos)
-  const totalVentas = 
+  const totalVentas =
     Number(session.total_ventas_efectivo || 0) +
     Number(session.total_ventas_nequi || 0) +
     Number(session.total_ventas_tarjeta || 0) +
@@ -387,6 +495,15 @@ export async function getCashSessionSummary(sessionId: number) {
 
   // ✅ USAR FUNCIÓN CENTRALIZADA para efectivo esperado
   const efectivoEsperado = await getEfectivoDisponible(sessionId)
+
+  // ✅ OBTENER PANEL DE EFECTIVO con desglose por método
+  let panelData
+  try {
+    panelData = await getEfectivoPanelData(sessionId)
+  } catch (error) {
+    console.warn('No se pudo obtener panel de efectivo:', error)
+    panelData = null
+  }
 
   return {
     session,
@@ -398,8 +515,15 @@ export async function getCashSessionSummary(sessionId: number) {
       total: movimientos.length,
       ingresos: totalIngresos,
       egresos: totalEgresos,
+      // Desglose por método de pago
       ingresosEfectivo: totalIngresosEfectivo,
       egresosEfectivo: totalEgresosEfectivo,
+      ingresosNequi: totalIngresosNequi,
+      egresosNequi: totalEgresosNequi,
+      ingresosTarjeta: totalIngresosTarjeta,
+      egresosTarjeta: totalEgresosTarjeta,
+      ingresosTransferencia: totalIngresosTransferencia,
+      egresosTransferencia: totalEgresosTransferencia,
     },
     retiros: {
       total: retiros.length,
@@ -410,6 +534,14 @@ export async function getCashSessionSummary(sessionId: number) {
       monto: totalGastos,
     },
     efectivoEsperado,
+    // ✅ Incluir datos del panel por método de pago
+    ...(panelData ? {
+      efectivo: panelData.efectivo,
+      nequi: panelData.nequi,
+      tarjeta: panelData.tarjeta,
+      transferencia: panelData.transferencia,
+      totales: panelData.totales,
+    } : {}),
   }
 }
 
@@ -481,5 +613,495 @@ export async function getCashSessions(filters?: {
       total,
       totalPages: Math.ceil(total / limit),
     },
+  }
+}
+
+/**
+ * 📊 FASE 5: Panel de Efectivo en Tiempo Real
+ * 
+ * Obtiene todos los datos necesarios para mostrar un dashboard completo
+ * del estado del efectivo en caja.
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @returns Datos completos del panel de efectivo
+ */
+export async function getEfectivoPanelData(sessionId: number) {
+  console.log(`\n📊 [getEfectivoPanelData] Obteniendo datos para sesión ${sessionId}`)
+
+  // 1. Obtener sesión
+  const session = await prisma.sesiones_caja.findUnique({
+    where: { id: sessionId },
+    include: {
+      caja: {
+        select: {
+          nombre: true,
+          ubicacion: true
+        }
+      },
+      cajero: {
+        select: {
+          nombre: true,
+          apellido: true
+        }
+      }
+    }
+  })
+
+  if (!session) {
+    throw new Error('Sesión no encontrada')
+  }
+
+  // 2. Calcular efectivo disponible y estado
+  const efectivoDisponible = await getEfectivoDisponible(sessionId)
+  const estadoEfectivo = await verificarEstadoEfectivo(sessionId)
+
+  // 3. Obtener movimientos extra (ingresos y egresos) por método de pago
+  const movimientosExtra = await prisma.movimientos_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      tipo_movimiento: {
+        in: ['ingreso_adicional', 'egreso_operativo']
+      }
+    },
+    select: {
+      id: true,
+      tipo_movimiento: true,
+      metodo_pago: true,
+      monto: true
+    }
+  })
+
+  console.log(`📊 [getEfectivoPanelData] Total movimientos extra encontrados:`, movimientosExtra.length)
+  console.log(`📊 [getEfectivoPanelData] Movimientos:`, JSON.stringify(movimientosExtra, null, 2))
+
+  // Calcular ingresos/egresos por método de pago
+  const calcularPorMetodo = (tipo: string, metodo: string) => {
+    return movimientosExtra
+      .filter(m => m.tipo_movimiento === tipo && m.metodo_pago === metodo)
+      .reduce((sum, m) => sum + Number(m.monto), 0)
+  }
+
+  // Ingresos extra por método
+  const ingresosExtraEfectivo = calcularPorMetodo('ingreso_adicional', 'efectivo')
+  const ingresosExtraNequi = calcularPorMetodo('ingreso_adicional', 'nequi')
+  const ingresosExtraTarjeta = calcularPorMetodo('ingreso_adicional', 'tarjeta')
+  const ingresosExtraTransferencia = calcularPorMetodo('ingreso_adicional', 'transferencia')
+
+  console.log(`📊 [getEfectivoPanelData] Ingresos Extra por método:`, {
+    efectivo: ingresosExtraEfectivo,
+    nequi: ingresosExtraNequi,
+    tarjeta: ingresosExtraTarjeta,
+    transferencia: ingresosExtraTransferencia
+  })
+
+  // Egresos extra por método
+  const egresosExtraEfectivo = calcularPorMetodo('egreso_operativo', 'efectivo')
+  const egresosExtraNequi = calcularPorMetodo('egreso_operativo', 'nequi')
+  const egresosExtraTarjeta = calcularPorMetodo('egreso_operativo', 'tarjeta')
+  const egresosExtraTransferencia = calcularPorMetodo('egreso_operativo', 'transferencia')
+
+  // 4. Obtener retiros completados (siempre en efectivo)
+  const totalRetiros = Number(session.total_retiros || 0)
+
+  // 5. Obtener gastos por método de pago
+  const gastos = await prisma.gastos_caja.findMany({
+    where: { sesion_caja_id: sessionId },
+    select: {
+      monto: true,
+      metodo_pago: true
+    }
+  })
+
+  const gastosEfectivo = gastos
+    .filter(g => g.metodo_pago === 'efectivo')
+    .reduce((sum, g) => sum + Number(g.monto), 0)
+
+  const gastosNequi = gastos
+    .filter(g => g.metodo_pago === 'nequi')
+    .reduce((sum, g) => sum + Number(g.monto), 0)
+
+  const gastosTarjeta = gastos
+    .filter(g => g.metodo_pago === 'tarjeta')
+    .reduce((sum, g) => sum + Number(g.monto), 0)
+
+  const gastosTransferencia = gastos
+    .filter(g => g.metodo_pago === 'transferencia')
+    .reduce((sum, g) => sum + Number(g.monto), 0)
+
+  const totalGastos = Number(session.total_gastos || 0)
+
+  // 6. Obtener retiros pendientes (en tránsito)
+  const retirosPendientes = await prisma.retiros_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      estado: {
+        in: ['pendiente', 'autorizado']
+      }
+    },
+    select: {
+      monto: true
+    }
+  })
+
+  const efectivoEnTransito = retirosPendientes.reduce(
+    (sum, r) => sum + Number(r.monto),
+    0
+  )
+
+  // 7. Obtener últimos 10 movimientos
+  const movimientosRecientes = await prisma.movimientos_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId
+    },
+    include: {
+      usuario: {
+        select: {
+          nombre: true,
+          apellido: true
+        }
+      },
+      venta: {
+        select: {
+          codigo_venta: true
+        }
+      }
+    },
+    orderBy: {
+      fecha_movimiento: 'desc'
+    },
+    take: 10
+  })
+
+  // 8. Calcular totales de ventas
+  const totalVentas =
+    Number(session.total_ventas_efectivo || 0) +
+    Number(session.total_ventas_nequi || 0) +
+    Number(session.total_ventas_tarjeta || 0) +
+    Number(session.total_ventas_transferencia || 0)
+
+  // 9. Calcular disponible por método de pago
+  const disponibleEfectivo =
+    Number(session.fondo_inicial) +
+    Number(session.total_ventas_efectivo || 0) +
+    ingresosExtraEfectivo -
+    egresosExtraEfectivo -
+    totalRetiros -
+    gastosEfectivo
+
+  const disponibleNequi =
+    Number(session.total_ventas_nequi || 0) +
+    ingresosExtraNequi -
+    egresosExtraNequi -
+    gastosNequi
+
+  const disponibleTarjeta =
+    Number(session.total_ventas_tarjeta || 0) +
+    ingresosExtraTarjeta -
+    egresosExtraTarjeta -
+    gastosTarjeta
+
+  const disponibleTransferencia =
+    Number(session.total_ventas_transferencia || 0) +
+    ingresosExtraTransferencia -
+    egresosExtraTransferencia -
+    gastosTransferencia
+
+  const totalDisponible = disponibleEfectivo + disponibleNequi + disponibleTarjeta + disponibleTransferencia
+
+  console.log(`✅ [getEfectivoPanelData] Datos obtenidos exitosamente`)
+
+  return {
+    sesion: {
+      id: session.id,
+      codigo: session.codigo_sesion,
+      caja: session.caja.nombre,
+      cajero: `${session.cajero.nombre} ${session.cajero.apellido}`,
+      fecha_apertura: session.fecha_apertura,
+      estado: session.estado
+    },
+
+    // Composición por método de pago
+    efectivo: {
+      fondoInicial: Number(session.fondo_inicial),
+      ventas: Number(session.total_ventas_efectivo || 0),
+      ingresos: ingresosExtraEfectivo,
+      egresos: egresosExtraEfectivo,
+      retiros: totalRetiros,
+      gastos: gastosEfectivo,
+      disponible: disponibleEfectivo
+    },
+
+    nequi: {
+      ventas: Number(session.total_ventas_nequi || 0),
+      ingresos: ingresosExtraNequi,
+      egresos: egresosExtraNequi,
+      gastos: gastosNequi,
+      disponible: disponibleNequi
+    },
+
+    tarjeta: {
+      ventas: Number(session.total_ventas_tarjeta || 0),
+      ingresos: ingresosExtraTarjeta,
+      egresos: egresosExtraTarjeta,
+      gastos: gastosTarjeta,
+      disponible: disponibleTarjeta
+    },
+
+    transferencia: {
+      ventas: Number(session.total_ventas_transferencia || 0),
+      ingresos: ingresosExtraTransferencia,
+      egresos: egresosExtraTransferencia,
+      gastos: gastosTransferencia,
+      disponible: disponibleTransferencia
+    },
+
+    // Totales generales
+    totales: {
+      totalVentas,
+      totalDisponible,
+      efectivoEnTransito
+    },
+
+    // Estado y alertas
+    estado: {
+      tipo: estadoEfectivo.estado,
+      mensaje: estadoEfectivo.mensaje,
+      alerta: estadoEfectivo.alerta,
+      bajoEfectivo: efectivoDisponible < 50000 && efectivoDisponible >= 0,
+      efectivoNegativo: efectivoDisponible < 0
+    },
+
+    // Movimientos recientes
+    movimientosRecientes: movimientosRecientes.map(m => ({
+      id: m.id,
+      fecha: m.fecha,
+      tipo: m.tipo_movimiento,
+      metodoPago: m.metodo_pago,
+      monto: Number(m.monto),
+      descripcion: m.descripcion,
+      usuario: m.usuario ? `${m.usuario.nombre} ${m.usuario.apellido}` : null,
+      venta: m.venta?.codigo_venta || null
+    }))
+  }
+}
+
+/**
+ * 🔍 FASE 5: Auditoría de Diferencias en Caja
+ * 
+ * Detecta inconsistencias y problemas en los registros de la sesión de caja.
+ * Útil para encontrar errores de registro y asegurar integridad de datos.
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @returns Reporte completo de auditoría con inconsistencias detectadas
+ */
+export async function auditarDiferenciasCaja(sessionId: number) {
+  console.log(`\n🔍 [auditarDiferenciasCaja] Iniciando auditoría para sesión ${sessionId}`)
+
+  const inconsistencias: Array<{
+    tipo: string
+    severidad: 'baja' | 'media' | 'alta' | 'critica'
+    mensaje: string
+    detalle?: any
+  }> = []
+
+  // 1. Verificar que la sesión existe
+  const session = await prisma.sesiones_caja.findUnique({
+    where: { id: sessionId }
+  })
+
+  if (!session) {
+    throw new Error('Sesión no encontrada')
+  }
+
+  // 2. Verificar que todas las ventas tienen movimientos
+  const ventas = await prisma.ventas.findMany({
+    where: { sesion_caja_id: sessionId },
+    include: {
+      pagos_venta: {
+        include: {
+          metodo_pago: true
+        }
+      }
+    }
+  })
+
+  for (const venta of ventas) {
+    const movimientos = await prisma.movimientos_caja.findMany({
+      where: {
+        venta_id: venta.id,
+        tipo_movimiento: 'venta'
+      }
+    })
+
+    // Cada método de pago debe tener su movimiento
+    if (movimientos.length !== venta.pagos_venta.length) {
+      inconsistencias.push({
+        tipo: 'venta_sin_movimiento_completo',
+        severidad: 'alta',
+        mensaje: `Venta ${venta.codigo_venta} tiene ${venta.pagos_venta.length} pagos pero solo ${movimientos.length} movimientos`,
+        detalle: {
+          venta_id: venta.id,
+          codigo_venta: venta.codigo_venta,
+          pagos_esperados: venta.pagos_venta.length,
+          movimientos_encontrados: movimientos.length
+        }
+      })
+    }
+  }
+
+  // 3. Verificar que todos los retiros completados tienen movimientos
+  const retirosCompletados = await prisma.retiros_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      estado: 'completado'
+    }
+  })
+
+  for (const retiro of retirosCompletados) {
+    const movimiento = await prisma.movimientos_caja.findFirst({
+      where: {
+        sesion_caja_id: sessionId,
+        tipo_movimiento: 'retiro_caja',
+        monto: retiro.monto
+      }
+    })
+
+    if (!movimiento) {
+      inconsistencias.push({
+        tipo: 'retiro_sin_movimiento',
+        severidad: 'media',
+        mensaje: `Retiro completado de $${Number(retiro.monto).toLocaleString('es-CO')} no tiene movimiento asociado`,
+        detalle: {
+          retiro_id: retiro.id,
+          monto: Number(retiro.monto),
+          motivo: retiro.motivo
+        }
+      })
+    }
+  }
+
+  // 4. Verificar que todos los gastos tienen movimientos
+  const gastos = await prisma.gastos_caja.findMany({
+    where: { sesion_caja_id: sessionId }
+  })
+
+  for (const gasto of gastos) {
+    const movimiento = await prisma.movimientos_caja.findFirst({
+      where: {
+        sesion_caja_id: sessionId,
+        tipo_movimiento: 'gasto_operativo',
+        monto: gasto.monto
+      }
+    })
+
+    if (!movimiento) {
+      inconsistencias.push({
+        tipo: 'gasto_sin_movimiento',
+        severidad: 'media',
+        mensaje: `Gasto de $${Number(gasto.monto).toLocaleString('es-CO')} (${gasto.categoria_gasto}) no tiene movimiento asociado`,
+        detalle: {
+          gasto_id: gasto.id,
+          monto: Number(gasto.monto),
+          categoria: gasto.categoria_gasto,
+          descripcion: gasto.descripcion
+        }
+      })
+    }
+  }
+
+  // 5. Detectar movimientos huérfanos (sin referencia)
+  const movimientosHuerfanos = await prisma.movimientos_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      tipo_movimiento: 'venta',
+      venta_id: null
+    }
+  })
+
+  if (movimientosHuerfanos.length > 0) {
+    inconsistencias.push({
+      tipo: 'movimientos_huerfanos',
+      severidad: 'media',
+      mensaje: `${movimientosHuerfanos.length} movimientos de venta sin referencia a venta`,
+      detalle: {
+        cantidad: movimientosHuerfanos.length,
+        movimientos: movimientosHuerfanos.map(m => ({
+          id: m.id,
+          monto: Number(m.monto),
+          fecha: m.fecha
+        }))
+      }
+    })
+  }
+
+  // 6. Calcular efectivo esperado manualmente y comparar
+  const efectivoCalculado = await getEfectivoDisponible(sessionId)
+  const efectivoRegistrado = session.efectivo_esperado
+    ? Number(session.efectivo_esperado)
+    : null
+
+  if (efectivoRegistrado !== null) {
+    const diferencia = Math.abs(efectivoCalculado - efectivoRegistrado)
+
+    if (diferencia > 0.01) { // Tolerancia de $0.01 por redondeos
+      inconsistencias.push({
+        tipo: 'diferencia_calculo',
+        severidad: diferencia > 1000 ? 'alta' : diferencia > 100 ? 'media' : 'baja',
+        mensaje: `Diferencia de $${diferencia.toLocaleString('es-CO')} entre efectivo calculado y registrado`,
+        detalle: {
+          efectivo_calculado: efectivoCalculado,
+          efectivo_registrado: efectivoRegistrado,
+          diferencia
+        }
+      })
+    }
+  }
+
+  // 7. Verificar efectivo negativo
+  if (efectivoCalculado < 0) {
+    inconsistencias.push({
+      tipo: 'efectivo_negativo',
+      severidad: 'critica',
+      mensaje: `Efectivo disponible es negativo: $${efectivoCalculado.toLocaleString('es-CO')}`,
+      detalle: {
+        efectivo_disponible: efectivoCalculado
+      }
+    })
+  }
+
+  // 8. Resumen por severidad
+  const resumenSeveridad = {
+    critica: inconsistencias.filter(i => i.severidad === 'critica').length,
+    alta: inconsistencias.filter(i => i.severidad === 'alta').length,
+    media: inconsistencias.filter(i => i.severidad === 'media').length,
+    baja: inconsistencias.filter(i => i.severidad === 'baja').length
+  }
+
+  const totalInconsistencias = inconsistencias.length
+  const esConsistente = totalInconsistencias === 0
+
+  console.log(`${esConsistente ? '✅' : '⚠️'} [auditarDiferenciasCaja] Auditoría completada: ${totalInconsistencias} inconsistencias encontradas`)
+
+  return {
+    sesion_id: sessionId,
+    codigo_sesion: session.codigo_sesion,
+    fecha_auditoria: new Date(),
+    es_consistente: esConsistente,
+    total_inconsistencias: totalInconsistencias,
+    resumen_severidad: resumenSeveridad,
+    inconsistencias,
+    estadisticas: {
+      total_ventas: ventas.length,
+      total_retiros: retirosCompletados.length,
+      total_gastos: gastos.length,
+      total_movimientos: await prisma.movimientos_caja.count({
+        where: { sesion_caja_id: sessionId }
+      })
+    },
+    efectivo: {
+      calculado: efectivoCalculado,
+      registrado: efectivoRegistrado,
+      diferencia: efectivoRegistrado ? Math.abs(efectivoCalculado - efectivoRegistrado) : null
+    }
   }
 }

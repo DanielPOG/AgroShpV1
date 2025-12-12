@@ -173,6 +173,7 @@ model detalle_ventas {
   cantidad        Decimal          @db.Decimal(10, 2)
   precio_unitario Decimal          @db.Decimal(10, 2)
   subtotal        Decimal          @db.Decimal(10, 2)
+  observaciones   String?          @db.VarChar(500) // ✨ Para productos ficticios
   lote            lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   venta           ventas?          @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -362,6 +363,8 @@ model movimientos_caja {
   requiere_autorizacion Boolean?      @default(false)
   autorizado_por        Int?
   fecha_movimiento      DateTime?     @default(now()) @db.Timestamp(6)
+  monto_recibido        Decimal?      @db.Decimal(10, 2)
+  monto_cambio          Decimal?      @db.Decimal(10, 2)
   autorizador           usuarios?     @relation("movimientos_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sesion_caja           sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   usuario               usuarios?     @relation("movimientos_caja_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -411,6 +414,7 @@ model gastos_caja {
   autorizado_por  Int?
   fecha_gasto     DateTime?     @default(now()) @db.Timestamp(6)
   observaciones   String?
+  metodo_pago     String        @default("efectivo") @db.VarChar(20)
   autorizador     usuarios?     @relation(fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 

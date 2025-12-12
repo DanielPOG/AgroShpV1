@@ -18,7 +18,7 @@ export async function requestCashWithdrawal(
       motivo: data.motivo,
       solicitado_por: userId,
       fecha_solicitud: new Date(),
-      estado: data.requiere_autorizacion ? 'pendiente' : 'aprobado',
+      estado: data.requiere_autorizacion ? 'pendiente' : 'autorizado',
     },
   })
 
@@ -56,12 +56,7 @@ export async function authorizeCashWithdrawal(
     const updatedWithdrawal = await tx.retiros_caja.update({
       where: { id: withdrawalId },
       data: {
-        estado: data.autorizado ? 'aprobado' : 'rechazado',
-    // Actualizar retiro
-    const updatedWithdrawal = await tx.retiros_caja.update({
-      where: { id: withdrawalId },
-      data: {
-        estado: data.autorizado ? 'aprobado' : 'rechazado',
+        estado: data.autorizado ? 'autorizado' : 'rechazado',
         autorizado_por: authorizerId,
         fecha_respuesta: new Date(),
         observaciones: data.observaciones_autorizacion,
@@ -127,7 +122,7 @@ export async function getSessionWithdrawals(sessionId: number) {
           apellido: true,
         },
       },
-      autorizado_por: {
+      autorizador: {
         select: {
           nombre: true,
           apellido: true,

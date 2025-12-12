@@ -378,7 +378,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
                   COALESCE(
                     (SELECT SUM(monto) FROM retiros_caja 
                      WHERE sesion_caja_id = ${sessionId} 
-                     AND estado = 'aprobado'
+                     AND estado = 'completado'
                     ),
                     0
                   ) -
@@ -452,7 +452,31 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
 
         // 4. Procesar cada item de la venta
         for (const item of itemsConDescuento) {
-          // Obtener stock anterior
+          // ✨ NUEVO: Detectar productos ficticios (ID negativo)
+          const esProductoFicticio = item.producto_id < 0
+          
+          if (esProductoFicticio) {
+            console.log(`  📦 Producto ficticio detectado (no registrado en inventario)`)
+            
+            // Para productos ficticios, crear detalle sin lote y sin afectar inventario
+            // No conectamos producto ni lote porque no existen
+            await tx.detalle_ventas.create({
+              data: {
+                venta: {
+                  connect: { id: venta.id }
+                },
+                cantidad: item.cantidad,
+                precio_unitario: item.precio_unitario,
+                subtotal: item.cantidad * item.precio_unitario,
+                observaciones: `Producto ficticio: ID temporal ${item.producto_id}`,
+              },
+            })
+            
+            console.log(`  ✅ Item ficticio agregado sin afectar inventario`)
+            continue // Saltar al siguiente item
+          }
+          
+          // Obtener stock anterior (solo para productos reales)
           const producto = await tx.productos.findUnique({
             where: { id: item.producto_id },
             select: { stock_actual: true, nombre: true }

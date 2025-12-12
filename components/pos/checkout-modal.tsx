@@ -251,7 +251,7 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     // Preparar datos para la factura (ANTES de crear venta)
     setSaleData({
       items: items.map(item => ({
-        name: item.nombre,
+        name: item.id < 0 ? `${item.nombre} (Producto no registrado)` : item.nombre,
         quantity: item.cantidad,
         price: item.precio,
       })),

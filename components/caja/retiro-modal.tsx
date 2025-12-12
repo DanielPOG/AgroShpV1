@@ -34,7 +34,7 @@ export function RetiroModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!monto || Number(monto) <= 0) {
       toast({
         title: "Error",
@@ -85,6 +85,9 @@ export function RetiroModal({
       setDestinoFondos("")
       setObservaciones("")
 
+      // 🔔 Disparar evento global para refrescar panel de efectivo
+      window.dispatchEvent(new CustomEvent('cash-session-updated'))
+
       onSuccess()
       onClose()
 
@@ -132,7 +135,7 @@ export function RetiroModal({
               onChange={(e) => setMonto(e.target.value)}
               min="1"
               max="50000000"
-              step="1000"
+              step="1"
               required
               disabled={isSubmitting}
             />

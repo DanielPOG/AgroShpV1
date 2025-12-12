@@ -59,9 +59,25 @@ export default async function GastosPage() {
     )
   }
 
+  // ✅ Serializar la sesión para componentes cliente (convertir Decimals a strings)
+  const sesionSerializada = {
+    ...sesionActiva,
+    fondo_inicial: sesionActiva.fondo_inicial.toString(),
+    total_ventas_efectivo: sesionActiva.total_ventas_efectivo?.toString() || "0",
+    total_ventas_nequi: sesionActiva.total_ventas_nequi?.toString() || "0",
+    total_ventas_tarjeta: sesionActiva.total_ventas_tarjeta?.toString() || "0",
+    total_ventas_transferencia: sesionActiva.total_ventas_transferencia?.toString() || "0",
+    total_ingresos_adicionales: sesionActiva.total_ingresos_adicionales?.toString() || "0",
+    total_retiros: sesionActiva.total_retiros?.toString() || "0",
+    total_gastos: sesionActiva.total_gastos?.toString() || "0",
+    efectivo_esperado: sesionActiva.efectivo_esperado?.toString() || "0",
+    efectivo_contado: sesionActiva.efectivo_contado?.toString() || null,
+    diferencia: sesionActiva.diferencia?.toString() || null,
+  }
+
   return (
     <Suspense fallback={<div>Cargando...</div>}>
-      <GastosPageClient sesionCaja={sesionActiva} userId={parseInt(session.user.id)} userRole={session.user.role} />
+      <GastosPageClient sesionCaja={sesionSerializada} userId={parseInt(session.user.id)} userRole={session.user.role} />
     </Suspense>
   )
 }

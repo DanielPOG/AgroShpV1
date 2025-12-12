@@ -2,13 +2,19 @@ import { z } from "zod"
 
 /**
  * Schema de validación para movimientos de caja adicionales
- * Tipos: ingreso_adicional, egreso_operativo
+ * Tipos: ingreso_adicional, egreso_operativo, venta, retiro_caja, gasto_operativo
  */
 export const movimientoCajaSchema = z.object({
   sesion_caja_id: z.number().int().positive({
     message: "Sesión de caja requerida"
   }),
-  tipo_movimiento: z.enum(["ingreso_adicional", "egreso_operativo"], {
+  tipo_movimiento: z.enum([
+    "ingreso_adicional", 
+    "egreso_operativo", 
+    "venta", 
+    "retiro_caja", 
+    "gasto_operativo"
+  ], {
     required_error: "Tipo de movimiento requerido",
     invalid_type_error: "Tipo de movimiento inválido"
   }),
@@ -46,6 +52,9 @@ export type AutorizarMovimiento = z.infer<typeof autorizarMovimientoSchema>
 export const TIPOS_MOVIMIENTO = {
   INGRESO_ADICIONAL: "ingreso_adicional",
   EGRESO_OPERATIVO: "egreso_operativo",
+  VENTA: "venta",
+  RETIRO_CAJA: "retiro_caja",
+  GASTO_OPERATIVO: "gasto_operativo",
 } as const
 
 export const METODOS_PAGO = {

@@ -40,7 +40,7 @@ export function MovimientoModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!monto || Number(monto) <= 0) {
       toast({
         title: "Error",
@@ -91,6 +91,9 @@ export function MovimientoModal({
       setTipoMovimiento("ingreso_adicional")
       setMetodoPago("efectivo")
 
+      // 🔔 Disparar evento global para refrescar panel de efectivo
+      window.dispatchEvent(new CustomEvent('cash-session-updated'))
+
       onSuccess()
       onClose()
 
@@ -135,126 +138,126 @@ export function MovimientoModal({
             </div>
           </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tipo de Movimiento */}
-          <div className="space-y-2">
-            <Label htmlFor="tipo">Tipo de Movimiento</Label>
-            <Select value={tipoMovimiento} onValueChange={(value: TipoMovimiento) => setTipoMovimiento(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ingreso_adicional">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-600" />
-                    <span>Ingreso Adicional</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="egreso_operativo">
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="h-4 w-4 text-red-600" />
-                    <span>Egreso Operativo</span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {tipoMovimiento === "ingreso_adicional" 
-                ? "Ingresos por devoluciones, ajustes, etc." 
-                : "Egresos por cambio, préstamos, etc."}
-            </p>
-          </div>
-
-          {/* Método de Pago */}
-          <div className="space-y-2">
-            <Label htmlFor="metodo">Método de Pago</Label>
-            <Select value={metodoPago} onValueChange={(value: MetodoPago) => setMetodoPago(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="efectivo">Efectivo</SelectItem>
-                <SelectItem value="nequi">Nequi</SelectItem>
-                <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                <SelectItem value="transferencia">Transferencia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Monto */}
-          <div className="space-y-2">
-            <Label htmlFor="monto">Monto (COP)</Label>
-            <Input
-              id="monto"
-              type="number"
-              placeholder="0"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              min="1"
-              step="1"
-              required
-              disabled={isSubmitting}
-            />
-            {monto && (
-              <p className="text-sm font-medium">
-                ${Number(monto).toLocaleString('es-CO')} COP
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Tipo de Movimiento */}
+            <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo de Movimiento</Label>
+              <Select value={tipoMovimiento} onValueChange={(value: TipoMovimiento) => setTipoMovimiento(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ingreso_adicional">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                      <span>Ingreso Adicional</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="egreso_operativo">
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="h-4 w-4 text-red-600" />
+                      <span>Egreso Operativo</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {tipoMovimiento === "ingreso_adicional"
+                  ? "Ingresos por devoluciones, ajustes, etc."
+                  : "Egresos por cambio, préstamos, etc."}
               </p>
+            </div>
+
+            {/* Método de Pago */}
+            <div className="space-y-2">
+              <Label htmlFor="metodo">Método de Pago</Label>
+              <Select value={metodoPago} onValueChange={(value: MetodoPago) => setMetodoPago(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="efectivo">Efectivo</SelectItem>
+                  <SelectItem value="nequi">Nequi</SelectItem>
+                  <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                  <SelectItem value="transferencia">Transferencia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Monto */}
+            <div className="space-y-2">
+              <Label htmlFor="monto">Monto (COP)</Label>
+              <Input
+                id="monto"
+                type="number"
+                placeholder="0"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                min="1"
+                step="1"
+                required
+                disabled={isSubmitting}
+              />
+              {monto && (
+                <p className="text-sm font-medium">
+                  ${Number(monto).toLocaleString('es-CO')} COP
+                </p>
+              )}
+            </div>
+
+            {/* Alerta de Autorización */}
+            {requiereAutorizacion && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Este movimiento requiere autorización de un Supervisor/Admin porque el monto supera $100.000 COP
+                </AlertDescription>
+              </Alert>
             )}
-          </div>
 
-          {/* Alerta de Autorización */}
-          {requiereAutorizacion && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Este movimiento requiere autorización de un Supervisor/Admin porque el monto supera $100.000 COP
-              </AlertDescription>
-            </Alert>
-          )}
+            {/* Descripción */}
+            <div className="space-y-2">
+              <Label htmlFor="descripcion">Descripción</Label>
+              <Textarea
+                id="descripcion"
+                placeholder="Describe el motivo del movimiento..."
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                rows={3}
+                minLength={5}
+                maxLength={500}
+                required
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-muted-foreground">
+                {descripcion.length}/500 caracteres
+              </p>
+            </div>
 
-          {/* Descripción */}
-          <div className="space-y-2">
-            <Label htmlFor="descripcion">Descripción</Label>
-            <Textarea
-              id="descripcion"
-              placeholder="Describe el motivo del movimiento..."
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              rows={3}
-              minLength={5}
-              maxLength={500}
-              required
-              disabled={isSubmitting}
-            />
-            <p className="text-xs text-muted-foreground">
-              {descripcion.length}/500 caracteres
-            </p>
-          </div>
+            {/* Botones */}
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? "Registrando..." : "Registrar Movimiento"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          {/* Botones */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Registrando..." : "Registrar Movimiento"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    {/* Modal de Guía */}
-    <MovimientosGuiaModal 
-      open={showGuia} 
-      onClose={() => setShowGuia(false)} 
-    />
-  </>
+      {/* Modal de Guía */}
+      <MovimientosGuiaModal
+        open={showGuia}
+        onClose={() => setShowGuia(false)}
+      />
+    </>
   )
 }

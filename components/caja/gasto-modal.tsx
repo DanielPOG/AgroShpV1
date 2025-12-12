@@ -105,7 +105,10 @@ export function GastoModal({ open, onOpenChange, sesionCajaId, onSuccess }: Gast
       setBeneficiario("")
       setNumeroFactura("")
       setObservaciones("")
-      
+
+      // 🔔 Disparar evento global para refrescar panel de efectivo
+      window.dispatchEvent(new CustomEvent('cash-session-updated'))
+
       onOpenChange(false)
       onSuccess()
     } catch (err: any) {

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { GastoCajaCreate, MONTO_REQUIERE_AUTORIZACION_GASTO } from "@/lib/validations/gasto-caja.schema"
+import { validarEfectivoSuficiente } from "./cash-sessions"
 
 /**
  * Obtener gastos de caja de una sesión
@@ -117,42 +118,74 @@ export async function createGastoCaja(data: GastoCajaCreate & { autorizado_por?:
     throw new Error('Este gasto requiere autorización de un Supervisor/Admin')
   }
 
-  // Crear gasto
-  const gasto = await prisma.gastos_caja.create({
-    data: {
-      sesion_caja_id: data.sesion_caja_id,
-      monto: data.monto,
-      categoria_gasto: data.categoria_gasto,
-      descripcion: data.descripcion,
-      beneficiario: data.beneficiario || null,
-      numero_factura: data.numero_factura || null,
-      comprobante_url: data.comprobante_url || null,
-      observaciones: data.observaciones || null,
-      autorizado_por: data.autorizado_por || null,
-    },
-    include: {
-      autorizador: {
-        select: {
-          nombre: true,
-          apellido: true,
-        }
+  // ✅ FASE 4: Si es gasto en efectivo, validar que haya suficiente efectivo
+  if (data.metodo_pago === 'efectivo' || !data.metodo_pago) {
+    const validacion = await validarEfectivoSuficiente(data.sesion_caja_id, data.monto)
+    
+    if (!validacion.valido) {
+      console.error(`❌ [createGastoCaja] ${validacion.mensaje}`)
+      throw new Error(`No se puede registrar el gasto. ${validacion.mensaje}`)
+    }
+    
+    if (validacion.alertaBajoEfectivo) {
+      console.warn(`⚠️ [createGastoCaja] ${validacion.mensaje}`)
+    }
+  }
+
+  // Usar transacción para asegurar consistencia
+  return await prisma.$transaction(async (tx) => {
+    // 1. Crear gasto
+    const gasto = await tx.gastos_caja.create({
+      data: {
+        sesion_caja_id: data.sesion_caja_id,
+        monto: data.monto,
+        categoria_gasto: data.categoria_gasto,
+        descripcion: data.descripcion,
+        metodo_pago: data.metodo_pago || 'efectivo',
+        beneficiario: data.beneficiario || null,
+        numero_factura: data.numero_factura || null,
+        comprobante_url: data.comprobante_url || null,
+        observaciones: data.observaciones || null,
+        autorizado_por: data.autorizado_por || null,
       },
-    }
-  })
-
-  // Actualizar totales de la sesión
-  await prisma.sesiones_caja.update({
-    where: { id: data.sesion_caja_id },
-    data: {
-      total_gastos: {
-        increment: data.monto
+      include: {
+        autorizador: {
+          select: {
+            nombre: true,
+            apellido: true,
+          }
+        },
       }
+    })
+
+    // 2. Actualizar totales de la sesión (solo si es efectivo)
+    if (data.metodo_pago === 'efectivo' || !data.metodo_pago) {
+      await tx.sesiones_caja.update({
+        where: { id: data.sesion_caja_id },
+        data: {
+          total_gastos: {
+            increment: data.monto
+          }
+        }
+      })
     }
+
+    // 3. Crear movimiento de caja para trazabilidad
+    await tx.movimientos_caja.create({
+      data: {
+        sesion_caja_id: data.sesion_caja_id,
+        tipo_movimiento: 'gasto_operativo',
+        metodo_pago: data.metodo_pago || 'efectivo',
+        monto: data.monto,
+        descripcion: `Gasto: ${data.categoria_gasto} - ${data.descripcion}`,
+        usuario_id: data.autorizado_por || undefined,
+      }
+    })
+
+    console.log(`✅ Gasto de caja creado: ID ${gasto.id}, Categoría: ${data.categoria_gasto}, Monto: $${data.monto}, Método: ${data.metodo_pago || 'efectivo'}. Movimiento de caja creado.`)
+
+    return gasto
   })
-
-  console.log(`✅ Gasto de caja creado: ID ${gasto.id}, Categoría: ${data.categoria_gasto}, Monto: $${data.monto}`)
-
-  return gasto
 }
 
 /**

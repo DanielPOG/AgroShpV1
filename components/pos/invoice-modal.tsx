@@ -230,7 +230,11 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
         doc.rect(15, yPos - 5, 180, 8, 'F')
       }
       
-      doc.text(item.name, 20, yPos)
+      // ✨ NUEVO: Detectar si es producto ficticio (nombre original guardado en item)
+      // Los productos ficticios tienen un flag o podemos detectarlos por alguna característica
+      const nombreProducto = item.name
+      
+      doc.text(nombreProducto, 20, yPos)
       doc.text(item.quantity.toString(), 120, yPos, { align: 'center' })
       doc.text(`$${item.price.toLocaleString('es-CO')}`, 150, yPos, { align: 'right' })
       doc.text(`$${(item.price * item.quantity).toLocaleString('es-CO')}`, 185, yPos, { align: 'right' })

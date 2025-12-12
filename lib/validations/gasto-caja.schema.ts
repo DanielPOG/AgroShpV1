@@ -3,6 +3,7 @@ import { z } from "zod"
 /**
  * Schema de validación para gastos de caja
  * Categorías: insumos, servicios, mantenimiento, transporte, otros
+ * FASE 3: Ahora incluye metodo_pago para distinguir gastos en efectivo
  */
 export const gastoCajaSchema = z.object({
   sesion_caja_id: z.number().int().positive({
@@ -29,6 +30,9 @@ export const gastoCajaSchema = z.object({
   }).max(500, {
     message: "Descripción muy larga (máximo 500 caracteres)"
   }),
+  metodo_pago: z.enum(["efectivo", "nequi", "tarjeta", "transferencia"], {
+    required_error: "Método de pago requerido"
+  }).default("efectivo"),
   beneficiario: z.string().min(3, {
     message: "El beneficiario debe tener al menos 3 caracteres"
   }).max(200, {

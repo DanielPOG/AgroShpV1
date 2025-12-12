@@ -3,11 +3,14 @@ import { z } from 'zod'
 /**
  * Schema para un item de venta
  * Representa un producto en el carrito
+ * ✨ NUEVO: Permite IDs negativos para productos ficticios
  */
 export const saleItemSchema = z.object({
-  producto_id: z.number().int().positive({
-    message: 'El ID del producto debe ser un número positivo'
-  }),
+  producto_id: z.number().int({
+    message: 'El ID del producto debe ser un número entero'
+  }).refine(val => val !== 0, {
+    message: 'El ID del producto no puede ser 0'
+  }), // Permite positivos (inventario) y negativos (ficticios)
   lote_id: z.number().int().positive({
     message: 'El ID del lote debe ser un número positivo'
   }).optional(), // Opcional porque se asigna automáticamente con FIFO

@@ -12,9 +12,10 @@ import { BarcodeScanner } from "@/components/pos/barcode-scanner"
 import { ProductGrid } from "@/components/pos/product-grid"
 import { Cart } from "@/components/pos/cart"
 import { CheckoutModal, type PaymentData } from "@/components/pos/checkout-modal"
+import { QuickProductModal } from "@/components/pos/quick-product-modal"
 import { CashSessionStatus, type CashSessionStatusRef } from "@/components/pos/cash-session-status"
 import { useToast } from "@/hooks/use-toast"
-import { Search, Zap, X, ShoppingCart, ChevronUp, Loader2 } from "lucide-react"
+import { Search, Zap, X, ShoppingCart, ChevronUp, Loader2, PackagePlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function POSPage() {
@@ -33,6 +34,7 @@ export default function POSPage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCashPanelExpanded, setIsCashPanelExpanded] = useState(false) // ✨ NUEVO: Estado del panel de caja
+  const [isQuickProductOpen, setIsQuickProductOpen] = useState(false) // ✨ NUEVO: Estado del modal de producto rápido
 
   // Cargar productos con stock disponible
   const { products, isLoading: productsLoading, error, refetch: refetchProducts } = useProducts({
@@ -220,6 +222,21 @@ export default function POSPage() {
   }
 
   /**
+   * Agregar producto ficticio desde modal rápido
+   */
+  const handleAddQuickProduct = (product: {
+    id: number
+    nombre: string
+    precio: number
+    cantidad: number
+    unidad: string
+    stock: number
+  }) => {
+    addItem(product)
+    setIsQuickProductOpen(false)
+  }
+
+  /**
    * Filtrar productos por búsqueda
    */
   const filteredProducts = availableProducts.filter(
@@ -273,6 +290,15 @@ export default function POSPage() {
               </p>
             </div>
             <div className="flex gap-1 sm:gap-2 shrink-0">
+              <Button
+                variant="outline"
+                onClick={() => setIsQuickProductOpen(true)}
+                size="icon"
+                className="h-8 w-8 sm:h-10 sm:w-10 bg-primary/10 hover:bg-primary/20 border-primary/30"
+                title="Agregar producto rápido"
+              >
+                <PackagePlus className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
+              </Button>
               <Button
                 variant="outline"
                 onClick={handleClearCart}
@@ -445,6 +471,13 @@ export default function POSPage() {
         items={cartItems}
         clearCart={clearCart}
         onSaleComplete={handleSaleComplete}
+      />
+
+      {/* Quick Product Modal */}
+      <QuickProductModal
+        open={isQuickProductOpen}
+        onClose={() => setIsQuickProductOpen(false)}
+        onAddProduct={handleAddQuickProduct}
       />
     </>
   )

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { RetiroCajaCreate, ESTADOS_RETIRO } from "@/lib/validations/retiro-caja.schema"
+import { validarEfectivoSuficiente } from "./cash-sessions"
 
 /**
  * Obtener retiros de caja de una sesión
@@ -251,28 +252,55 @@ export async function completarRetiro(
     throw new Error('Solo se pueden completar retiros autorizados')
   }
 
-  // Actualizar retiro
-  const retiroCompletado = await prisma.retiros_caja.update({
-    where: { id: retiroId },
-    data: {
-      estado: ESTADOS_RETIRO.COMPLETADO,
-      recibo_url: reciboUrl || null,
-    },
-  })
+  // ✅ FASE 4: Validar que haya suficiente efectivo antes de completar el retiro
+  const validacion = await validarEfectivoSuficiente(retiro.sesion_caja_id, retiro.monto)
+  
+  if (!validacion.valido) {
+    console.error(`❌ [completarRetiro] ${validacion.mensaje}`)
+    throw new Error(`No se puede completar el retiro. ${validacion.mensaje}`)
+  }
+  
+  if (validacion.alertaBajoEfectivo) {
+    console.warn(`⚠️ [completarRetiro] ${validacion.mensaje}`)
+  }
 
-  // Actualizar totales de la sesión
-  await prisma.sesiones_caja.update({
-    where: { id: retiro.sesion_caja_id },
-    data: {
-      total_retiros: {
-        increment: retiro.monto
+  // Usar transacción para asegurar consistencia
+  return await prisma.$transaction(async (tx) => {
+    // 1. Actualizar retiro
+    const retiroCompletado = await tx.retiros_caja.update({
+      where: { id: retiroId },
+      data: {
+        estado: ESTADOS_RETIRO.COMPLETADO,
+        recibo_url: reciboUrl || null,
+      },
+    })
+
+    // 2. Actualizar totales de la sesión
+    await tx.sesiones_caja.update({
+      where: { id: retiro.sesion_caja_id },
+      data: {
+        total_retiros: {
+          increment: retiro.monto
+        }
       }
-    }
+    })
+
+    // 3. Crear movimiento de caja para trazabilidad
+    await tx.movimientos_caja.create({
+      data: {
+        sesion_caja_id: retiro.sesion_caja_id,
+        tipo_movimiento: 'retiro_caja',
+        metodo_pago: 'efectivo',
+        monto: retiro.monto,
+        descripcion: `Retiro de caja completado: ${retiroCompletado.motivo}`,
+        usuario_id: retiroCompletado.solicitado_por,
+      }
+    })
+
+    console.log(`✅ Retiro ${retiroId} completado. Monto: $${retiro.monto}. Movimiento de caja creado.`)
+
+    return retiroCompletado
   })
-
-  console.log(`✅ Retiro ${retiroId} completado. Monto: $${retiro.monto}`)
-
-  return retiroCompletado
 }
 
 /**

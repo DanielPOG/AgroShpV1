@@ -84,11 +84,11 @@ const navigation = [
     description: "Registro de gastos operativos"
   },
   { 
-    name: "Arqueos de Caja", 
+    name: "Historial de Arqueos", 
     href: "/dashboard/caja/arqueos", 
     icon: Calculator, 
-    roles: ["Admin", "Cajero", "Supervisor"],
-    description: "Conteo físico y cierre de caja"
+    roles: ["Admin", "Supervisor"],
+    description: "Consulta arqueos de sesiones cerradas"
   },
   { 
     name: "Turnos de Caja", 

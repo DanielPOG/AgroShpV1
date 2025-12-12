@@ -9,9 +9,9 @@ import {
 } from "@/lib/db/retiros-caja"
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 /**
@@ -20,7 +20,7 @@ type RouteContext = {
  */
 export async function GET(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -31,7 +31,8 @@ export async function GET(
       )
     }
 
-    const retiroId = parseInt(params.id)
+    const { id } = await context.params
+    const retiroId = parseInt(id)
     const retiro = await getRetiroById(retiroId)
 
     if (!retiro) {
@@ -44,7 +45,7 @@ export async function GET(
     return NextResponse.json({ retiro })
 
   } catch (error) {
-    console.error(`Error en GET /api/caja/retiros/${params.id}:`, error)
+    console.error(`Error en GET /api/caja/retiros/[id]:`, error)
     return NextResponse.json(
       { error: "Error al obtener retiro" },
       { status: 500 }
@@ -58,7 +59,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -69,7 +70,8 @@ export async function PUT(
       )
     }
 
-    const retiroId = parseInt(params.id)
+    const { id } = await context.params
+    const retiroId = parseInt(id)
     const userId = parseInt(session.user.id)
     const body = await request.json()
 
@@ -114,7 +116,7 @@ export async function PUT(
     )
 
   } catch (error) {
-    console.error(`Error en PUT /api/caja/retiros/${params.id}:`, error)
+    console.error(`Error en PUT /api/caja/retiros/[id]:`, error)
 
     if (error instanceof Error) {
       return NextResponse.json(
@@ -136,7 +138,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -147,7 +149,8 @@ export async function DELETE(
       )
     }
 
-    const retiroId = parseInt(params.id)
+    const { id } = await context.params
+    const retiroId = parseInt(id)
     const userId = parseInt(session.user.id)
 
     await cancelarRetiro(retiroId, userId)
@@ -158,7 +161,7 @@ export async function DELETE(
     })
 
   } catch (error) {
-    console.error(`Error en DELETE /api/caja/retiros/${params.id}:`, error)
+    console.error(`Error en DELETE /api/caja/retiros/[id]:`, error)
 
     if (error instanceof Error) {
       return NextResponse.json(

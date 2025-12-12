@@ -23,31 +23,29 @@ export default async function TurnosPage() {
     redirect("/dashboard")
   }
 
-  // Obtener sesión activa
+  // Obtener sesión activa (puede ser null)
   const sesionActiva = await getActiveCashSession(parseInt(session.user.id))
 
-  // Si no hay sesión activa, mostrar alerta
-  if (!sesionActiva) {
-    return (
-      <div className="container mx-auto py-8 space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight">Turnos de Caja</h1>
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No tienes una sesión de caja activa. Para gestionar turnos, primero debes abrir una sesión.
-          </AlertDescription>
-        </Alert>
-        <Button asChild>
-          <a href="/dashboard/caja">Ir a Sesiones de Caja</a>
-        </Button>
-      </div>
-    )
-  }
+  // ✅ Serializar la sesión si existe
+  const sesionSerializada = sesionActiva ? {
+    ...sesionActiva,
+    fondo_inicial: sesionActiva.fondo_inicial.toString(),
+    total_ventas_efectivo: sesionActiva.total_ventas_efectivo?.toString() || "0",
+    total_ventas_nequi: sesionActiva.total_ventas_nequi?.toString() || "0",
+    total_ventas_tarjeta: sesionActiva.total_ventas_tarjeta?.toString() || "0",
+    total_ventas_transferencia: sesionActiva.total_ventas_transferencia?.toString() || "0",
+    total_ingresos_adicionales: sesionActiva.total_ingresos_adicionales?.toString() || "0",
+    total_retiros: sesionActiva.total_retiros?.toString() || "0",
+    total_gastos: sesionActiva.total_gastos?.toString() || "0",
+    efectivo_esperado: sesionActiva.efectivo_esperado?.toString() || "0",
+    efectivo_contado: sesionActiva.efectivo_contado?.toString() || null,
+    diferencia: sesionActiva.diferencia?.toString() || null,
+  } : null
 
   return (
     <Suspense fallback={<div>Cargando...</div>}>
       <TurnosPageClient 
-        sesionCaja={sesionActiva} 
+        sesionCaja={sesionSerializada} 
         userId={parseInt(session.user.id)} 
         userRole={session.user.role} 
       />

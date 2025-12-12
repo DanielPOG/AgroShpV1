@@ -59,8 +59,9 @@ export const createSaleSchema = z.object({
   // Descuento global (opcional)
   descuento_global: z.number().min(0).max(100).optional(),
   
-  // Facturación
+  // Facturación (✨ NUEVO: se registra atómicamente)
   requiere_factura: z.boolean().default(false),
+  factura_generada: z.boolean().default(false),
   
   // Observaciones
   observaciones: z.string().max(500).optional(),

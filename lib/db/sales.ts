@@ -89,6 +89,7 @@ export interface CreateSaleData {
   cliente_telefono?: string
   descuento_global?: number
   requiere_factura?: boolean
+  factura_generada?: boolean  // ✨ NUEVO: se registra atómicamente
   observaciones?: string
 }
 
@@ -441,6 +442,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
             impuesto,
             total,
             requiere_factura: data.requiere_factura || false,
+            factura_generada: data.factura_generada || false,  // ✨ NUEVO: registro atómico
             observaciones: data.observaciones,
             estado: 'completada',
           },

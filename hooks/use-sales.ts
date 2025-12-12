@@ -33,6 +33,7 @@ export interface CreateSaleData {
   cliente_telefono?: string
   descuento_global?: number
   requiere_factura?: boolean
+  factura_generada?: boolean  // ✨ NUEVO: Se registra atómicamente
   observaciones?: string
 }
 

@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
  *   cliente_telefono?: string,
  *   descuento_global?: number,
  *   requiere_factura?: boolean,
+ *   factura_generada?: boolean,  // ✨ NUEVO: registro atómico
  *   observaciones?: string
  * }
  * 

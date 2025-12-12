@@ -234,9 +234,55 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     }
   }, [open, paymentMethods, selectedMethodId])
 
-  const handleComplete = async () => {
+  const handleComplete = () => {
     if (!canComplete()) return
 
+    // Preparar método de pago para mostrar en factura
+    let paymentMethodDisplay = selectedMethod?.nombre
+    if (selectedMethodId === -1) {
+      // Pago mixto: mostrar desglose
+      const metodosUsados = mixtoPayments.map(p => {
+        const metodo = paymentMethods?.find(m => m.id === p.metodo_pago_id)
+        return `${metodo?.nombre}: $${p.monto.toLocaleString("es-CO")}`
+      }).join(', ')
+      paymentMethodDisplay = `Mixto (${metodosUsados})`
+    }
+
+    // Preparar datos para la factura (ANTES de crear venta)
+    setSaleData({
+      items: items.map(item => ({
+        name: item.nombre,
+        quantity: item.cantidad,
+        price: item.precio,
+      })),
+      total,
+      subtotal,
+      tax,
+      paymentMethod: paymentMethodDisplay || 'Desconocido',
+      change: change > 0 ? change : undefined,
+    })
+    
+    // Abrir modal de facturación ANTES de crear la venta
+    setShowInvoice(true)
+  }
+
+  const handleInvoiceClose = () => {
+    setShowInvoice(false)
+    
+    // Limpiar carrito
+    clearCart()
+    
+    // ✨ Ya NO llamamos onSaleComplete aquí porque se llama después de crear venta
+    
+    onClose()
+  }
+
+  const handleInvoiceComplete = async (facturacionData: {
+    requiere_factura: boolean
+    factura_generada: boolean
+    factura_enviada_email: boolean
+    email_destino?: string
+  }) => {
     try {
       // Preparar datos de venta
       const saleItems = items.map(item => ({
@@ -272,64 +318,38 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         }]
       }
 
-      // Crear venta en la base de datos
+      // ✅ CREAR VENTA ATÓMICAMENTE con TODOS los datos incluido facturación
       const venta = await createSale({
         items: saleItems,
         pagos,
-        requiere_factura: false,
+        requiere_factura: facturacionData.requiere_factura,
+        factura_generada: facturacionData.factura_generada,
+        cliente_email: facturacionData.email_destino,
       })
 
-      // Preparar método de pago para mostrar en factura
-      let paymentMethodDisplay = selectedMethod?.nombre
-      if (selectedMethodId === -1) {
-        // Pago mixto: mostrar desglose
-        const metodosUsados = mixtoPayments.map(p => {
-          const metodo = paymentMethods?.find(m => m.id === p.metodo_pago_id)
-          return `${metodo?.nombre}: $${p.monto.toLocaleString("es-CO")}`
-        }).join(', ')
-        paymentMethodDisplay = `Mixto (${metodosUsados})`
+      console.log('✅ Venta creada atómicamente:', venta.codigo_venta)
+
+      // ✨ REFRESCAR PRODUCTOS INMEDIATAMENTE después de crear venta
+      if (onSaleComplete) {
+        await onSaleComplete()
       }
 
-      // Preparar datos para la factura
-      setSaleData({
-        id: venta.id,
-        codigo_venta: venta.codigo_venta,
-        items: items.map(item => ({
-          name: item.nombre,
-          quantity: item.cantidad,
-          price: item.precio,
-        })),
-        total,
-        subtotal,
-        tax,
-        paymentMethod: paymentMethodDisplay,
-        change: change > 0 ? change : undefined,
-        fecha: venta.fecha_venta,
-      })
-      
-      setShowInvoice(true)
-    } catch (error: any) {
-      console.error("Error al completar venta:", error)
+      // El toast ya lo muestra el hook useSalesMutations, pero agregamos mensaje específico
       toast({
-        title: "Error al Procesar Venta",
+        title: "✅ Venta Completada",
+        description: facturacionData.requiere_factura 
+          ? `Factura generada - ${venta.codigo_venta}` 
+          : `Venta registrada - ${venta.codigo_venta}`,
+      })
+    } catch (error: any) {
+      console.error('Error al crear venta:', error)
+      toast({
+        title: "❌ Error al Procesar Venta",
         description: error.message || "No se pudo completar la venta. Intenta de nuevo.",
         variant: "destructive",
       })
+      throw error // Re-lanzar para que InvoiceModal maneje el error
     }
-  }
-
-  const handleInvoiceClose = () => {
-    setShowInvoice(false)
-    
-    // Limpiar carrito
-    clearCart()
-    
-    // ✨ NUEVO: Notificar al componente padre que se completó la venta
-    if (onSaleComplete) {
-      onSaleComplete()
-    }
-    
-    handleClose()
   }
 
   const handleClose = () => {
@@ -716,7 +736,14 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         </DialogContent>
       </Dialog>
 
-      {saleData && <InvoiceModal open={showInvoice} onClose={handleInvoiceClose} saleData={saleData} />}
+      {saleData && (
+        <InvoiceModal 
+          open={showInvoice} 
+          onClose={handleInvoiceClose} 
+          saleData={saleData}
+          onComplete={handleInvoiceComplete}
+        />
+      )}
     </>
   )
 }

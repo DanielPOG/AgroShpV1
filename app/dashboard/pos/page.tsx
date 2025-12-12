@@ -32,9 +32,10 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isCashPanelExpanded, setIsCashPanelExpanded] = useState(false) // ✨ NUEVO: Estado del panel de caja
 
   // Cargar productos con stock disponible
-  const { products, isLoading: productsLoading, error } = useProducts({
+  const { products, isLoading: productsLoading, error, refetch: refetchProducts } = useProducts({
     activo: true,
     limit: 100,
     page: 1,
@@ -184,12 +185,18 @@ export default function POSPage() {
    * ✨ NUEVO: Callback después de venta exitosa para refrescar datos
    */
   const handleSaleComplete = async () => {
-    console.log('🔄 Refrescando estado de caja después de venta...')
+    console.log('🔄 Refrescando datos después de venta...')
     
-    // Refrescar el estado de caja
+    // 1. Refrescar el estado de caja
     if (cashSessionRef.current) {
       await cashSessionRef.current.refresh()
       console.log('✅ Estado de caja actualizado')
+    }
+    
+    // 2. Refrescar productos para actualizar stock
+    if (refetchProducts) {
+      await refetchProducts(true) // true = silent refresh (sin loading)
+      console.log('✅ Stock de productos actualizado')
     }
     
     // Mostrar notificación
@@ -252,106 +259,117 @@ export default function POSPage() {
 
   return (
     <>
-      {/* Products and Cart Container */}
-      <div className="flex flex-col lg:flex-row h-full overflow-hidden">
-        {/* Left Panel - Products */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          {/* Header */}
-          <div className="p-2 sm:p-4 lg:p-6 border-b border-border bg-card shrink-0">
-            <div className="flex items-center justify-between mb-2 sm:mb-4">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground truncate">
-                  Punto de Venta
-                </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                  Terminal POS AgroShop - {user.name}
-                </p>
-              </div>
-              <div className="flex gap-1 sm:gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  onClick={handleClearCart}
-                  size="icon"
-                  disabled={cartItems.length === 0}
-                  className="h-8 w-8 sm:h-10 sm:w-10"
-                  title="Limpiar carrito"
-                >
-                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-              </div>
+      {/* Layout Principal */}
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Header Fijo - Título */}
+        <div className="p-2 sm:p-4 lg:p-6 border-b border-border bg-card shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground truncate">
+                Punto de Venta
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                Terminal POS AgroShop - {user.name}
+              </p>
             </div>
-
-            {/* Cash Session Status */}
-            <div className="mb-4">
-              <CashSessionStatus ref={cashSessionRef} />
-            </div>
-
-            <div className="space-y-2 sm:space-y-3">
-              <BarcodeScanner onScan={handleBarcodeScan} />
-
-              <div className="relative">
-                <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Buscar productos... (F2)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-7 sm:pl-10 text-sm h-8 sm:h-10"
-                />
-                {searchQuery && (
-                  <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">
-                    {filteredProducts.length}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 min-h-0">
-            {productsLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="flex flex-col items-center gap-4">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Cargando productos...</p>
-                </div>
-              </div>
-            ) : filteredProducts.length > 0 ? (
-              <ProductGrid products={filteredProducts} onSelectProduct={handleAddToCart} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center space-y-2">
-                  <p className="text-sm font-medium">No se encontraron productos</p>
-                  <p className="text-xs text-muted-foreground">
-                    {searchQuery ? "Intenta con otra búsqueda" : "No hay productos disponibles con stock"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Keyboard shortcuts info */}
-          <div className="p-2 sm:p-3 border-t border-border bg-card shrink-0 hidden sm:block">
-            <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
-              <Zap className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-              <span className="truncate">
-                <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Enter</kbd> Finalizar
-                {' · '}
-                <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">F2</kbd> Buscar
-                {' · '}
-                <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Esc</kbd> Cancelar
-              </span>
+            <div className="flex gap-1 sm:gap-2 shrink-0">
+              <Button
+                variant="outline"
+                onClick={handleClearCart}
+                size="icon"
+                disabled={cartItems.length === 0}
+                className="h-8 w-8 sm:h-10 sm:w-10"
+                title="Limpiar carrito"
+              >
+                <X className="h-3 w-3 sm:h-4 sm:w-4" />
+              </Button>
             </div>
           </div>
         </div>
 
-        {/* Right Panel - Cart (Desktop) */}
-        <div className="hidden lg:block w-96 border-l border-border bg-card shrink-0 overflow-hidden">
-          <Cart
-            items={cartItems}
-            onUpdateQuantity={updateQuantity}
-            onRemoveItem={removeItem}
-            onCheckout={handleCheckout}
+        {/* Panel de Caja - Acordeón Vertical */}
+        <div className="shrink-0">
+          <CashSessionStatus 
+            ref={cashSessionRef}
+            isExpanded={isCashPanelExpanded}
+            onToggleExpand={() => setIsCashPanelExpanded(!isCashPanelExpanded)}
           />
+        </div>
+
+        {/* Contenedor de Productos y Carrito */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+          {/* Panel Izquierdo - Productos */}
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            {/* Barra de búsqueda y scanner */}
+            <div className="p-2 sm:p-4 lg:p-6 border-b border-border bg-card shrink-0">
+              <div className="space-y-2 sm:space-y-3">
+                <BarcodeScanner onScan={handleBarcodeScan} />
+
+                <div className="relative">
+                  <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                  <Input
+                    id="search"
+                    placeholder="Buscar productos... (F2)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-7 sm:pl-10 text-sm h-8 sm:h-10"
+                  />
+                  {searchQuery && (
+                    <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">
+                      {filteredProducts.length}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Grid de productos */}
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 min-h-0">
+              {productsLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Cargando productos...</p>
+                  </div>
+                </div>
+              ) : filteredProducts.length > 0 ? (
+                <ProductGrid products={filteredProducts} onSelectProduct={handleAddToCart} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-medium">No se encontraron productos</p>
+                    <p className="text-xs text-muted-foreground">
+                      {searchQuery ? "Intenta con otra búsqueda" : "No hay productos disponibles con stock"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Keyboard shortcuts info */}
+            <div className="p-2 sm:p-3 border-t border-border bg-card shrink-0 hidden sm:block">
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
+                <Zap className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">
+                  <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Enter</kbd> Finalizar
+                  {' · '}
+                  <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">F2</kbd> Buscar
+                  {' · '}
+                  <kbd className="px-1 py-0.5 rounded bg-muted border text-[9px] sm:text-xs">Esc</kbd> Cancelar
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel Derecho - Carrito (Desktop) */}
+          <div className="hidden lg:flex w-96 border-l border-border bg-card shrink-0 overflow-hidden">
+            <Cart
+              items={cartItems}
+              onUpdateQuantity={updateQuantity}
+              onRemoveItem={removeItem}
+              onCheckout={handleCheckout}
+            />
+          </div>
         </div>
       </div>
 

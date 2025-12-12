@@ -38,6 +38,123 @@ export async function getActiveCashSession(userId: number) {
 }
 
 /**
+ * 💰 FUNCIÓN CRÍTICA: Calcula el efectivo REAL disponible en caja
+ * 
+ * Esta función considera TODAS las operaciones que afectan el efectivo:
+ * 1. Fondo inicial
+ * 2. Ventas en efectivo
+ * 3. Ingresos adicionales en efectivo (movimientos_caja)
+ * 4. Egresos operativos en efectivo (movimientos_caja)
+ * 5. Retiros de caja aprobados
+ * 6. Gastos pagados en efectivo
+ * 
+ * IMPORTANTE: Esta es la única fuente de verdad para efectivo disponible.
+ * Usar esta función en lugar de calcular manualmente.
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @returns Monto de efectivo disponible (puede ser negativo si hay faltante)
+ */
+export async function getEfectivoDisponible(sessionId: number): Promise<number> {
+  console.log(`\n💰 [getEfectivoDisponible] Calculando efectivo para sesión ${sessionId}`)
+  
+  // 1. Obtener sesión
+  const session = await prisma.sesiones_caja.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      codigo_sesion: true,
+      fondo_inicial: true,
+      total_ventas_efectivo: true,
+    }
+  })
+  
+  if (!session) {
+    console.error(`❌ [getEfectivoDisponible] Sesión ${sessionId} no encontrada`)
+    throw new Error('Sesión no encontrada')
+  }
+  
+  console.log(`📊 [getEfectivoDisponible] Sesión: ${session.codigo_sesion}`)
+  console.log(`   💵 Fondo inicial: $${Number(session.fondo_inicial).toLocaleString('es-CO')}`)
+  console.log(`   💵 Ventas efectivo: $${Number(session.total_ventas_efectivo || 0).toLocaleString('es-CO')}`)
+  
+  // 2. Obtener movimientos de efectivo (ingresos y egresos extra)
+  const movimientos = await prisma.movimientos_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      metodo_pago: 'efectivo',
+      tipo_movimiento: {
+        in: ['ingreso_adicional', 'egreso_operativo']
+      }
+    },
+    select: {
+      id: true,
+      tipo_movimiento: true,
+      monto: true,
+      descripcion: true
+    }
+  })
+  
+  const ingresosEfectivo = movimientos
+    .filter(m => m.tipo_movimiento === 'ingreso_adicional')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+  
+  const egresosEfectivo = movimientos
+    .filter(m => m.tipo_movimiento === 'egreso_operativo')
+    .reduce((sum, m) => sum + Number(m.monto), 0)
+  
+  console.log(`   💵 Ingresos extra (${movimientos.filter(m => m.tipo_movimiento === 'ingreso_adicional').length}): $${ingresosEfectivo.toLocaleString('es-CO')}`)
+  console.log(`   💵 Egresos extra (${movimientos.filter(m => m.tipo_movimiento === 'egreso_operativo').length}): -$${egresosEfectivo.toLocaleString('es-CO')}`)
+  
+  // 3. Obtener retiros aprobados
+  const retiros = await prisma.retiros_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId,
+      estado: 'aprobado'
+    },
+    select: {
+      id: true,
+      monto: true,
+      motivo: true
+    }
+  })
+  
+  const totalRetiros = retiros.reduce((sum, r) => sum + Number(r.monto), 0)
+  console.log(`   💵 Retiros (${retiros.length}): -$${totalRetiros.toLocaleString('es-CO')}`)
+  
+  // 4. Obtener gastos pagados en efectivo
+  // TODO FASE 3: Filtrar por metodo_pago cuando se agregue el campo
+  // Por ahora asumimos que todos los gastos son en efectivo
+  const gastos = await prisma.gastos_caja.findMany({
+    where: {
+      sesion_caja_id: sessionId
+    },
+    select: {
+      id: true,
+      monto: true,
+      categoria_gasto: true,
+      descripcion: true
+    }
+  })
+  
+  const totalGastos = gastos.reduce((sum, g) => sum + Number(g.monto), 0)
+  console.log(`   💵 Gastos (${gastos.length}): -$${totalGastos.toLocaleString('es-CO')}`)
+  
+  // 5. CÁLCULO FINAL
+  const efectivoDisponible = 
+    Number(session.fondo_inicial) +
+    Number(session.total_ventas_efectivo || 0) +
+    ingresosEfectivo -
+    egresosEfectivo -
+    totalRetiros -
+    totalGastos
+  
+  console.log(`\n   ✅ EFECTIVO DISPONIBLE: $${efectivoDisponible.toLocaleString('es-CO')}`)
+  console.log(`   ${efectivoDisponible < 0 ? '⚠️ FALTANTE DETECTADO' : efectivoDisponible < 50000 ? '⚠️ EFECTIVO BAJO' : '✅ EFECTIVO SUFICIENTE'}`)
+  
+  return efectivoDisponible
+}
+
+/**
  * Abrir una nueva sesión de caja
  */
 export async function openCashSession(userId: number, data: OpenCashSessionData) {
@@ -258,21 +375,24 @@ export async function getCashSessionSummary(sessionId: number) {
   const totalRetiros = retiros.reduce((sum, r) => sum + Number(r.monto), 0)
   const totalGastos = gastos.reduce((sum, g) => sum + Number(g.monto), 0)
 
-  // Efectivo esperado = fondo inicial + ventas efectivo + ingresos efectivo - retiros - gastos - egresos efectivo
+  // Calcular ventas en efectivo
   const ventasEfectivo = Number(session.total_ventas_efectivo || 0)
-  const efectivoEsperado =
-    Number(session.fondo_inicial) + 
-    ventasEfectivo + 
-    totalIngresosEfectivo - 
-    totalRetiros - 
-    totalGastos - 
-    totalEgresosEfectivo
+  
+  // Calcular total de ventas (todos los métodos)
+  const totalVentas = 
+    Number(session.total_ventas_efectivo || 0) +
+    Number(session.total_ventas_nequi || 0) +
+    Number(session.total_ventas_tarjeta || 0) +
+    Number(session.total_ventas_transferencia || 0)
+
+  // ✅ USAR FUNCIÓN CENTRALIZADA para efectivo esperado
+  const efectivoEsperado = await getEfectivoDisponible(sessionId)
 
   return {
     session,
     ventas: {
       efectivo: ventasEfectivo,
-      total: Number(session.total_ventas || 0),
+      total: totalVentas,
     },
     movimientos: {
       total: movimientos.length,

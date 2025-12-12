@@ -1,10 +1,19 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { checkStockBajo } from './alertas'
-import { getCashSessionSummary } from './cash-sessions'
+import { getEfectivoDisponible } from './cash-sessions'
 
 /**
+ * ✅ ACTUALIZADO - FASE 1
  * Validar si hay suficiente efectivo en caja para dar cambio
+ * 
+ * Ahora usa getEfectivoDisponible() que considera TODAS las operaciones:
+ * - Fondo inicial
+ * - Ventas en efectivo
+ * - Ingresos/egresos extra
+ * - Retiros de caja
+ * - Gastos
+ * 
  * @param sessionId - ID de la sesión de caja activa
  * @param montoVenta - Monto total de la venta
  * @param montoPagado - Monto que paga el cliente
@@ -15,7 +24,7 @@ export async function validarCambioDisponible(
   montoVenta: number,
   montoPagado: number
 ) {
-  console.log('\n💵 VALIDANDO CAMBIO DISPONIBLE:', {
+  console.log('\n💵 [validarCambioDisponible] VALIDANDO CAMBIO:', {
     sessionId,
     montoVenta,
     montoPagado,
@@ -24,21 +33,21 @@ export async function validarCambioDisponible(
 
   const cambioRequerido = montoPagado - montoVenta
   
-  // Si no requiere cambio, está OK
+  // ✅ SIEMPRE obtener efectivo disponible (incluso si no requiere cambio)
+  const efectivoDisponible = await getEfectivoDisponible(sessionId)
+  
+  // Si no requiere cambio, está OK (pero retornamos el efectivo disponible)
   if (cambioRequerido <= 0) {
+    console.log('✅ [validarCambioDisponible] No requiere cambio')
     return {
       tieneEfectivo: true,
-      efectivoDisponible: 0,
+      efectivoDisponible,
       cambioRequerido: 0,
       mensaje: 'No requiere cambio'
     }
   }
 
-  // Obtener resumen de la sesión de caja
-  const summary = await getCashSessionSummary(sessionId)
-  const efectivoDisponible = summary.efectivoEsperado
-
-  console.log('📊 Efectivo disponible en caja:', {
+  console.log('📊 [validarCambioDisponible] Resultado:', {
     efectivoDisponible,
     cambioRequerido,
     suficiente: efectivoDisponible >= cambioRequerido

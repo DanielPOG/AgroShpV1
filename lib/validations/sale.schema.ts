@@ -82,11 +82,13 @@ export const createSaleSchema = z.object({
     const impuesto = subtotalConDescuento * 0.19
     const total = subtotalConDescuento + impuesto
     
-    // Permitir diferencia de 1 peso por redondeos
-    return Math.abs(totalPagos - total) <= 1
+    // Permitir que el total de pagos sea mayor o igual al total de la venta
+    // (permite cambio en pago mixto cuando el cliente da más efectivo del necesario)
+    // Tolerancia de 1 peso por redondeos en caso de que sea menor
+    return totalPagos >= total || Math.abs(totalPagos - total) <= 1
   },
   {
-    message: 'La suma de los pagos debe ser igual al total de la venta',
+    message: 'La suma de los pagos debe ser mayor o igual al total de la venta',
     path: ['pagos']
   }
 )

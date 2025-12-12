@@ -103,10 +103,9 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
   // ✨ NUEVO: Función para obtener efectivo disponible
   const fetchEfectivoDisponible = async () => {
     try {
-      const response = await fetch('/api/caja/validar-cambio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ montoVenta: total, montoPagado: total })
+      const response = await fetch('/api/caja/efectivo-disponible', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
       })
       
       if (response.ok) {
@@ -149,6 +148,44 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     }
   }, [amountPaid, selectedMethod, total, efectivoDisponible])
 
+  // ✨ NUEVO: Validar cambio en pago mixto
+  useEffect(() => {
+    if (selectedMethodId === -1 && mixtoPayments.length > 0) {
+      // Calcular cuánto efectivo se está pagando
+      const efectivoMethod = paymentMethods?.find(m => m.nombre.toLowerCase().includes('efectivo'))
+      const pagoEfectivo = mixtoPayments.find(p => p.metodo_pago_id === efectivoMethod?.id)?.monto || 0
+      
+      // Calcular total de otros métodos
+      const pagoOtros = mixtoPayments
+        .filter(p => p.metodo_pago_id !== efectivoMethod?.id)
+        .reduce((sum, p) => sum + p.monto, 0)
+      
+      // Calcular cuánto efectivo realmente se necesita
+      const efectivoNecesario = Math.max(0, total - pagoOtros)
+      
+      // Si paga más efectivo del necesario, requiere cambio
+      const cambioRequerido = Math.max(0, pagoEfectivo - efectivoNecesario)
+      
+      if (cambioRequerido > 0) {
+        if (efectivoDisponible < cambioRequerido) {
+          setAlertaCambio({
+            tipo: 'error',
+            mensaje: `⚠️ Efectivo insuficiente para dar cambio. Disponible: $${efectivoDisponible.toLocaleString("es-CO")}, Necesario: $${cambioRequerido.toLocaleString("es-CO")}`
+          })
+        } else if (efectivoDisponible < cambioRequerido * 1.5) {
+          setAlertaCambio({
+            tipo: 'warning',
+            mensaje: `⚠️ El efectivo en caja quedará bajo después de dar cambio ($${(efectivoDisponible - cambioRequerido).toLocaleString("es-CO")})`
+          })
+        } else {
+          setAlertaCambio(null)
+        }
+      } else {
+        setAlertaCambio(null)
+      }
+    }
+  }, [mixtoPayments, selectedMethodId, total, efectivoDisponible, paymentMethods])
+
   // Validar si se puede completar la venta
   const canComplete = () => {
     if (!selectedMethodId) return false
@@ -156,6 +193,12 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     // Pago mixto
     if (selectedMethodId === -1) {
       const totalPagado = mixtoPayments.reduce((sum, p) => sum + p.monto, 0)
+      
+      // ✨ NUEVO: Verificar que no hay error de cambio
+      if (alertaCambio?.tipo === 'error') {
+        return false
+      }
+      
       return totalPagado >= total && mixtoPayments.length > 0
     }
     
@@ -342,7 +385,9 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
                 onValueChange={(value) => setSelectedMethodId(Number(value))}
               >
                 <div className="grid grid-cols-2 gap-3">
-                  {paymentMethods?.map((method) => {
+                  {paymentMethods
+                    ?.filter(method => !method.nombre.toLowerCase().includes('transferencia')) // ✨ Filtrar transferencia
+                    .map((method) => {
                     const isSelected = selectedMethodId === method.id
                     const icon = method.nombre.toLowerCase().includes("efectivo") ? (
                       <DollarSign className="h-8 w-8" />
@@ -460,9 +505,10 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
                     <p className="text-sm text-blue-800 font-medium mb-2">
                       💰 Pago Mixto - Divide el pago entre métodos
                     </p>
-                    <p className="text-xs text-blue-600">
-                      Total a pagar: ${total.toLocaleString("es-CO")}
-                    </p>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-blue-600">Total a pagar: ${total.toLocaleString("es-CO")}</span>
+                      <span className="text-green-600 font-semibold">💵 Efectivo disponible: ${efectivoDisponible.toLocaleString("es-CO")}</span>
+                    </div>
                   </div>
 
                   {/* Efectivo */}
@@ -548,6 +594,35 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
                     />
                   </div>
 
+                  {/* ✨ NUEVO: Alerta de cambio en pago mixto */}
+                  {alertaCambio && (
+                    <Card className={`${
+                      alertaCambio.tipo === 'error' ? 'bg-destructive/10 border-destructive' :
+                      alertaCambio.tipo === 'warning' ? 'bg-yellow-500/10 border-yellow-500' :
+                      'bg-blue-500/10 border-blue-500'
+                    }`}>
+                      <CardContent className="p-3">
+                        <p className={`text-sm font-medium ${
+                          alertaCambio.tipo === 'error' ? 'text-destructive' :
+                          alertaCambio.tipo === 'warning' ? 'text-yellow-700' :
+                          'text-blue-700'
+                        }`}>
+                          {alertaCambio.mensaje}
+                        </p>
+                        {alertaCambio.tipo === 'error' && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-muted-foreground font-semibold">Sugerencias:</p>
+                            <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                              <li>Solicitar billete más pequeño</li>
+                              <li>Usar pago exacto (${total.toLocaleString("es-CO")})</li>
+                              <li>Cambiar a tarjeta o Nequi</li>
+                            </ul>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* Resumen de pago mixto */}
                   <Card className={mixtoPayments.reduce((sum, p) => sum + p.monto, 0) >= total ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}>
                     <CardContent className="p-3 space-y-2">
@@ -567,6 +642,25 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
                           ${Math.max(0, total - mixtoPayments.reduce((sum, p) => sum + p.monto, 0)).toLocaleString("es-CO")}
                         </span>
                       </div>
+                      {(() => {
+                        const efectivoMethod = paymentMethods?.find(m => m.nombre.toLowerCase().includes('efectivo'))
+                        const pagoEfectivo = mixtoPayments.find(p => p.metodo_pago_id === efectivoMethod?.id)?.monto || 0
+                        const pagoOtros = mixtoPayments.filter(p => p.metodo_pago_id !== efectivoMethod?.id).reduce((sum, p) => sum + p.monto, 0)
+                        const efectivoNecesario = Math.max(0, total - pagoOtros)
+                        const cambio = Math.max(0, pagoEfectivo - efectivoNecesario)
+                        
+                        if (cambio > 0) {
+                          return (
+                            <div className="flex justify-between text-sm pt-2 border-t border-green-300">
+                              <span className="text-muted-foreground">💵 Cambio:</span>
+                              <span className="font-bold text-green-600">
+                                ${cambio.toLocaleString("es-CO")}
+                              </span>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
                       {mixtoPayments.reduce((sum, p) => sum + p.monto, 0) >= total && (
                         <p className="text-xs text-green-600 font-medium flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />

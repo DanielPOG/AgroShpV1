@@ -311,32 +311,54 @@ export async function calcularTotalEsperado(sesionId: number): Promise<number> {
   
   const fechaDesde = ultimoArqueo?.fecha_arqueo
 
-  // Calcular operaciones desde el último arqueo (o desde inicio de sesión)
-  const whereCondition: any = {
-    sesion_caja_id: sesionId,
+  // 1. Ventas en efectivo desde último arqueo
+  // Primero obtenemos los IDs de los turnos de esta sesión
+  const turnosDeSesion = await prisma.turnos_caja.findMany({
+    where: { sesion_caja_id: sesionId },
+    select: { id: true }
+  })
+  
+  const turnoIds = turnosDeSesion.map(t => t.id)
+
+  // Ahora obtenemos las ventas que pertenecen a estos turnos
+  const ventasQuery: any = {
+    turno_caja_id: { in: turnoIds },
+    estado: { not: 'cancelada' }
   }
 
   if (fechaDesde) {
-    whereCondition.fecha_venta = { gt: fechaDesde }
+    ventasQuery.fecha_venta = { gt: fechaDesde }
   }
 
-  // 1. Ventas en efectivo desde último arqueo
-  const ventasEfectivo = await prisma.pagos_venta.aggregate({
-    where: {
-      venta: whereCondition,
-      metodo_pago: {
-        nombre: 'efectivo'
+  const ventas = await prisma.ventas.findMany({
+    where: ventasQuery,
+    select: {
+      id: true,
+      pagos_venta: {
+        where: {
+          metodo_pago: {
+            nombre: 'efectivo'
+          }
+        },
+        select: {
+          monto: true
+        }
       }
-    },
-    _sum: { monto: true }
+    }
   })
+
+  // Sumar los montos de pagos en efectivo
+  const totalVentas = ventas.reduce((sum, venta) => {
+    const pagoEfectivo = venta.pagos_venta.reduce((s, p) => s + Number(p.monto), 0)
+    return sum + pagoEfectivo
+  }, 0)
 
   // 2. Retiros desde último arqueo
   const retiros = await prisma.retiros_caja.aggregate({
     where: {
       sesion_caja_id: sesionId,
       estado: 'aprobado',
-      ...(fechaDesde && { fecha_retiro: { gt: fechaDesde } })
+      ...(fechaDesde && { fecha_solicitud: { gt: fechaDesde } })
     },
     _sum: { monto: true }
   })
@@ -374,7 +396,6 @@ export async function calcularTotalEsperado(sesionId: number): Promise<number> {
     _sum: { monto: true }
   })
 
-  const totalVentas = Number(ventasEfectivo._sum.monto || 0)
   const totalRetiros = Number(retiros._sum.monto || 0)
   const totalGastos = Number(gastos._sum.monto || 0)
   const totalIngresos = Number(movimientosIngreso._sum.monto || 0)
@@ -630,11 +651,15 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
 
       // Sumar ventas por método
       ventas.forEach(venta => {
-        if (venta.estado_venta !== 'cancelada' && venta.metodo_pago) {
-          const metodo = venta.metodo_pago as keyof typeof totalesPorMetodo
-          if (totalesPorMetodo[metodo]) {
-            totalesPorMetodo[metodo].ventas += Number(venta.total)
-          }
+        if (venta.estado !== 'cancelada') {
+          // Cada venta puede tener múltiples pagos
+          venta.pagos_venta.forEach(pago => {
+            const nombreMetodo = pago.metodo_pago.nombre.toLowerCase()
+            const metodo = nombreMetodo as keyof typeof totalesPorMetodo
+            if (totalesPorMetodo[metodo]) {
+              totalesPorMetodo[metodo].ventas += Number(pago.monto)
+            }
+          })
         }
       })
 
@@ -721,6 +746,8 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
     return acc
   }, {} as Record<string, any>)
 
+  // Usar los valores originales del arqueo tal como fueron guardados
+  // NO recalcular porque ya están en la base de datos
   return {
     arqueo: {
       id: arqueo.id,

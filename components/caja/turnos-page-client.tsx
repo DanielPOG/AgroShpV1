@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { IniciarTurnoModal } from "@/components/caja/iniciar-turno-modal"
 import { FinalizarTurnoModal } from "@/components/caja/finalizar-turno-modal"
+import { cajaEvents } from "@/lib/events"
 import { 
   Clock, 
   Plus, 
@@ -209,6 +210,9 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
     loadTurnoActivo()
     loadTurnos()
     loadEstadisticas()
+    // Emitir evento para que otros componentes se actualicen
+    console.log('🔔 Emitiendo evento session-updated después de cambio en turno')
+    cajaEvents.emit('session-updated')
   }
 
   const handleFinalize = (turno: Turno) => {

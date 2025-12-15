@@ -91,7 +91,7 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
     
     setLoadingTotales(true)
     try {
-      const response = await fetch(`/api/caja/gastos?turno_id=${turno.id}&totales=true`)
+      const response = await fetch(`/api/caja/gastos?sesion_id=${sesionCaja.id}&totales=true`)
       if (response.ok) {
         const data = await response.json()
         setTotales(data)

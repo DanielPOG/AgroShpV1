@@ -20,6 +20,15 @@ interface OpenTurnoModalProps {
   turnoAnteriorId?: number | null
 }
 
+interface UltimoTurno {
+  id: number
+  efectivo_final: number
+  cajero: {
+    nombre: string
+    apellido: string
+  }
+}
+
 export function OpenTurnoModal({
   open,
   onOpenChange,
@@ -31,6 +40,7 @@ export function OpenTurnoModal({
   const [loading, setLoading] = useState(false)
   const [loadingEfectivo, setLoadingEfectivo] = useState(false)
   const [efectivoCalculado, setEfectivoCalculado] = useState<number | null>(null)
+  const [ultimoTurno, setUltimoTurno] = useState<UltimoTurno | null>(null)
   
   const [formData, setFormData] = useState({
     efectivo_inicial: "",
@@ -59,39 +69,60 @@ export function OpenTurnoModal({
     }
   }
 
+  // Cargar último turno cerrado
+  const cargarUltimoTurno = async () => {
+    console.log('🔄 [OpenTurnoModal] Cargando último turno para sesión:', sesionCajaId)
+    setLoadingEfectivo(true)
+    try {
+      const response = await fetch(`/api/turnos?sesion_id=${sesionCajaId}&ultimo_cerrado=true`)
+      console.log('📡 [OpenTurnoModal] Response:', response.status)
+      if (response.ok) {
+        const data = await response.json()
+        console.log('🔍 [OpenTurnoModal] Último turno:', data)
+        if (data && data.id) {
+          setUltimoTurno(data)
+          setEfectivoCalculado(Number(data.efectivo_final))
+          setFormData(prev => ({ 
+            ...prev, 
+            efectivo_inicial: data.efectivo_final.toString(),
+            tipo_relevo: TIPOS_RELEVO.CAMBIO_TURNO
+          }))
+          console.log('✅ [OpenTurnoModal] Turno anterior encontrado, efectivo:', data.efectivo_final)
+        } else {
+          console.log('ℹ️ [OpenTurnoModal] No hay turno anterior, obteniendo fondo inicial')
+          setUltimoTurno(null)
+          obtenerEfectivoInicial()
+        }
+      }
+    } catch (error) {
+      console.error('❌ [OpenTurnoModal] Error:', error)
+      obtenerEfectivoInicial()
+    } finally {
+      setLoadingEfectivo(false)
+    }
+  }
+
   // Reset form cuando se abre el modal
   useEffect(() => {
     if (open) {
-      // Pre-seleccionar tipo de relevo basado en contexto
-      const tipoRelevoDefault = turnoAnteriorId 
-        ? TIPOS_RELEVO.CAMBIO_TURNO 
-        : TIPOS_RELEVO.INICIO_JORNADA
-
       setFormData({
         efectivo_inicial: "",
-        tipo_relevo: tipoRelevoDefault,
+        tipo_relevo: "",
         observaciones_inicio: "",
       })
-
       setEfectivoCalculado(null)
-
-      // Si es inicio de jornada, obtener efectivo calculado
-      if (tipoRelevoDefault === TIPOS_RELEVO.INICIO_JORNADA) {
-        obtenerEfectivoInicial()
-      }
+      setUltimoTurno(null)
+      cargarUltimoTurno()
     }
-  }, [open, turnoAnteriorId, sesionCajaId])
+  }, [open, sesionCajaId])
 
-  // Detectar cambio de tipo de relevo
+  // Detectar cambio de tipo de relevo MANUAL (solo cuando el usuario cambia el select)
   useEffect(() => {
-    if (formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA) {
+    // Solo ejecutar si NO hay último turno (para evitar limpiar el campo auto-llenado)
+    if (!ultimoTurno && formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA) {
       obtenerEfectivoInicial()
-    } else {
-      // Para otros tipos, limpiar el campo
-      setEfectivoCalculado(null)
-      setFormData(prev => ({ ...prev, efectivo_inicial: "" }))
     }
-  }, [formData.tipo_relevo])
+  }, [formData.tipo_relevo, ultimoTurno])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -138,13 +169,21 @@ export function OpenTurnoModal({
         sesion_caja_id: sesionCajaId,
         tipo_relevo: formData.tipo_relevo,
         observaciones_inicio: formData.observaciones_inicio || undefined,
-        turno_anterior_id: turnoAnteriorId || undefined,
+      }
+
+      // Si hay último turno, usar su ID como turno_anterior_id
+      if (ultimoTurno?.id) {
+        requestBody.turno_anterior_id = ultimoTurno.id
+      } else if (turnoAnteriorId) {
+        requestBody.turno_anterior_id = turnoAnteriorId
       }
 
       // Solo incluir efectivo_inicial si hay un valor
       if (efectivoInicial !== undefined) {
         requestBody.efectivo_inicial = efectivoInicial
       }
+
+      console.log('📤 [OpenTurnoModal] Enviando request:', requestBody)
 
       const response = await fetch("/api/turnos", {
         method: "POST",
@@ -154,6 +193,7 @@ export function OpenTurnoModal({
 
       if (!response.ok) {
         const error = await response.json()
+        console.error('❌ [OpenTurnoModal] Error response:', error)
         throw new Error(error.error || "Error al iniciar turno")
       }
 
@@ -205,11 +245,23 @@ export function OpenTurnoModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Info turno anterior */}
+          {ultimoTurno && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-900">
+                El turno anterior de <strong>{ultimoTurno.cajero.nombre} {ultimoTurno.cajero.apellido}</strong> cerró con{" "}
+                <strong>${Number(ultimoTurno.efectivo_final).toLocaleString("es-CO")}</strong> en efectivo.
+                Este monto se usará como base para tu turno.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Efectivo Inicial */}
           <div className="space-y-2">
             <Label htmlFor="efectivo_inicial" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Efectivo Inicial {formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA && <span className="text-red-500">*</span>}
+              {ultimoTurno ? "Efectivo Inicial (del turno anterior)" : "Efectivo Inicial"} {!ultimoTurno && formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA && <span className="text-red-500">*</span>}
             </Label>
             <div className="relative">
               <Input
@@ -220,17 +272,21 @@ export function OpenTurnoModal({
                 placeholder={loadingEfectivo ? "Calculando..." : "0.00"}
                 value={formData.efectivo_inicial}
                 onChange={(e) => setFormData({ ...formData, efectivo_inicial: e.target.value })}
-                disabled={loading || loadingEfectivo || formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA}
-                readOnly={formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA}
-                required={formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA}
-                className={formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA ? "bg-muted" : ""}
-                autoFocus={formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA}
+                disabled={loading || loadingEfectivo || formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA || !!ultimoTurno}
+                readOnly={formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA || !!ultimoTurno}
+                required={!ultimoTurno && formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA}
+                className={formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA || ultimoTurno ? "bg-muted" : ""}
+                autoFocus={!ultimoTurno && formData.tipo_relevo !== TIPOS_RELEVO.INICIO_JORNADA}
               />
               {loadingEfectivo && (
                 <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
               )}
             </div>
-            {formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA ? (
+            {ultimoTurno ? (
+              <p className="text-xs text-muted-foreground">
+                Este monto fue el efectivo contado al cerrar el turno anterior y no puede modificarse.
+              </p>
+            ) : formData.tipo_relevo === TIPOS_RELEVO.INICIO_JORNADA ? (
               <p className="text-sm text-blue-600">
                 {efectivoCalculado !== null 
                   ? `✓ Efectivo calculado automáticamente: $${efectivoCalculado.toLocaleString("es-CO")}`
@@ -251,16 +307,19 @@ export function OpenTurnoModal({
             <Select
               value={formData.tipo_relevo}
               onValueChange={(value) => setFormData({ ...formData, tipo_relevo: value })}
-              disabled={loading}
+              disabled={loading || !!ultimoTurno}
               required
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona el tipo de relevo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TIPOS_RELEVO.INICIO_JORNADA}>
-                  {TIPOS_RELEVO_LABELS.inicio_jornada}
-                </SelectItem>
+                {/* Si hay turno anterior, NO mostrar "Inicio de Jornada" */}
+                {!ultimoTurno && (
+                  <SelectItem value={TIPOS_RELEVO.INICIO_JORNADA}>
+                    {TIPOS_RELEVO_LABELS.inicio_jornada}
+                  </SelectItem>
+                )}
                 <SelectItem value={TIPOS_RELEVO.CAMBIO_TURNO}>
                   {TIPOS_RELEVO_LABELS.cambio_turno}
                 </SelectItem>
@@ -272,9 +331,9 @@ export function OpenTurnoModal({
                 </SelectItem>
               </SelectContent>
             </Select>
-            {turnoAnteriorId && (
-              <p className="text-sm text-muted-foreground">
-                Se detectó un turno anterior, asegúrate de seleccionar "Cambio de Turno"
+            {ultimoTurno && (
+              <p className="text-xs text-blue-600">
+                ℹ️ Se autoseleccionó "Cambio de Turno" porque hay un turno anterior cerrado
               </p>
             )}
           </div>

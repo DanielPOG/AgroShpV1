@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, Calculator, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { cajaEvents } from "@/lib/events"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -126,6 +127,10 @@ export function CloseCashSessionModal({
           : `Diferencia: $${Math.abs(diferencia).toLocaleString("es-CO")} ${diferencia > 0 ? "sobrante" : "faltante"}`,
         variant: cuadrada ? "default" : "destructive",
       })
+
+      // Emitir evento para que otros componentes se actualicen
+      console.log('🔔 Emitiendo evento session-updated después de cerrar sesión')
+      cajaEvents.emit('session-updated')
 
       onSuccess()
       onOpenChange(false)

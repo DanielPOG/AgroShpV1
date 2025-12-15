@@ -15,6 +15,7 @@ import { ZodError } from 'zod'
  * Query params:
  *   - sesion_id: ID de la sesión para obtener todos sus turnos
  *   - activo: true para obtener solo el turno activo
+ *   - ultimo_cerrado: true para obtener el último turno cerrado (finalizado)
  */
 export async function GET(request: Request) {
   try {
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const sesionId = searchParams.get('sesion_id')
     const soloActivo = searchParams.get('activo') === 'true'
+    const ultimoCerrado = searchParams.get('ultimo_cerrado') === 'true'
 
     // Si no se especifica sesión, buscar en la sesión activa del cajero
     let sesionCajaId: number
@@ -41,6 +43,32 @@ export async function GET(request: Request) {
         )
       }
       sesionCajaId = activeSession.id
+    }
+
+    // Obtener último turno cerrado
+    if (ultimoCerrado) {
+      const { prisma } = await import('@/lib/prisma')
+      const ultimoTurno = await prisma.turnos_caja.findFirst({
+        where: {
+          sesion_caja_id: sesionCajaId,
+          estado: 'finalizado',
+          efectivo_final: { not: null }
+        },
+        orderBy: {
+          fecha_fin: 'desc'
+        },
+        select: {
+          id: true,
+          efectivo_final: true,
+          cajero: {
+            select: {
+              nombre: true,
+              apellido: true
+            }
+          }
+        }
+      })
+      return NextResponse.json(ultimoTurno)
     }
 
     // Obtener turno activo o historial
@@ -81,10 +109,25 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     
+    console.log('📥 [POST /api/turnos] Request body:', body)
+    console.log('👤 [POST /api/turnos] Session user:', { id: session.user.id, role: userRole })
+    
     // Validar con Zod
+    try {
+      const validatedData = iniciarTurnoSchema.parse({
+        ...body,
+        cajero_id: Number(session.user.id), // Siempre el usuario actual
+      })
+
+      console.log('✅ [POST /api/turnos] Validated data:', validatedData)
+    } catch (zodError) {
+      console.error('❌ [POST /api/turnos] Zod validation error:', zodError)
+      throw zodError
+    }
+    
     const validatedData = iniciarTurnoSchema.parse({
       ...body,
-      cajero_id: Number(session.user.id), // Siempre el usuario actual
+      cajero_id: Number(session.user.id),
     })
 
     // Validar que la sesión pertenezca al usuario o sea Admin/Supervisor
@@ -110,14 +153,19 @@ export async function POST(request: Request) {
     )
   } catch (error) {
     if (error instanceof ZodError) {
+      console.error('❌ [POST /api/turnos] Zod validation failed:', JSON.stringify(error.errors, null, 2))
       return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
+        { 
+          error: 'Datos inválidos', 
+          details: error.errors,
+          message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+        },
         { status: 400 }
       )
     }
 
     if (error instanceof Error) {
-      console.error('Error al iniciar turno:', error.message)
+      console.error('❌ [POST /api/turnos] Error al iniciar turno:', error.message)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 

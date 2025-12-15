@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import {
   Dialog,
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, AlertCircle, Clock } from "lucide-react"
+import { Loader2, AlertCircle, Clock, Info } from "lucide-react"
 import { TIPOS_RELEVO, TIPOS_RELEVO_LABELS } from "@/lib/validations/turno-caja.schema"
 
 interface IniciarTurnoModalProps {
@@ -30,6 +30,15 @@ interface IniciarTurnoModalProps {
   onOpenChange: (open: boolean) => void
   sesionCajaId: number
   onSuccess: () => void
+}
+
+interface UltimoTurno {
+  id: number
+  efectivo_final: number
+  cajero: {
+    nombre: string
+    apellido: string
+  }
 }
 
 export function IniciarTurnoModal({ 
@@ -40,7 +49,9 @@ export function IniciarTurnoModal({
 }: IniciarTurnoModalProps) {
   const { data: session } = useSession()
   const [loading, setLoading] = useState(false)
+  const [loadingUltimoTurno, setLoadingUltimoTurno] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ultimoTurno, setUltimoTurno] = useState<UltimoTurno | null>(null)
 
   const [tipoRelevo, setTipoRelevo] = useState<string>("")
   const [montoInicial, setMontoInicial] = useState<string>("")
@@ -50,6 +61,63 @@ export function IniciarTurnoModal({
   const isAdmin = session?.user?.role === "Admin"
   const isSupervisor = session?.user?.role === "Supervisor"
   const puedeAutorizar = isAdmin || isSupervisor
+  const hayTurnoAnterior = !!ultimoTurno
+
+  // Cargar último turno cerrado de la sesión
+  useEffect(() => {
+    console.error('[ MODAL ACTUALIZADO - EFECTO] open:', open, 'sesionCajaId:', sesionCajaId)
+    if (open && sesionCajaId) {
+      console.log('🔄 Cargando último turno para sesión:', sesionCajaId)
+      loadUltimoTurno()
+    } else if (!open) {
+      // Resetear estado cuando se cierra el modal
+      setUltimoTurno(null)
+      setTipoRelevo("")
+      setMontoInicial("")
+      setObservaciones("")
+      setError(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sesionCajaId])
+
+  const loadUltimoTurno = async () => {
+    console.log('📞 Llamando a API para último turno...')
+    setLoadingUltimoTurno(true)
+    try {
+      const url = `/api/turnos?sesion_id=${sesionCajaId}&ultimo_cerrado=true`
+      console.log('🌐 URL:', url)
+      const response = await fetch(url)
+      console.log('📡 Response status:', response.status, response.ok)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('🔍 Último turno recibido:', data)
+        if (data && data.id) {
+          console.log('✅ Turno encontrado, efectivo_final:', data.efectivo_final)
+          setUltimoTurno(data)
+          // Prellenar el monto inicial con el efectivo final del turno anterior
+          setMontoInicial(data.efectivo_final.toString())
+          // Autoseleccionar "Cambio de Turno" si hay turno anterior
+          setTipoRelevo(TIPOS_RELEVO.CAMBIO_TURNO)
+          console.log('✅ Estado actualizado con turno anterior')
+        } else {
+          console.log('ℹ️ No hay turno anterior, es el primer turno')
+          setUltimoTurno(null)
+          setMontoInicial("")
+          // Autoseleccionar "Inicio de Jornada" si es el primer turno
+          setTipoRelevo(TIPOS_RELEVO.INICIO_JORNADA)
+        }
+      } else {
+        console.error('❌ Error en response:', response.status)
+      }
+    } catch (error) {
+      console.error('❌ Error cargando último turno:', error)
+      setUltimoTurno(null)
+    } finally {
+      console.log('🏁 Finalizando carga, loadingUltimoTurno = false')
+      setLoadingUltimoTurno(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -126,23 +194,47 @@ export function IniciarTurnoModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tipo de Relevo */}
-          <div className="space-y-2">
-            <Label htmlFor="tipo-relevo">Tipo de Relevo *</Label>
-            <Select value={tipoRelevo} onValueChange={setTipoRelevo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona el tipo de relevo" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(TIPOS_RELEVO).map(([key, value]) => (
-                  <SelectItem key={value} value={value}>
-                    {TIPOS_RELEVO_LABELS[value as keyof typeof TIPOS_RELEVO_LABELS]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {loadingUltimoTurno ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span className="text-sm text-muted-foreground">Verificando turnos anteriores...</span>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Info turno anterior */}
+            {hayTurnoAnterior && ultimoTurno && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  El turno anterior de <strong>{ultimoTurno.cajero.nombre} {ultimoTurno.cajero.apellido}</strong> cerró con{" "}
+                  <strong>${ultimoTurno.efectivo_final.toLocaleString("es-CO")}</strong> en efectivo.
+                  Este monto se usará como base para tu turno.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Tipo de Relevo */}
+            <div className="space-y-2">
+              <Label htmlFor="tipo-relevo">Tipo de Relevo *</Label>
+              <Select value={tipoRelevo} onValueChange={setTipoRelevo} disabled={loadingUltimoTurno}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el tipo de relevo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIPOS_RELEVO).map(([key, value]) => {
+                    // Si hay turno anterior, ocultar "Inicio de Jornada"
+                    if (hayTurnoAnterior && value === TIPOS_RELEVO.INICIO_JORNADA) {
+                      return null
+                    }
+                    return (
+                      <SelectItem key={value} value={value}>
+                        {TIPOS_RELEVO_LABELS[value as keyof typeof TIPOS_RELEVO_LABELS]}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
 
           {/* Alert Emergencia */}
           {esEmergencia && (
@@ -158,7 +250,9 @@ export function IniciarTurnoModal({
 
           {/* Monto Inicial */}
           <div className="space-y-2">
-            <Label htmlFor="monto-inicial">Monto Inicial del Turno *</Label>
+            <Label htmlFor="monto-inicial">
+              {hayTurnoAnterior ? "Efectivo Inicial (del turno anterior)" : "Monto Inicial del Turno"} *
+            </Label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
               <Input
@@ -169,6 +263,8 @@ export function IniciarTurnoModal({
                 placeholder="0"
                 className="pl-7"
                 required
+                readOnly={hayTurnoAnterior}
+                disabled={hayTurnoAnterior}
               />
             </div>
             {montoInicial && (
@@ -178,6 +274,11 @@ export function IniciarTurnoModal({
                   currency: "COP",
                   minimumFractionDigits: 0,
                 }).format(parseFloat(montoInicial))}
+              </p>
+            )}
+            {hayTurnoAnterior && (
+              <p className="text-xs text-muted-foreground">
+                Este monto fue el efectivo contado al cerrar el turno anterior y no puede modificarse.
               </p>
             )}
           </div>
@@ -217,7 +318,9 @@ export function IniciarTurnoModal({
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
+

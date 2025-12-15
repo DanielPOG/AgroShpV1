@@ -1,21 +1,25 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { RetiroCajaCreate, ESTADOS_RETIRO } from "@/lib/validations/retiro-caja.schema"
-import { validarEfectivoSuficiente } from "./cash-sessions"
+import { validarSaldoPorMetodoPago } from "./cash-sessions"
 
 /**
- * Obtener retiros de caja de una sesión
+ * Obtener retiros de caja de una sesión o turno
  */
 export async function getRetirosCaja(
   sesionId?: number,
   filters?: {
     estado?: string
     limit?: number
+    turnoId?: number
   }
 ) {
   const where: Prisma.retiros_cajaWhereInput = {}
 
-  if (sesionId) {
+  // Filtrar por turno (prioridad) o sesión
+  if (filters?.turnoId) {
+    where.turno_caja_id = filters.turnoId
+  } else if (sesionId) {
     where.sesion_caja_id = sesionId
   }
 
@@ -139,6 +143,7 @@ export async function createRetiroCaja(data: RetiroCajaCreate) {
   const retiro = await prisma.retiros_caja.create({
     data: {
       sesion_caja_id: data.sesion_caja_id,
+      turno_caja_id: data.turno_caja_id || null,
       monto: data.monto,
       motivo: data.motivo,
       destino_fondos: data.destino_fondos || null,
@@ -241,6 +246,7 @@ export async function completarRetiro(
       estado: true,
       monto: true,
       sesion_caja_id: true,
+      turno_caja_id: true,
     }
   })
 
@@ -253,15 +259,11 @@ export async function completarRetiro(
   }
 
   // ✅ FASE 4: Validar que haya suficiente efectivo antes de completar el retiro
-  const validacion = await validarEfectivoSuficiente(retiro.sesion_caja_id, retiro.monto)
+  const validacion = await validarSaldoPorMetodoPago(retiro.sesion_caja_id, 'efectivo', retiro.monto)
   
   if (!validacion.valido) {
     console.error(`❌ [completarRetiro] ${validacion.mensaje}`)
     throw new Error(`No se puede completar el retiro. ${validacion.mensaje}`)
-  }
-  
-  if (validacion.alertaBajoEfectivo) {
-    console.warn(`⚠️ [completarRetiro] ${validacion.mensaje}`)
   }
 
   // Usar transacción para asegurar consistencia
@@ -289,6 +291,7 @@ export async function completarRetiro(
     await tx.movimientos_caja.create({
       data: {
         sesion_caja_id: retiro.sesion_caja_id,
+        turno_caja_id: retiro.turno_caja_id || null,
         tipo_movimiento: 'retiro_caja',
         metodo_pago: 'efectivo',
         monto: retiro.monto,

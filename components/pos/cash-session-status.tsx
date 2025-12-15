@@ -5,9 +5,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, DollarSign, Clock, Store, LogOut, LogIn, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Smartphone, CreditCard, ArrowLeftRight } from "lucide-react"
+import { Loader2, DollarSign, Clock, Store, LogOut, LogIn, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Smartphone, CreditCard, ArrowLeftRight, User, UserCog } from "lucide-react"
 import { OpenCashSessionModal } from "./open-cash-session-modal"
 import { CloseCashSessionModal } from "./close-cash-session-modal"
+import { OpenTurnoModal } from "@/components/caja/open-turno-modal"
+import { CloseTurnoModal } from "@/components/caja/close-turno-modal"
+import { useTurnoActivo } from "@/hooks/use-turno-activo"
 import { useToast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -110,6 +113,11 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
     const [summary, setSummary] = useState<CashSessionSummary | null>(null)
     const [openModalOpen, setOpenModalOpen] = useState(false)
     const [closeModalOpen, setCloseModalOpen] = useState(false)
+    
+    // ✨ NUEVO: Estado de turnos
+    const { turno, isLoading: loadingTurno, refetch: refetchTurno } = useTurnoActivo()
+    const [openTurnoModalOpen, setOpenTurnoModalOpen] = useState(false)
+    const [closeTurnoModalOpen, setCloseTurnoModalOpen] = useState(false)
 
     useEffect(() => {
       loadSession()
@@ -134,28 +142,40 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
         if (!response.ok) throw new Error("Error al cargar sesión")
 
         const data = await response.json()
-        console.log('📊 [CashSessionStatus] Datos de sesión recibidos:', data.summary)
-        console.log('📊 [CashSessionStatus] Movimientos desglosados:', {
-          total: data.summary.movimientos.total,
-          ingresos: data.summary.movimientos.ingresos,
-          egresos: data.summary.movimientos.egresos,
-          nequi: {
-            ingresos: data.summary.movimientos.ingresosNequi,
-            egresos: data.summary.movimientos.egresosNequi
-          },
-          tarjeta: {
-            ingresos: data.summary.movimientos.ingresosTarjeta,
-            egresos: data.summary.movimientos.egresosTarjeta
-          },
-          transferencia: {
-            ingresos: data.summary.movimientos.ingresosTransferencia,
-            egresos: data.summary.movimientos.egresosTransferencia
-          }
-        })
-        setSession(data.session)
-        setSummary(data.summary)
+        
+        // Validar que exista summary antes de acceder a sus propiedades
+        if (data.summary) {
+          console.log('📊 [CashSessionStatus] Datos de sesión recibidos:', data.summary)
+          console.log('📊 [CashSessionStatus] Movimientos desglosados:', {
+            total: data.summary.movimientos.total,
+            ingresos: data.summary.movimientos.ingresos,
+            egresos: data.summary.movimientos.egresos,
+            nequi: {
+              ingresos: data.summary.movimientos.ingresosNequi,
+              egresos: data.summary.movimientos.egresosNequi
+            },
+            tarjeta: {
+              ingresos: data.summary.movimientos.ingresosTarjeta,
+              egresos: data.summary.movimientos.egresosTarjeta
+            },
+            transferencia: {
+              ingresos: data.summary.movimientos.ingresosTransferencia,
+              egresos: data.summary.movimientos.egresosTransferencia
+            }
+          })
+          setSession(data.session)
+          setSummary(data.summary)
+        } else {
+          console.log('ℹ️ [CashSessionStatus] No hay sesión activa')
+          // Resetear estados cuando no hay sesión
+          setSession(null)
+          setSummary(null)
+        }
       } catch (error) {
         console.error("Error al cargar sesión:", error)
+        // Resetear estados en caso de error
+        setSession(null)
+        setSummary(null)
       } finally {
         setLoading(false)
       }
@@ -176,12 +196,27 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
       })
     }
 
-    const handleCloseSuccess = () => {
-      loadSession()
+    const handleCloseSuccess = async () => {
+      // Pequeño delay para asegurar que el backend termine el COMMIT
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      await loadSession()
+      
       toast({
         title: "✅ Caja cerrada",
         description: "Sesión finalizada correctamente",
       })
+    }
+
+    // ✨ NUEVO: Handlers para turnos
+    const handleOpenTurnoSuccess = async () => {
+      await refetchTurno()
+      await loadSession()
+    }
+
+    const handleCloseTurnoSuccess = async () => {
+      await refetchTurno()
+      await loadSession()
     }
 
     if (loading) {
@@ -233,7 +268,21 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
       )
     }
 
-    // Con sesión activa
+    // Validar que también exista summary (por seguridad)
+    if (!summary) {
+      return (
+        <Card className="border-2">
+          <CardContent className="flex items-center justify-center p-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">
+              Cargando datos de sesión...
+            </span>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Con sesión activa y summary disponible
     return (
       <>
         <Card className="border-0 border-b-2 border-green-300 bg-gradient-to-br from-green-50 via-emerald-50/50 to-green-50 rounded-none shadow-sm">
@@ -335,6 +384,57 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
                 </Button>
               </div>
             </div>
+
+            {/* ✨ NUEVO: Información de turno activo */}
+            {!loadingTurno && (
+              <div className="mt-3 pt-3 border-t border-green-200">
+                {turno ? (
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 p-1.5 shadow-sm">
+                        <UserCog className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Turno activo</p>
+                        <p className="text-sm font-semibold text-foreground">
+                          {turno.cajero.nombre} {turno.cajero.apellido}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                        {format(new Date(turno.fecha_inicio), "HH:mm", { locale: es })}
+                      </Badge>
+                    </div>
+                    <Button
+                      onClick={() => setCloseTurnoModalOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span className="text-xs font-semibold">Cerrar Turno</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full bg-gray-200 p-1.5">
+                        <User className="h-3.5 w-3.5 text-gray-600" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">Sin turno activo</p>
+                    </div>
+                    <Button
+                      onClick={() => setOpenTurnoModalOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      <span className="text-xs font-semibold">Iniciar Turno</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Contenido Expandible - Acordeón con animación mejorada */}
             {isExpanded && (
@@ -770,6 +870,26 @@ export const CashSessionStatus = forwardRef<CashSessionStatusRef, CashSessionSta
           sessionId={session.id}
           efectivoEsperado={summary?.efectivoEsperado || session.efectivo_esperado}
         />
+
+        {/* ✨ NUEVO: Modales de turno */}
+        <OpenTurnoModal
+          open={openTurnoModalOpen}
+          onOpenChange={setOpenTurnoModalOpen}
+          onSuccess={handleOpenTurnoSuccess}
+          sesionCajaId={session.id}
+          turnoAnteriorId={null}
+        />
+
+        {turno && (
+          <CloseTurnoModal
+            open={closeTurnoModalOpen}
+            onOpenChange={setCloseTurnoModalOpen}
+            onSuccess={handleCloseTurnoSuccess}
+            turnoId={turno.id}
+            efectivoInicial={Number(turno.efectivo_inicial)}
+            cajeroNombre={`${turno.cajero.nombre} ${turno.cajero.apellido}`}
+          />
+        )}
       </>
     )
   })

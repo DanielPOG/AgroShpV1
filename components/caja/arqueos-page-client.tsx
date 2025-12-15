@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ArqueoHistoryDialog } from "@/components/caja/arqueo-history-dialog"
 import { 
   FileText, 
   Search, 
@@ -16,7 +18,8 @@ import {
   User,
   Loader2,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Eye
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -59,6 +62,8 @@ export function ArqueosPageClient({ userId, userRole }: ArqueosPageClientProps) 
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterEstado, setFilterEstado] = useState<"todos" | "cuadrada" | "diferencia">("todos")
+  const [selectedArqueoId, setSelectedArqueoId] = useState<number | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     loadArqueos()
@@ -109,6 +114,11 @@ export function ArqueosPageClient({ userId, userRole }: ArqueosPageClientProps) 
            Number(arqueo.total_ventas_nequi) +
            Number(arqueo.total_ventas_tarjeta) +
            Number(arqueo.total_ventas_transferencia)
+  }
+
+  const handleVerHistorial = (arqueoId: number) => {
+    setSelectedArqueoId(arqueoId)
+    setHistoryOpen(true)
   }
 
   if (loading) {
@@ -351,11 +361,30 @@ export function ArqueosPageClient({ userId, userRole }: ArqueosPageClientProps) 
                     <p className="text-sm text-muted-foreground">{arqueo.observaciones_cierre}</p>
                   </div>
                 )}
+
+                {/* Botón Ver Historial Detallado */}
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleVerHistorial(arqueo.id)}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ver Historial Detallado
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+
+      {/* Dialog de Historial Detallado */}
+      <ArqueoHistoryDialog
+        arqueoId={selectedArqueoId}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   )
 }

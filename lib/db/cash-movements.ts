@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
  */
 export async function createCashMovement(data: {
   sesion_caja_id: number
+  turno_caja_id?: number
   tipo_movimiento: 'ingreso' | 'egreso'
   descripcion: string
   monto: number
@@ -18,6 +19,7 @@ export async function createCashMovement(data: {
   const movement = await prisma.movimientos_caja.create({
     data: {
       sesion_caja_id: data.sesion_caja_id,
+      turno_caja_id: data.turno_caja_id,
       tipo_movimiento: data.tipo_movimiento,
       descripcion: data.descripcion,
       monto: data.monto,

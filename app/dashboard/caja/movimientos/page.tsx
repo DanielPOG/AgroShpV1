@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useCashSession } from "@/hooks/use-cash-session"
+import { useTurnoActivo } from "@/hooks/use-turno-activo"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +51,7 @@ export default function MovimientosPage() {
   const { toast } = useToast()
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const { session, hasActiveSession, loading: sessionLoading } = useCashSession()
+  const { turno, isLoading: turnoLoading } = useTurnoActivo()
 
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [movimientosPendientes, setMovimientosPendientes] = useState<Movimiento[]>([])
@@ -65,6 +67,7 @@ export default function MovimientosPage() {
 
   const isAdmin = user?.role === "Admin"
   const canAuthorize = isAdmin
+  const hasTurnoActivo = !!turno && turno.estado === 'activo'
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -73,10 +76,15 @@ export default function MovimientosPage() {
   }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
-    if (hasActiveSession && session) {
+    if (hasTurnoActivo && turno) {
       loadMovimientos()
+    } else {
+      // Limpiar datos si no hay turno activo
+      setMovimientos([])
+      setTotales({ ingresos: 0, egresos: 0, neto: 0 })
+      setEfectivoDisponible(0)
     }
-  }, [hasActiveSession, session])
+  }, [hasTurnoActivo, turno])
 
   useEffect(() => {
     if (canAuthorize) {
@@ -85,11 +93,11 @@ export default function MovimientosPage() {
   }, [canAuthorize])
 
   const loadMovimientos = async () => {
-    if (!session?.id) return
+    if (!turno?.id) return
 
     setIsLoadingMovimientos(true)
     try {
-      const response = await fetch(`/api/caja/movimientos?sesion_id=${session.id}`)
+      const response = await fetch(`/api/caja/movimientos?turno_id=${turno.id}`)
       const data = await response.json()
 
       if (response.ok) {

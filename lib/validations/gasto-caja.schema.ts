@@ -9,6 +9,9 @@ export const gastoCajaSchema = z.object({
   sesion_caja_id: z.number().int().positive({
     message: "Sesión de caja requerida"
   }),
+  turno_caja_id: z.number().int().positive({
+    message: "Turno de caja requerido"
+  }).optional(),
   monto: z.number().positive({
     message: "El monto debe ser mayor a 0"
   }).max(20000000, {

@@ -53,6 +53,10 @@ export const createSaleSchema = z.object({
     message: 'Debe registrar al menos un método de pago'
   }),
   
+  // Usuario y turno
+  usuario_id: z.number().int().positive().optional(),
+  turno_caja_id: z.number().int().positive().optional(),
+  
   // Información del cliente (opcional)
   cliente_id: z.number().int().positive().optional(),
   cliente_nombre: z.string().max(150).optional(),

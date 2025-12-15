@@ -83,6 +83,7 @@ export interface CreateSaleData {
     referencia?: string
   }[]
   usuario_id: number
+  turno_caja_id?: number
   cliente_id?: number
   cliente_nombre?: string
   cliente_email?: string
@@ -433,6 +434,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
           data: {
             codigo_venta: codigoVenta,
             usuario_id: data.usuario_id,
+            turno_caja_id: data.turno_caja_id,
             cliente_id: data.cliente_id,
             cliente_nombre: data.cliente_nombre,
             cliente_email: data.cliente_email,

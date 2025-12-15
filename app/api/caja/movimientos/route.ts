@@ -7,6 +7,7 @@ import {
   getMovimientosPendientesAutorizacion
 } from "@/lib/db/movimientos-caja-extra"
 import { movimientoCajaSchema } from "@/lib/validations/movimiento-caja.schema"
+import { validateCashSessionForSale } from "@/lib/db/cash-integration"
 import { ZodError } from "zod"
 
 /**
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const sesionId = searchParams.get("sesion_id")
+    const turnoId = searchParams.get("turno_id")
     const tipo = searchParams.get("tipo")
     const metodo = searchParams.get("metodo")
     const pendientes = searchParams.get("pendientes") === "true"
@@ -46,19 +48,20 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Obtener movimientos de una sesión específica
-    if (!sesionId) {
+    // Obtener movimientos por turno (prioridad) o por sesión
+    if (!turnoId && !sesionId) {
       return NextResponse.json(
-        { error: "sesion_id es requerido" },
+        { error: "turno_id o sesion_id es requerido" },
         { status: 400 }
       )
     }
 
     const movimientos = await getMovimientosCajaExtra(
-      parseInt(sesionId),
+      sesionId ? parseInt(sesionId) : undefined,
       {
         tipo: tipo || undefined,
         metodo: metodo || undefined,
+        turnoId: turnoId ? parseInt(turnoId) : undefined,
         limit: 100,
       }
     )
@@ -92,12 +95,34 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = parseInt(session.user.id)
+
+    // Validar sesión de caja y turno activo
+    let cashSession, turnoActivo
+    try {
+      const validation = await validateCashSessionForSale(userId)
+      cashSession = validation.session
+      turnoActivo = validation.turno
+    } catch (error) {
+      if (error instanceof Error) {
+        return NextResponse.json(
+          {
+            error: 'Sesión de caja y turno requeridos',
+            message: error.message,
+            code: 'NO_CASH_SESSION_OR_TURNO',
+          },
+          { status: 400 }
+        )
+      }
+      throw error
+    }
+
     const body = await request.json()
 
-    // Agregar usuario_id del usuario autenticado
+    // Agregar usuario_id y turno_caja_id
     const dataToValidate = {
       ...body,
       usuario_id: userId,
+      turno_caja_id: turnoActivo.id,
     }
 
     // Validar con Zod

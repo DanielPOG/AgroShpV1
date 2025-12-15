@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useTurnoActivo } from "@/hooks/use-turno-activo"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Select,
   SelectContent,
@@ -26,6 +28,7 @@ import {
   Users,
   FileText,
   MoreHorizontal,
+  AlertTriangle,
 } from "lucide-react"
 import { CATEGORIAS_LABELS } from "@/lib/validations/gasto-caja.schema"
 
@@ -55,6 +58,7 @@ const CATEGORIA_ICONS: Record<string, React.ElementType> = {
 }
 
 export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageClientProps) {
+  const { turno, isLoading: turnoLoading } = useTurnoActivo()
   const [modalOpen, setModalOpen] = useState(false)
   const [gastos, setGastos] = useState<any[]>([])
   const [totales, setTotales] = useState<Record<string, number>>({})
@@ -63,11 +67,14 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("todas")
 
   const isAdmin = userRole === "Admin"
+  const hasTurnoActivo = !!turno && turno.estado === 'activo'
 
   const loadGastos = async () => {
+    if (!hasTurnoActivo || !turno) return
+    
     setLoadingGastos(true)
     try {
-      const response = await fetch(`/api/caja/gastos?sesion_id=${sesionCaja.id}`)
+      const response = await fetch(`/api/caja/gastos?turno_id=${turno.id}`)
       if (response.ok) {
         const data = await response.json()
         setGastos(data)
@@ -80,9 +87,11 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
   }
 
   const loadTotales = async () => {
+    if (!hasTurnoActivo || !turno) return
+    
     setLoadingTotales(true)
     try {
-      const response = await fetch(`/api/caja/gastos?sesion_id=${sesionCaja.id}&totales=true`)
+      const response = await fetch(`/api/caja/gastos?turno_id=${turno.id}&totales=true`)
       if (response.ok) {
         const data = await response.json()
         setTotales(data)
@@ -95,9 +104,14 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
   }
 
   useEffect(() => {
-    loadGastos()
-    loadTotales()
-  }, [sesionCaja.id])
+    if (hasTurnoActivo && turno) {
+      loadGastos()
+      loadTotales()
+    } else {
+      setGastos([])
+      setTotales({})
+    }
+  }, [hasTurnoActivo, turno])
 
   const handleSuccess = () => {
     loadGastos()
@@ -122,6 +136,20 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
     ? gastos 
     : gastos.filter(g => g.categoria_gasto === categoriaFiltro)
 
+  // Si no hay turno activo, mostrar mensaje
+  if (!turnoLoading && !hasTurnoActivo) {
+    return (
+      <div className="container mx-auto py-8">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Sin turno activo.</strong> Debes iniciar un turno de caja para registrar gastos.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
@@ -132,7 +160,7 @@ export function GastosPageClient({ sesionCaja, userId, userRole }: GastosPageCli
             Sesión: {sesionCaja.codigo_sesion} - {sesionCaja.caja.nombre} ({sesionCaja.caja.codigo})
           </p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
+        <Button onClick={() => setModalOpen(true)} disabled={!hasTurnoActivo}>
           <Plus className="mr-2 h-4 w-4" />
           Registrar Gasto
         </Button>

@@ -8,6 +8,7 @@ import {
   getGastosRecientes,
 } from "@/lib/db/gastos-caja"
 import { gastoCajaSchema, MONTO_REQUIERE_AUTORIZACION_GASTO } from "@/lib/validations/gasto-caja.schema"
+import { validateCashSessionForSale } from "@/lib/db/cash-integration"
 
 /**
  * GET /api/caja/gastos
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const sesionId = searchParams.get("sesion_id")
+    const turnoId = searchParams.get("turno_id")
     const categoria = searchParams.get("categoria")
     const recientes = searchParams.get("recientes")
     const totales = searchParams.get("totales")
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest) {
     // Obtener gastos con filtros
     const filters: any = {}
     if (categoria) filters.categoria = categoria
+    if (turnoId) filters.turnoId = parseInt(turnoId)
 
     const gastos = await getGastosCaja(
       sesionId ? parseInt(sesionId) : undefined,
@@ -73,6 +76,28 @@ export async function POST(request: NextRequest) {
         { error: "No autorizado" },
         { status: 401 }
       )
+    }
+
+    const userId = parseInt(session.user.id)
+
+    // Validar sesión de caja y turno activo
+    let cashSession, turnoActivo
+    try {
+      const validation = await validateCashSessionForSale(userId)
+      cashSession = validation.session
+      turnoActivo = validation.turno
+    } catch (error) {
+      if (error instanceof Error) {
+        return NextResponse.json(
+          {
+            error: 'Sesión de caja y turno requeridos',
+            message: error.message,
+            code: 'NO_CASH_SESSION_OR_TURNO',
+          },
+          { status: 400 }
+        )
+      }
+      throw error
     }
 
     const body = await request.json()
@@ -109,6 +134,7 @@ export async function POST(request: NextRequest) {
     // Crear el gasto
     const gasto = await createGastoCaja({
       ...validatedData,
+      turno_caja_id: turnoActivo.id,
       autorizado_por: body.autorizado_por || null,
     })
 

@@ -1,21 +1,25 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { GastoCajaCreate, MONTO_REQUIERE_AUTORIZACION_GASTO } from "@/lib/validations/gasto-caja.schema"
-import { validarEfectivoSuficiente } from "./cash-sessions"
+import { validarSaldoPorMetodoPago } from './cash-sessions'
 
 /**
- * Obtener gastos de caja de una sesión
+ * Obtener gastos de caja de una sesión o turno
  */
 export async function getGastosCaja(
   sesionId?: number,
   filters?: {
     categoria?: string
     limit?: number
+    turnoId?: number
   }
 ) {
   const where: Prisma.gastos_cajaWhereInput = {}
 
-  if (sesionId) {
+  // Filtrar por turno (prioridad) o sesión
+  if (filters?.turnoId) {
+    where.turno_caja_id = filters.turnoId
+  } else if (sesionId) {
     where.sesion_caja_id = sesionId
   }
 
@@ -118,18 +122,13 @@ export async function createGastoCaja(data: GastoCajaCreate & { autorizado_por?:
     throw new Error('Este gasto requiere autorización de un Supervisor/Admin')
   }
 
-  // ✅ FASE 4: Si es gasto en efectivo, validar que haya suficiente efectivo
-  if (data.metodo_pago === 'efectivo' || !data.metodo_pago) {
-    const validacion = await validarEfectivoSuficiente(data.sesion_caja_id, data.monto)
-    
-    if (!validacion.valido) {
-      console.error(`❌ [createGastoCaja] ${validacion.mensaje}`)
-      throw new Error(`No se puede registrar el gasto. ${validacion.mensaje}`)
-    }
-    
-    if (validacion.alertaBajoEfectivo) {
-      console.warn(`⚠️ [createGastoCaja] ${validacion.mensaje}`)
-    }
+  // ✅ FASE 4: Validar que haya suficiente saldo según método de pago
+  const metodoPago = (data.metodo_pago || 'efectivo') as 'efectivo' | 'nequi' | 'tarjeta' | 'transferencia'
+  const validacion = await validarSaldoPorMetodoPago(data.sesion_caja_id, metodoPago, data.monto)
+  
+  if (!validacion.valido) {
+    console.error(`❌ [createGastoCaja] ${validacion.mensaje}`)
+    throw new Error(`No se puede registrar el gasto. ${validacion.mensaje}`)
   }
 
   // Usar transacción para asegurar consistencia
@@ -138,6 +137,7 @@ export async function createGastoCaja(data: GastoCajaCreate & { autorizado_por?:
     const gasto = await tx.gastos_caja.create({
       data: {
         sesion_caja_id: data.sesion_caja_id,
+        turno_caja_id: data.turno_caja_id || null,
         monto: data.monto,
         categoria_gasto: data.categoria_gasto,
         descripcion: data.descripcion,
@@ -174,6 +174,7 @@ export async function createGastoCaja(data: GastoCajaCreate & { autorizado_por?:
     await tx.movimientos_caja.create({
       data: {
         sesion_caja_id: data.sesion_caja_id,
+        turno_caja_id: data.turno_caja_id || null,
         tipo_movimiento: 'gasto_operativo',
         metodo_pago: data.metodo_pago || 'efectivo',
         monto: data.monto,

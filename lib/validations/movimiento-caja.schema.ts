@@ -8,6 +8,9 @@ export const movimientoCajaSchema = z.object({
   sesion_caja_id: z.number().int().positive({
     message: "Sesión de caja requerida"
   }),
+  turno_caja_id: z.number().int().positive({
+    message: "Turno de caja requerido"
+  }).optional(),
   tipo_movimiento: z.enum([
     "ingreso_adicional", 
     "egreso_operativo", 

@@ -64,8 +64,8 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     // Esperar a que se complete la venta antes de cerrar
     try {
       await onComplete({
-        requiere_factura: true,
-        factura_generada: generateInvoice,
+        requiere_factura: generateInvoice || sendEmail, // Requiere factura si seleccionó alguna opción
+        factura_generada: generateInvoice, // Solo true si seleccionó "Generar Factura"
         factura_enviada_email: sendEmail,
         email_destino: sendEmail ? email : undefined,
       })
@@ -357,13 +357,20 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             <Checkbox
               id="generate-invoice"
               checked={generateInvoice}
-              onCheckedChange={(checked) => setGenerateInvoice(checked as boolean)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setGenerateInvoice(true)
+                  setSendEmail(false) // Desmarcar el otro checkbox
+                } else {
+                  setGenerateInvoice(false)
+                }
+              }}
             />
             <div className="flex-1">
               <Label htmlFor="generate-invoice" className="text-base font-semibold cursor-pointer">
                 Generar Factura
               </Label>
-              <p className="text-sm text-muted-foreground">Crear documento de factura para esta venta</p>
+              <p className="text-sm text-muted-foreground">Crear documento de factura para esta venta e imprimir ticket</p>
             </div>
           </div>
 
@@ -406,13 +413,20 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             <Checkbox
               id="send-email"
               checked={sendEmail}
-              onCheckedChange={(checked) => setSendEmail(checked as boolean)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSendEmail(true)
+                  setGenerateInvoice(false) // Desmarcar el otro checkbox
+                } else {
+                  setSendEmail(false)
+                }
+              }}
             />
             <div className="flex-1">
               <Label htmlFor="send-email" className="text-base font-semibold cursor-pointer">
                 Enviar por Correo
               </Label>
-              <p className="text-sm text-muted-foreground">Enviar factura al correo electrónico del cliente</p>
+              <p className="text-sm text-muted-foreground">Enviar factura al correo electrónico del cliente (no imprime ticket)</p>
             </div>
           </div>
 
@@ -476,8 +490,7 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             className="flex-1" 
             disabled={
               processing || 
-              (sendEmail && !email) || 
-              (!generateInvoice && !sendEmail) // Debe seleccionar al menos una opción
+              (sendEmail && !email) // Solo validar email si se seleccionó envío por correo
             }
           >
             {processing ? (
@@ -494,7 +507,7 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
         {/* Mensaje de ayuda */}
         {!generateInvoice && !sendEmail && (
           <p className="text-xs text-center text-muted-foreground mt-2">
-            ⚠️ Debes seleccionar al menos una opción o presionar "Omitir" si no requiere factura
+            ⚠️ Selecciona "Generar Factura" para imprimir ticket, "Enviar por Correo" para enviar digitalmente, o "Omitir" para solo abrir el cajón
           </p>
         )}
       </DialogContent>

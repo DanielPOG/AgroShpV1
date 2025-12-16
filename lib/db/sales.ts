@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { checkStockBajo } from './alertas'
 import { getEfectivoDisponible } from './cash-sessions'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * ✅ ACTUALIZADO - FASE 1
@@ -324,8 +325,9 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
         const descuentoMonto = subtotal * (descuentoGlobal / 100)
         const subtotalConDescuento = subtotal - descuentoMonto
 
-        // Calcular impuesto (IVA 19%)
-        const impuesto = subtotalConDescuento * 0.19
+        // Calcular impuesto (IVA desde configuración)
+        const ivaPorcentaje = await getConfigValue('iva_porcentaje', 19) as number
+        const impuesto = subtotalConDescuento * (ivaPorcentaje / 100)
         const total = subtotalConDescuento + impuesto
 
         console.log(`💰 Totales calculados:`, {

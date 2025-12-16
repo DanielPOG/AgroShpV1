@@ -141,17 +141,27 @@ export function IniciarTurnoModal({
     setLoading(true)
 
     try {
-      const response = await fetch("/api/caja/turnos", {
+      const requestBody: any = {
+        sesion_caja_id: sesionCajaId,
+        tipo_relevo: tipoRelevo,
+        efectivo_inicial: parseFloat(montoInicial),
+        observaciones: observaciones || undefined,
+      }
+
+      // Si hay turno anterior, incluir su ID
+      if (ultimoTurno) {
+        requestBody.turno_anterior_id = ultimoTurno.id
+      }
+
+      // Si es emergencia, incluir autorización
+      if (esEmergencia && puedeAutorizar) {
+        requestBody.autorizado_por = Number(session?.user?.id)
+      }
+
+      const response = await fetch("/api/turnos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sesion_caja_id: sesionCajaId,
-          cajero_id: session?.user?.id,
-          monto_inicial_turno: parseFloat(montoInicial),
-          tipo_relevo: tipoRelevo,
-          observaciones_inicio: observaciones || null,
-          autorizado_por: esEmergencia ? session?.user?.id : null,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()

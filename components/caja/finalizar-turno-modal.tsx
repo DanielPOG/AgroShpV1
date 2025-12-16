@@ -49,10 +49,12 @@ export function FinalizarTurnoModal({
   const [observaciones, setObservaciones] = useState<string>("")
   const [totales, setTotales] = useState<any>(null)
 
-  const totalVentas = totales?.total_ventas || 0
-  const totalRetiros = totales?.total_retiros || 0
-  const totalGastos = totales?.total_gastos || 0
-  const montoEsperado = totales?.monto_esperado || montoInicial
+  const totalVentas = totales?.operaciones?.ventas_efectivo || 0
+  const totalRetiros = totales?.operaciones?.retiros || 0
+  const totalGastos = totales?.operaciones?.gastos_efectivo || 0
+  const totalIngresos = totales?.operaciones?.ingresos_adicionales || 0
+  const totalEgresos = totales?.operaciones?.egresos_operativos || 0
+  const montoEsperado = totales?.efectivo_esperado || montoInicial
 
   const montoFinalNum = parseFloat(montoFinal) || 0
   const diferencia = montoFinalNum - montoEsperado
@@ -67,10 +69,12 @@ export function FinalizarTurnoModal({
   const loadTotales = async () => {
     setLoadingTotales(true)
     try {
-      const response = await fetch(`/api/caja/turnos?totales=${turnoId}`)
+      const response = await fetch(`/api/turnos/${turnoId}/resumen`)
       if (response.ok) {
         const data = await response.json()
         setTotales(data)
+      } else {
+        console.error("Error cargando totales:", response.status)
       }
     } catch (err) {
       console.error("Error cargando totales:", err)
@@ -91,18 +95,13 @@ export function FinalizarTurnoModal({
     setLoading(true)
 
     try {
-      const response = await fetch(`/api/caja/turnos/${turnoId}`, {
+      const response = await fetch(`/api/turnos/${turnoId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accion: "finalizar",
-          monto_final_turno: montoFinalNum,
-          total_ventas_turno: totalVentas,
-          total_retiros_turno: totalRetiros,
-          total_gastos_turno: totalGastos,
-          diferencia_turno: diferencia,
-          observaciones_cierre: observaciones || null,
-          proximo_cajero_id: null, // Por ahora sin relevo automático
+          action: "cerrar",
+          efectivo_final: montoFinalNum,
+          observaciones_cierre: observaciones || undefined,
         }),
       })
 
@@ -152,10 +151,10 @@ export function FinalizarTurnoModal({
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-xs">Monto Inicial</CardDescription>
+                  <CardDescription className="text-xs">Efectivo Inicial</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm font-bold text-blue-600">
@@ -170,7 +169,7 @@ export function FinalizarTurnoModal({
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-xs">Ventas</CardDescription>
+                  <CardDescription className="text-xs">Ventas Efectivo</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm font-bold text-green-600">
@@ -180,11 +179,25 @@ export function FinalizarTurnoModal({
                       minimumFractionDigits: 0,
                     }).format(totalVentas)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {totales?.cantidad_ventas || 0} ventas
-                  </p>
                 </CardContent>
               </Card>
+
+              {totalIngresos > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-xs">Ingresos Extra</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm font-bold text-green-600">
+                      +{new Intl.NumberFormat("es-CO", {
+                        style: "currency",
+                        currency: "COP",
+                        minimumFractionDigits: 0,
+                      }).format(totalIngresos)}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="pb-2">
@@ -198,9 +211,6 @@ export function FinalizarTurnoModal({
                       minimumFractionDigits: 0,
                     }).format(totalRetiros)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {totales?.cantidad_retiros || 0} retiros
-                  </p>
                 </CardContent>
               </Card>
 
@@ -216,11 +226,25 @@ export function FinalizarTurnoModal({
                       minimumFractionDigits: 0,
                     }).format(totalGastos)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {totales?.cantidad_gastos || 0} gastos
-                  </p>
                 </CardContent>
               </Card>
+
+              {totalEgresos > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-xs">Egresos Extra</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm font-bold text-red-600">
+                      -{new Intl.NumberFormat("es-CO", {
+                        style: "currency",
+                        currency: "COP",
+                        minimumFractionDigits: 0,
+                      }).format(totalEgresos)}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

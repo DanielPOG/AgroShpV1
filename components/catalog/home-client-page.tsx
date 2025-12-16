@@ -10,7 +10,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { mockProducts, productiveUnits, type Product } from "@/lib/mock-data"
 import { Search, Leaf, TrendingUp, Award, Clock } from "lucide-react"
 
-export default function HomePage() {
+interface HomeClientPageProps {
+  storeName: string
+  ciudad?: string
+  telefono?: string
+  email?: string
+  direccion?: string
+}
+
+export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }: HomeClientPageProps) {
   const [selectedCategory, setSelectedCategory] = useState("Todas")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -33,7 +41,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-primary/5">
-      <CatalogHeader />
+      <CatalogHeader storeName={storeName} ciudad={ciudad} telefono={telefono} />
 
       <section className="border-b border-border bg-gradient-to-r from-primary/10 via-chart-4/10 to-orange-accent/10 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -55,7 +63,7 @@ export default function HomePage() {
               Catálogo de Productos <span className="gradient-text">Agropecuarios</span>
             </h1>
             <p className="text-sm sm:text-base md:text-lg text-muted-foreground text-pretty leading-relaxed px-4">
-              Descubre nuestra selección de productos frescos cultivados por los aprendices del SENA
+              Descubre nuestra selección de productos frescos cultivados en {storeName}
             </p>
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-4 sm:pt-6 max-w-2xl mx-auto px-3">
@@ -167,19 +175,24 @@ export default function HomePage() {
                 <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-gradient-to-br from-primary to-chart-4 flex items-center justify-center">
                   <Leaf className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
-                <h3 className="font-bold text-sm sm:text-base text-foreground">AgroShop SENA</h3>
+                <h3 className="font-bold text-sm sm:text-base text-foreground">{storeName}</h3>
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Productos agropecuarios de calidad del Centro SENA
+                Productos agropecuarios de calidad
               </p>
             </div>
             <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
               <h3 className="font-semibold text-sm sm:text-base text-foreground mb-2 sm:mb-3">Contacto</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                +57 300 123 4567
+                {telefono || '+57 300 123 4567'}
                 <br />
-                agroshop@sena.edu.co
+                {email || 'agroshop@sena.edu.co'}
               </p>
+              {direccion && (
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                  {direccion}
+                </p>
+              )}
             </div>
             <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
               <h3 className="font-semibold text-sm sm:text-base text-foreground mb-2 sm:mb-3">Horario</h3>
@@ -191,7 +204,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border text-center text-xs sm:text-sm text-muted-foreground">
-            © 2025 AgroShop SENA Centro Agropecuario. Todos los derechos reservados.
+            © 2025 {storeName}. Todos los derechos reservados.
           </div>
         </div>
       </footer>

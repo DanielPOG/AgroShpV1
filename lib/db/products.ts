@@ -1107,8 +1107,11 @@ export async function searchProducts(query: string, limit = 10) {
 /**
  * Obtiene productos perecederos próximos a vencer
  */
-export async function getProductsExpiringSoon(days = 7) {
+export async function getProductsExpiringSoon(days?: number) {
   try {
+    // Usar configuración global si no se especifica
+    const diasAlerta = days ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    
     // Esta función requiere información de lotes
     // Por ahora retornamos productos perecederos activos
     const products = await prisma.productos.findMany({

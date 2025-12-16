@@ -74,26 +74,31 @@ export const createSaleSchema = z.object({
   observaciones: z.string().max(500).optional(),
 }).refine(
   (data) => {
-    // Validar que la suma de pagos sea suficiente
+    // ✅ VALIDACIÓN SIMPLIFICADA: Solo verificar que hay pagos
+    // El cálculo exacto del total (con IVA dinámico) se hace en el backend
+    // Esta validación solo previene envíos obviamente incorrectos
+    
     const totalPagos = data.pagos.reduce((sum, pago) => sum + pago.monto, 0)
     const subtotalItems = data.items.reduce((sum, item) => {
-      const descuento = item.descuento_porcentaje || 0
+      const descuento = item.descuento_porcentaje ?? 0
       const subtotal = item.cantidad * item.precio_unitario * (1 - descuento / 100)
       return sum + subtotal
     }, 0)
     
     // Aplicar descuento global si existe
-    const descuentoGlobal = data.descuento_global || 0
+    const descuentoGlobal = data.descuento_global ?? 0
     const subtotalConDescuento = subtotalItems * (1 - descuentoGlobal / 100)
     
-    // Agregar IVA (19%)
-    const impuesto = subtotalConDescuento * 0.19
-    const total = subtotalConDescuento + impuesto
+    // ✅ CAMBIO CRÍTICO: No calcular IVA aquí (es dinámico desde configuración)
+    // Solo validar que el total de pagos >= subtotal (sin impuestos)
+    // El backend calculará el total real con el IVA de la configuración
+    // y validará correctamente. Esto previene errores cuando IVA = 0%
     
-    // Permitir que el total de pagos sea mayor o igual al total de la venta
-    // (permite cambio en pago mixto cuando el cliente da más efectivo del necesario)
-    // Tolerancia de 1 peso por redondeos en caso de que sea menor
-    return totalPagos >= total || Math.abs(totalPagos - total) <= 1
+    // Tolerancia del 25% adicional para cubrir cualquier IVA posible (0%-25%)
+    const totalEstimado = subtotalConDescuento * 1.25
+    
+    // Permitir que el total de pagos esté entre el subtotal y el estimado
+    return totalPagos >= subtotalConDescuento - 1 && totalPagos <= totalEstimado + 1
   },
   {
     message: 'La suma de los pagos debe ser mayor o igual al total de la venta',

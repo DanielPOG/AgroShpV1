@@ -13,6 +13,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useLoteById } from "@/hooks/use-lotes"
 import { EditCostosLoteModal } from "./edit-costos-lote-modal"
+import { useConfig } from "@/hooks/use-config"
 
 interface LoteDetailModalProps {
   loteId: number | null
@@ -21,6 +22,8 @@ interface LoteDetailModalProps {
 }
 
 export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProps) {
+  const { config } = useConfig()
+  
   // Estados para el modal de edición de costos
   const [isEditCostosOpen, setIsEditCostosOpen] = useState(false)
   
@@ -161,7 +164,7 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
                       {format(new Date(lote.fecha_vencimiento), "dd/MM/yyyy", { locale: es })}
                     </p>
                     {diasHastaVencimiento !== null && (
-                      <p className={`text-xs ${diasHastaVencimiento < 0 ? 'text-destructive' : diasHastaVencimiento <= 7 ? 'text-orange-500' : 'text-green-600'}`}>
+                      <p className={`text-xs ${diasHastaVencimiento < 0 ? 'text-destructive' : diasHastaVencimiento <= config.dias_alerta_vencimiento ? 'text-orange-500' : 'text-green-600'}`}>
                         {diasHastaVencimiento < 0 
                           ? `Vencido hace ${Math.abs(diasHastaVencimiento)} días`
                           : diasHastaVencimiento === 0

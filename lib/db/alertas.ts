@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * Detectar productos con problemas de stock y crear alertas
@@ -149,16 +150,19 @@ export async function checkStockBajo(): Promise<{agotado: number, bajo: number, 
  * - ALTA: 4-5 días
  * - NORMAL: 6-7 días
  * 
- * @param {number} diasAnticipacion - Días de anticipación para alertar (default: 7)
+ * @param {number} diasAnticipacion - Días de anticipación para alertar (si no se pasa, usa config)
  * @returns {Promise<number>} Cantidad de alertas creadas
  */
-export async function checkLotesProximosVencer(diasAnticipacion: number = 7): Promise<number> {
+export async function checkLotesProximosVencer(diasAnticipacion?: number): Promise<number> {
   try {
-    console.log('🔍 Verificando lotes próximos a vencer...')
+    // Usar configuración global si no se especifica
+    const diasAlerta = diasAnticipacion ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    
+    console.log(`🔍 Verificando lotes próximos a vencer (${diasAlerta} días)...`)
     
     const ahora = new Date()
     const fechaLimite = new Date()
-    fechaLimite.setDate(fechaLimite.getDate() + diasAnticipacion)
+    fechaLimite.setDate(fechaLimite.getDate() + Number(diasAlerta))
 
     // Buscar lotes disponibles que vencen dentro del período
     const lotesProximos = await prisma.lotes_productos.findMany({

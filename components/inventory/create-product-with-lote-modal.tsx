@@ -33,6 +33,7 @@ import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import { useConfig } from "@/hooks/use-config"
 import Image from "next/image"
 
 interface Category {
@@ -69,6 +70,7 @@ export function CreateProductWithLoteModal({
   unidades,
 }: CreateProductWithLoteModalProps) {
   const { toast } = useToast()
+  const { config } = useConfig()
   const [isCreating, setIsCreating] = useState(false)
 
   // Datos del Producto
@@ -81,7 +83,7 @@ export function CreateProductWithLoteModal({
   const [unidad, setUnidad] = useState("")
   const [precioUnitario, setPrecioUnitario] = useState("")
   const [precioMayorista, setPrecioMayorista] = useState("")
-  const [stockMinimo, setStockMinimo] = useState("10")
+  const [stockMinimo, setStockMinimo] = useState(String(config.stock_minimo_default))
   const [stockMaximo, setStockMaximo] = useState("")
   const [esProduccionPropia, setEsProduccionPropia] = useState(true)
   const [proveedorId, setProveedorId] = useState("")
@@ -226,7 +228,7 @@ export function CreateProductWithLoteModal({
     setUnidad("")
     setPrecioUnitario("")
     setPrecioMayorista("")
-    setStockMinimo("10")
+    setStockMinimo(String(config.stock_minimo_default))
     setStockMaximo("")
     setEsProduccionPropia(true)
     setProveedorId("")

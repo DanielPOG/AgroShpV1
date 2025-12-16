@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
 import { FileText, Printer, Download, CheckCircle2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useConfig } from "@/hooks/use-config"
 
 interface InvoiceModalProps {
   open: boolean
@@ -30,6 +31,7 @@ interface InvoiceModalProps {
 }
 
 export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceModalProps) {
+  const { config } = useConfig()
   const [generateInvoice, setGenerateInvoice] = useState(true)
   const [sendEmail, setSendEmail] = useState(false)
   const [email, setEmail] = useState("")
@@ -249,7 +251,8 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     
     // Totales
     yPos += 10
-    const subtotal = saleData.total / 1.19 // Calcular subtotal sin IVA
+    const ivaDivisor = 1 + (config.iva_porcentaje / 100)
+    const subtotal = saleData.total / ivaDivisor // Calcular subtotal sin IVA
     const iva = saleData.total - subtotal
     
     doc.setFontSize(10)
@@ -258,7 +261,7 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     doc.text(`$${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 185, yPos, { align: 'right' })
     
     yPos += 7
-    doc.text('IVA (19%):', 140, yPos)
+    doc.text(`IVA (${config.iva_porcentaje}%):`, 140, yPos)
     doc.text(`$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 185, yPos, { align: 'right' })
     
     yPos += 10

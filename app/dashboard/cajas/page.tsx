@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Search, Edit, Trash2, MapPin, Box, Loader2 } from "lucide-react"
+import { Plus, Search, Edit, Trash2, MapPin, Layers, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { CajaModal } from "@/components/admin/caja-modal"
 import type { cajas } from "@prisma/client"
@@ -118,10 +118,15 @@ export default function CajasPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gestión de Cajas</h1>
-          <p className="text-muted-foreground">Administra las cajas del sistema de control</p>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <Layers className="h-8 w-8" />
+            Gestión de Cajas
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Administra las cajas registradoras del sistema
+          </p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
+        <Button onClick={() => setModalOpen(true)} size="lg">
           <Plus className="mr-2 h-4 w-4" />
           Nueva Caja
         </Button>

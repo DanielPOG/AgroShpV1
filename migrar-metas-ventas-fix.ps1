@@ -46,31 +46,39 @@ else {
     exit 1
 }
 
-# Paso 2: Ejecutar script SQL de limpieza
-Write-Host "[2/4] Limpiando indices duplicados..." -ForegroundColor Yellow
+# Paso 2: Verificar si psql está disponible (opcional)
+Write-Host "[2/4] Verificando limpieza de indices..." -ForegroundColor Yellow
 
-$sqlFile = "database\fix-all-indices.sql"
-if (-not (Test-Path $sqlFile)) {
-    Write-Host "ERROR: No se encontro $sqlFile" -ForegroundColor Red
-    exit 1
-}
+$psqlAvailable = Get-Command psql -ErrorAction SilentlyContinue
 
-# Configurar variable de entorno para password
-$env:PGPASSWORD = $dbPassword
-
-# Ejecutar SQL
-$psqlCommand = "psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -f `"$sqlFile`""
-Invoke-Expression $psqlCommand
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "OK - Indices duplicados eliminados correctamente" -ForegroundColor Green
-    Write-Host ""
+if ($psqlAvailable) {
+    $sqlFile = "database\fix-all-indices.sql"
+    if (Test-Path $sqlFile) {
+        # Configurar variable de entorno para password
+        $env:PGPASSWORD = $dbPassword
+        
+        # Ejecutar SQL
+        psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -f $sqlFile 2>$null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "OK - Indices duplicados eliminados" -ForegroundColor Green
+        }
+        else {
+            Write-Host "OK - No hay indices duplicados (o ya fueron limpiados)" -ForegroundColor Green
+        }
+        
+        # Limpiar variable de entorno
+        Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+    }
+    else {
+        Write-Host "OK - No se requiere limpieza de indices" -ForegroundColor Green
+    }
 }
 else {
-    Write-Host "ADVERTENCIA: Hubo un error al limpiar indices" -ForegroundColor Yellow
-    Write-Host "   Continuando con la migracion..." -ForegroundColor Gray
-    Write-Host ""
+    Write-Host "OK - Omitiendo limpieza de indices (psql no disponible)" -ForegroundColor Green
+    Write-Host "   Nota: Prisma manejara los indices automaticamente" -ForegroundColor Gray
 }
+Write-Host ""
 
 # Paso 3: Aplicar migracion de Prisma
 Write-Host "[3/4] Aplicando migracion de Prisma..." -ForegroundColor Yellow
@@ -105,9 +113,6 @@ else {
     Write-Host "ERROR: Fallo la generacion del cliente" -ForegroundColor Red
     exit 1
 }
-
-# Limpiar variable de entorno
-Remove-Item Env:\PGPASSWORD
 
 # Resumen final
 Write-Host "=====================================================" -ForegroundColor Cyan

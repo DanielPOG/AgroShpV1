@@ -282,6 +282,8 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     factura_generada: boolean
     factura_enviada_email: boolean
     email_destino?: string
+    cliente_nombre?: string  // ✨ NUEVO
+    cliente_documento?: string  // ✨ NUEVO
   }) => {
     try {
       // Preparar datos de venta
@@ -325,6 +327,8 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         requiere_factura: facturacionData.requiere_factura,
         factura_generada: facturacionData.factura_generada,
         cliente_email: facturacionData.email_destino,
+        cliente_nombre: facturacionData.cliente_nombre,  // ✨ NUEVO: Incluir nombre
+        cliente_documento: facturacionData.cliente_documento,  // ✨ NUEVO: Incluir documento
       })
 
       console.log('✅ Venta creada atómicamente:', venta.codigo_venta)

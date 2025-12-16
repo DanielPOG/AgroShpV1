@@ -56,6 +56,7 @@ export const createSaleSchema = z.object({
   // Información del cliente (opcional)
   cliente_id: z.number().int().positive().optional(),
   cliente_nombre: z.string().max(150).optional(),
+  cliente_documento: z.string().max(50).optional(),  // ✨ NUEVO: NIT o Cédula
   cliente_email: z.string().email().max(150).optional(),
   cliente_telefono: z.string().max(20).optional(),
   

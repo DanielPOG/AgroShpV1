@@ -286,8 +286,8 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     factura_generada: boolean
     factura_enviada_email: boolean
     email_destino?: string
-    cliente_nombre?: string  // ✨ NUEVO
-    cliente_documento?: string  // ✨ NUEVO
+    cliente_nombre?: string
+    cliente_identificacion?: string  // Cambiado de cliente_documento
   }) => {
     try {
       // Preparar datos de venta
@@ -295,6 +295,8 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         producto_id: item.id,
         cantidad: item.cantidad,
         precio_unitario: item.precio,
+        // Para productos ficticios (ID negativo), enviar el nombre en observaciones
+        observaciones: item.id < 0 ? item.nombre : undefined,
       }))
 
       // Preparar pagos
@@ -331,8 +333,9 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         requiere_factura: facturacionData.requiere_factura,
         factura_generada: facturacionData.factura_generada,
         cliente_email: facturacionData.email_destino,
-        cliente_nombre: facturacionData.cliente_nombre,  // ✨ NUEVO: Incluir nombre
-        cliente_documento: facturacionData.cliente_documento,  // ✨ NUEVO: Incluir documento
+        cliente_nombre: facturacionData.cliente_nombre,
+        cliente_telefono: facturacionData.cliente_identificacion,  // Usar telefono para guardar identificación
+        efectivo_recibido: selectedMethod?.nombre.toLowerCase() === "efectivo" ? Number.parseFloat(amountPaid || "0") : undefined,
       })
 
       console.log('✅ Venta creada atómicamente:', venta.codigo_venta)

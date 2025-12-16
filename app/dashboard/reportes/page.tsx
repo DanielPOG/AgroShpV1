@@ -11,7 +11,8 @@ import { InventoryReport } from "@/components/reports/inventory-report"
 import { PaymentMethodsReport } from "@/components/reports/payment-methods-report"
 import { ClientsReport } from "@/components/reports/clients-report"
 import { ProfitabilityReport } from "@/components/reports/profitability-report"
-import { TrendingUp, Package, CreditCard, Users, DollarSign, Loader2 } from "lucide-react"
+import { ReporteUnidadesProductivas } from "@/components/reports/reporte-unidades-productivas"
+import { TrendingUp, Package, CreditCard, Users, DollarSign, Loader2, Factory } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
   exportVentasPDF,
@@ -24,6 +25,8 @@ import {
   exportRentabilidadExcel,
   exportMetodosPagoPDF,
   exportMetodosPagoExcel,
+  exportUnidadesProductivasPDF,
+  exportUnidadesProductivasExcel,
 } from "@/lib/export-utils"
 
 export default function ReportesPage() {
@@ -74,6 +77,12 @@ export default function ReportesPage() {
         case "Rentabilidad":
           await exportRentabilidadPDF(fechasVentas.inicio, fechasVentas.fin)
           break
+        case "Unidades Productivas":
+          await exportUnidadesProductivasPDF(
+            fechasVentas.inicio.toISOString(),
+            fechasVentas.fin.toISOString()
+          )
+          break
       }
       
       toast({
@@ -112,6 +121,12 @@ export default function ReportesPage() {
         case "Rentabilidad":
           await exportRentabilidadExcel(fechasVentas.inicio, fechasVentas.fin)
           break
+        case "Unidades Productivas":
+          await exportUnidadesProductivasExcel(
+            fechasVentas.inicio.toISOString(),
+            fechasVentas.fin.toISOString()
+          )
+          break
       }
       
       toast({
@@ -146,7 +161,7 @@ export default function ReportesPage() {
       />
 
           {/* Report Overview Cards - Responsive Grid */}
-          <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mb-6 sm:mb-8">
+          <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 mb-6 sm:mb-8">
             <ReportCard
               title="Reporte de Ventas"
               description="Análisis de ventas por período"
@@ -182,16 +197,24 @@ export default function ReportesPage() {
               onDownloadPDF={() => handleDownloadPDF("Rentabilidad")}
               onDownloadExcel={() => handleDownloadExcel("Rentabilidad")}
             />
+            <ReportCard
+              title="Unidades Productivas"
+              description="Ventas por unidad productiva"
+              icon={Factory}
+              onDownloadPDF={() => handleDownloadPDF("Unidades Productivas")}
+              onDownloadExcel={() => handleDownloadExcel("Unidades Productivas")}
+            />
           </div>
 
           {/* Detailed Reports Tabs - Responsive */}
           <Tabs defaultValue="sales" className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 h-auto p-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1">
               <TabsTrigger value="sales" className="text-xs sm:text-sm py-2">Ventas</TabsTrigger>
               <TabsTrigger value="inventory" className="text-xs sm:text-sm py-2">Inventario</TabsTrigger>
               <TabsTrigger value="payments" className="text-xs sm:text-sm py-2">Pagos</TabsTrigger>
               <TabsTrigger value="clients" className="text-xs sm:text-sm py-2">Clientes</TabsTrigger>
-              <TabsTrigger value="profitability" className="text-xs sm:text-sm py-2 col-span-2 sm:col-span-1">Rentabilidad</TabsTrigger>
+              <TabsTrigger value="profitability" className="text-xs sm:text-sm py-2">Rentabilidad</TabsTrigger>
+              <TabsTrigger value="unidades" className="text-xs sm:text-sm py-2">Unidades</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sales" className="space-y-4 sm:space-y-6">
@@ -212,6 +235,10 @@ export default function ReportesPage() {
 
             <TabsContent value="profitability" className="space-y-4 sm:space-y-6">
               <ProfitabilityReport />
+            </TabsContent>
+
+            <TabsContent value="unidades" className="space-y-4 sm:space-y-6">
+              <ReporteUnidadesProductivas />
             </TabsContent>
           </Tabs>
         </div>

@@ -651,3 +651,193 @@ export const exportMetodosPagoExcel = async (fechaInicio: Date, fechaFin: Date) 
     throw error
   }
 }
+
+/**
+ * Exportar reporte de unidades productivas a PDF
+ */
+export const exportUnidadesProductivasPDF = async (fechaDesde?: string, fechaHasta?: string) => {
+  try {
+    // Construir URL con parámetros opcionales
+    const params = new URLSearchParams()
+    if (fechaDesde) params.append('fecha_desde', fechaDesde)
+    if (fechaHasta) params.append('fecha_hasta', fechaHasta)
+    
+    const response = await fetch(`/api/reportes/unidades-productivas?${params}`)
+    const data = await response.json()
+
+    const doc = new jsPDF()
+    
+    // Título
+    doc.setFontSize(18)
+    doc.text('Reporte de Unidades Productivas', 14, 20)
+    
+    // Período
+    doc.setFontSize(11)
+    if (fechaDesde || fechaHasta) {
+      const periodo = `Período: ${fechaDesde ? format(new Date(fechaDesde), 'dd MMM yyyy', { locale: es }) : 'Inicio'} - ${fechaHasta ? format(new Date(fechaHasta), 'dd MMM yyyy', { locale: es }) : 'Hoy'}`
+      doc.text(periodo, 14, 30)
+    } else {
+      doc.text('Período: Todos los registros', 14, 30)
+    }
+
+    // Unidad más vendida (destacada)
+    if (data.unidad_mas_vendida) {
+      doc.setFontSize(14)
+      doc.setTextColor(0, 128, 0)
+      doc.text('🏆 Unidad Más Vendida', 14, 42)
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(11)
+      
+      autoTable(doc, {
+        startY: 47,
+        head: [['Concepto', 'Valor']],
+        body: [
+          ['Nombre', data.unidad_mas_vendida.nombre],
+          ['Código', data.unidad_mas_vendida.codigo],
+          ['Total Ventas', `$${data.unidad_mas_vendida.total_ventas.toLocaleString('es-CO')}`],
+          ['Productos Vendidos', data.unidad_mas_vendida.cantidad_productos_vendidos.toString()],
+          ['Productos Distintos', data.unidad_mas_vendida.cantidad_productos_distintos.toString()],
+          ['Lotes Usados', data.unidad_mas_vendida.cantidad_lotes_usados.toString()],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [34, 197, 94] }
+      })
+    }
+
+    // Totales generales
+    doc.addPage()
+    doc.setFontSize(12)
+    doc.text('Resumen General', 14, 20)
+    
+    autoTable(doc, {
+      startY: 25,
+      head: [['Métrica', 'Valor']],
+      body: [
+        ['Total General', `$${data.totales.total_general.toLocaleString('es-CO')}`],
+        ['Total Productos Vendidos', data.totales.total_productos.toString()],
+        ['Total Lotes Usados', data.totales.total_lotes.toString()],
+        ['Cantidad de Unidades', data.totales.cantidad_unidades.toString()],
+      ],
+    })
+
+    // Ranking de unidades
+    doc.addPage()
+    doc.text('Ranking de Unidades Productivas', 14, 20)
+    
+    autoTable(doc, {
+      startY: 25,
+      head: [['#', 'Código', 'Nombre', 'Total Ventas', 'Productos', 'Distintos', 'Lotes']],
+      body: data.unidades.map((u: any, index: number) => [
+        (index + 1).toString(),
+        u.codigo,
+        u.nombre,
+        `$${u.total_ventas.toLocaleString('es-CO')}`,
+        u.cantidad_productos_vendidos.toString(),
+        u.cantidad_productos_distintos.toString(),
+        u.cantidad_lotes_usados.toString(),
+      ]),
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 10 },
+        3: { halign: 'right' },
+        4: { halign: 'center' },
+        5: { halign: 'center' },
+        6: { halign: 'center' },
+      }
+    })
+
+    // Guardar PDF
+    doc.save(`reporte-unidades-productivas-${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+  } catch (error) {
+    console.error('Error al exportar PDF:', error)
+    throw error
+  }
+}
+
+/**
+ * Exportar reporte de unidades productivas a Excel
+ */
+export const exportUnidadesProductivasExcel = async (fechaDesde?: string, fechaHasta?: string) => {
+  try {
+    // Construir URL con parámetros opcionales
+    const params = new URLSearchParams()
+    if (fechaDesde) params.append('fecha_desde', fechaDesde)
+    if (fechaHasta) params.append('fecha_hasta', fechaHasta)
+    
+    const response = await fetch(`/api/reportes/unidades-productivas?${params}`)
+    const data = await response.json()
+
+    const workbook = XLSX.utils.book_new()
+
+    // Hoja 1: Resumen
+    const resumenData = [
+      ['Reporte de Unidades Productivas'],
+      ['Fecha de Generación', format(new Date(), 'dd MMM yyyy HH:mm', { locale: es })],
+      []
+    ]
+
+    if (fechaDesde || fechaHasta) {
+      resumenData.push(['Período', `${fechaDesde || 'Inicio'} - ${fechaHasta || 'Hoy'}`])
+    }
+
+    resumenData.push(
+      [],
+      ['TOTALES GENERALES'],
+      ['Total General', data.totales.total_general],
+      ['Total Productos Vendidos', data.totales.total_productos],
+      ['Total Lotes Usados', data.totales.total_lotes],
+      ['Cantidad de Unidades', data.totales.cantidad_unidades],
+    )
+
+    if (data.unidad_mas_vendida) {
+      resumenData.push(
+        [],
+        ['UNIDAD MÁS VENDIDA'],
+        ['Nombre', data.unidad_mas_vendida.nombre],
+        ['Código', data.unidad_mas_vendida.codigo],
+        ['Total Ventas', data.unidad_mas_vendida.total_ventas],
+        ['Productos Vendidos', data.unidad_mas_vendida.cantidad_productos_vendidos],
+        ['Productos Distintos', data.unidad_mas_vendida.cantidad_productos_distintos],
+        ['Lotes Usados', data.unidad_mas_vendida.cantidad_lotes_usados],
+      )
+    }
+
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
+    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+
+    // Hoja 2: Ranking completo
+    const rankingData = [
+      ['Posición', 'Código', 'Nombre', 'Descripción', 'Total Ventas', 'Productos Vendidos', 'Productos Distintos', 'Lotes Usados'],
+      ...data.unidades.map((u: any, index: number) => [
+        index + 1,
+        u.codigo,
+        u.nombre,
+        u.descripcion || '',
+        u.total_ventas,
+        u.cantidad_productos_vendidos,
+        u.cantidad_productos_distintos,
+        u.cantidad_lotes_usados,
+      ]),
+    ]
+    const wsRanking = XLSX.utils.aoa_to_sheet(rankingData)
+    
+    // Aplicar formato a las columnas
+    wsRanking['!cols'] = [
+      { wch: 10 },  // Posición
+      { wch: 15 },  // Código
+      { wch: 30 },  // Nombre
+      { wch: 40 },  // Descripción
+      { wch: 15 },  // Total Ventas
+      { wch: 18 },  // Productos Vendidos
+      { wch: 18 },  // Productos Distintos
+      { wch: 15 },  // Lotes Usados
+    ]
+    
+    XLSX.utils.book_append_sheet(workbook, wsRanking, 'Ranking')
+
+    // Guardar archivo
+    XLSX.writeFile(workbook, `reporte-unidades-productivas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+  } catch (error) {
+    console.error('Error al exportar Excel:', error)
+    throw error
+  }
+}

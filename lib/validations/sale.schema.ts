@@ -64,6 +64,9 @@ export const createSaleSchema = z.object({
   cliente_email: z.string().email().max(150).optional(),
   cliente_telefono: z.string().max(20).optional(),
   
+  // Efectivo recibido (para calcular cambio en tickets)
+  efectivo_recibido: z.number().min(0).optional(),
+  
   // Descuento global (opcional)
   descuento_global: z.number().min(0).max(100).optional(),
   

@@ -165,24 +165,26 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
   // Ventas en efectivo desde la fecha base
   let totalVentasEfectivo = 0
   if (turnoIds.length > 0) {
-    const ventas = await prisma.ventas.findMany({
-      where: {
-        turno_caja_id: { in: turnoIds },
-        estado: { not: 'cancelada' }
-      },
-      select: {
-        pagos_venta: {
-          where: {
-            metodo_pago: { nombre: 'efectivo' }
-          },
-          select: { monto: true }
-        }
-      }
+    // Obtener ID del método de pago "efectivo"
+    const metodoPagoEfectivo = await prisma.metodos_pago.findFirst({
+      where: { nombre: { contains: 'efectivo', mode: 'insensitive' } },
+      select: { id: true }
     })
-    
-    totalVentasEfectivo = ventas.reduce((sum, v) => 
-      sum + v.pagos_venta.reduce((s, p) => s + Number(p.monto), 0), 0
-    )
+
+    if (metodoPagoEfectivo) {
+      const pagosEfectivo = await prisma.pagos_venta.aggregate({
+        where: {
+          metodo_pago_id: metodoPagoEfectivo.id,
+          venta: {
+            turno_caja_id: { in: turnoIds },
+            estado: { not: 'cancelada' }
+          }
+        },
+        _sum: { monto: true }
+      })
+      
+      totalVentasEfectivo = Number(pagosEfectivo._sum.monto || 0)
+    }
   }
 
   console.log(`   💵 Ventas efectivo (desde base): $${totalVentasEfectivo.toLocaleString('es-CO')}`)

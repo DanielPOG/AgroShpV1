@@ -234,33 +234,46 @@ export async function POST(request: NextRequest) {
       if (venta.factura_generada) {
         console.log(`📄 Imprimiendo ticket con factura...`)
         
+        // Agrupar detalles de venta por producto (un producto puede tener varios lotes)
+        const itemsAgrupados = venta.detalle_ventas?.reduce((acc, item) => {
+          // Para productos ficticios, el nombre está en observaciones
+          const productoNombre = item.producto?.nombre || item.observaciones || 'Producto'
+          const existing = acc.find(i => i.nombre === productoNombre)
+          
+          if (existing) {
+            // Sumar cantidad si ya existe el producto
+            existing.cantidad += Number(item.cantidad)
+          } else {
+            // Agregar nuevo producto
+            acc.push({
+              nombre: productoNombre,
+              cantidad: Number(item.cantidad),
+              precio: Number(item.precio_unitario),
+            })
+          }
+          
+          return acc
+        }, [] as Array<{ nombre: string; cantidad: number; precio: number }>) || []
+        
         // Preparar datos para impresión
         const ventaData: VentaData = {
           codigo_venta: venta.codigo_venta,
-          items: venta.detalle_ventas?.map(item => ({
-            nombre: item.producto?.nombre || 'Producto',
-            cantidad: Number(item.cantidad),
-            precio: Number(item.precio_unitario),
-          })) || [],
+          items: itemsAgrupados,
           subtotal: Number(venta.subtotal),
           descuento: venta.descuento ? Number(venta.descuento) : undefined,
           total: Number(venta.total),
           cliente_nombre: venta.cliente?.nombre || validatedData.cliente_nombre,
+          cliente_telefono: venta.cliente_telefono,  // Cédula/NIT
           fecha: venta.fecha_venta || new Date(),
           requiere_factura: venta.requiere_factura || false,
           factura_generada: venta.factura_generada || false,
         }
 
-        // Calcular efectivo recibido y cambio si hay pago en efectivo
-        const pagoEfectivo = venta.pagos_venta.find(p => 
-          p.metodo_pago?.nombre.toLowerCase().includes('efectivo')
-        )
-        
-        if (pagoEfectivo) {
-          // Si es pago mixto, sumar todos los montos para calcular total recibido
-          const totalRecibido = venta.pagos_venta.reduce((sum, p) => sum + Number(p.monto), 0)
-          ventaData.efectivo_recibido = totalRecibido
-          ventaData.cambio = totalRecibido - Number(venta.total)
+        // Calcular efectivo recibido y cambio si fue proporcionado desde el frontend
+        if (validatedData.efectivo_recibido !== undefined && validatedData.efectivo_recibido > 0) {
+          ventaData.efectivo_recibido = validatedData.efectivo_recibido
+          ventaData.cambio = validatedData.efectivo_recibido - Number(venta.total)
+          console.log(`💵 Efectivo: Recibido=${validatedData.efectivo_recibido}, Total=${venta.total}, Cambio=${ventaData.cambio}`)
         }
 
         // Imprimir ticket completo y abrir cajón

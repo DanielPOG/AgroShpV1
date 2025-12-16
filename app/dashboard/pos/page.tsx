@@ -36,16 +36,47 @@ export default function POSPage() {
   const [isCashPanelExpanded, setIsCashPanelExpanded] = useState(false) // ✨ NUEVO: Estado del panel de caja
   const [isQuickProductOpen, setIsQuickProductOpen] = useState(false) // ✨ NUEVO: Estado del modal de producto rápido
 
-  // Cargar productos con stock disponible
+  // Cargar productos con lotes disponibles
+  // Un producto debe aparecer en POS solo si tiene al menos un lote con estado "disponible"
   const { products, isLoading: productsLoading, error, refetch: refetchProducts } = useProducts({
-    activo: true,
     limit: 100,
     page: 1,
     sortBy: null,
   })
 
-  // Filtrar solo productos con stock
-  const availableProducts = products?.filter((p) => Number(p.stock_actual) > 0) || []
+  // Filtrar solo productos con lotes disponibles
+  const [availableProducts, setAvailableProducts] = useState<any[]>([])
+  
+  useEffect(() => {
+    const filterProductsWithAvailableLotes = async () => {
+      if (!products || products.length === 0) {
+        setAvailableProducts([])
+        return
+      }
+
+      // Verificar cada producto si tiene lotes disponibles
+      const productsWithLotes = await Promise.all(
+        products
+          .filter((p) => Number(p.stock_actual) > 0)
+          .map(async (product) => {
+            try {
+              const response = await fetch(`/api/lotes?producto_id=${product.id}&estado=disponible&limit=1`)
+              if (response.ok) {
+                const data = await response.json()
+                return data.data && data.data.length > 0 ? product : null
+              }
+            } catch (error) {
+              console.error(`Error verificando lotes del producto ${product.id}:`, error)
+            }
+            return null
+          })
+      )
+
+      setAvailableProducts(productsWithLotes.filter(Boolean))
+    }
+
+    filterProductsWithAvailableLotes()
+  }, [products])
 
   // Verificar lotes vencidos al cargar POS
   useEffect(() => {

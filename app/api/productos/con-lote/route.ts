@@ -133,6 +133,14 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      // 5.1 Actualizar stock_actual del producto (por si el trigger no está instalado)
+      await tx.productos.update({
+        where: { id: producto.id },
+        data: {
+          stock_actual: loteData.cantidad
+        }
+      })
+
       // 6. Actualizar usuario_id en el registro de historial creado por el trigger
       await tx.historial_inventario.updateMany({
         where: {

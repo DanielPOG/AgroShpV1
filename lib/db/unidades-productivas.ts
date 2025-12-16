@@ -6,14 +6,11 @@
 import { prisma } from '@/lib/prisma'
 
 /**
- * Obtener todas las unidades productivas activas
+ * Obtener todas las unidades productivas (activas e inactivas)
  */
 export async function getUnidadesProductivas() {
   try {
     const unidades = await prisma.unidades_productivas.findMany({
-      where: {
-        activa: true
-      },
       orderBy: {
         nombre: 'asc'
       },

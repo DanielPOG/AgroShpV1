@@ -27,6 +27,8 @@ interface InvoiceModalProps {
     factura_generada: boolean
     factura_enviada_email: boolean
     email_destino?: string
+    cliente_nombre?: string
+    cliente_identificacion?: string
   }) => Promise<void> | void  // ✨ Puede retornar Promise para async
 }
 
@@ -50,6 +52,10 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
   const handleComplete = async () => {
     setProcessing(true)
 
+    console.log('🔍 [InvoiceModal] handleComplete called')
+    console.log('   - generateInvoice:', generateInvoice)
+    console.log('   - sendEmail:', sendEmail)
+
     // Simulate processing
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
@@ -65,12 +71,18 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
 
     // Esperar a que se complete la venta antes de cerrar
     try {
-      await onComplete({
+      const dataToSend = {
         requiere_factura: generateInvoice || sendEmail, // Requiere factura si seleccionó alguna opción
         factura_generada: generateInvoice, // Solo true si seleccionó "Generar Factura"
         factura_enviada_email: sendEmail,
         email_destino: sendEmail ? email : undefined,
-      })
+        cliente_nombre: customerName || undefined, // Nombre del cliente (opcional)
+        cliente_identificacion: customerId || undefined, // Cédula/NIT (opcional)
+      }
+      
+      console.log('📤 [InvoiceModal] Enviando datos:', dataToSend)
+      
+      await onComplete(dataToSend)
       
       setProcessing(false)
 

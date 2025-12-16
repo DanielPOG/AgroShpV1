@@ -50,6 +50,7 @@ interface VentaData {
   efectivo_recibido?: number
   cambio?: number
   cliente_nombre?: string
+  cliente_telefono?: string  // Para guardar Cédula/NIT
   fecha: Date
   requiere_factura: boolean
   factura_generada?: boolean
@@ -134,6 +135,10 @@ export class ESCPOSPrinter {
             printer.text(`Cliente: ${venta.cliente_nombre}`)
           }
 
+          if (venta.cliente_telefono) {
+            printer.text(`Cedula/NIT: ${venta.cliente_telefono}`)
+          }
+
           if (venta.requiere_factura) {
             printer.text(`Factura: ${venta.factura_generada ? 'GENERADA' : 'PENDIENTE'}`)
           }
@@ -143,14 +148,15 @@ export class ESCPOSPrinter {
           // --- ITEMS ---
           printer
             .align('lt')
-            .text('PRODUCTO              CANT   PRECIO')
+            .text('PRODUCTO          CANT    PRECIO')
             .text('--------------------------------------')
 
           for (const item of venta.items) {
-            const nombre = this.truncate(item.nombre, 20)
-            const cantidad = item.cantidad.toString().padStart(4)
-            const precio = this.formatMoney(item.precio * item.cantidad).padStart(8)
-            printer.text(`${nombre.padEnd(20)} ${cantidad} ${precio}`)
+            const nombre = this.truncate(item.nombre, 16)
+            const cantidad = item.cantidad.toString().padEnd(4)
+            const precioTotal = item.precio * item.cantidad
+            const precio = this.formatMoney(precioTotal)
+            printer.text(`${nombre.padEnd(16)}  ${cantidad}  ${precio}`)
           }
 
           printer.text('--------------------------------------')
@@ -281,11 +287,9 @@ export class ESCPOSPrinter {
   }
 
   private formatMoney(amount: number): string {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-    }).format(amount)
+    // Formato simple para impresoras térmicas: $1,000 sin espacios extras
+    const formatted = Math.round(amount).toLocaleString('es-CO')
+    return `$${formatted}`
   }
 
   private truncate(text: string, maxLength: number): string {

@@ -277,14 +277,42 @@ async function descontarStockDeLotes(
       select: { costo_unitario: true }
     })
 
-    // ✅ SOLO actualizar el lote - el trigger SQL actualizará el producto automáticamente
-    await tx.lotes_productos.update({
+    // ✅ Actualizar el lote
+    const loteActualizado = await tx.lotes_productos.update({
       where: { id: lote.id },
       data: {
         cantidad: nuevaCantidad,
         estado: nuevaCantidad === 0 ? 'retirado' : 'disponible',
       },
     })
+    
+    console.log(`🔄 Lote ${lote.codigo_lote} actualizado:`, {
+      cantidadAntes: cantidadEnLote,
+      cantidadDescontada: cantidadADescontar,
+      cantidadNueva: nuevaCantidad,
+      estado: loteActualizado.estado
+    })
+    
+    // ✅ SINCRONIZAR stock del producto manualmente (backup si no hay triggers)
+    // Obtener stock total actual de todos los lotes
+    const stockTotalLotes = await tx.lotes_productos.aggregate({
+      where: {
+        producto_id: productoId,
+        estado: { in: ['disponible', 'reservado'] }
+      },
+      _sum: {
+        cantidad: true
+      }
+    })
+    
+    const nuevoStockProducto = stockTotalLotes._sum.cantidad || 0
+    
+    await tx.productos.update({
+      where: { id: productoId },
+      data: { stock_actual: nuevoStockProducto }
+    })
+    
+    console.log(`📦 Stock producto sincronizado: ${nuevoStockProducto}`)
 
     lotesUsados.push({
       lote_id: lote.id,
@@ -479,7 +507,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
             console.log(`  📦 Producto ficticio detectado (no registrado en inventario)`)
             
             // Para productos ficticios, crear detalle sin lote y sin afectar inventario
-            // No conectamos producto ni lote porque no existen
+            // El nombre del producto viene en item.observaciones
             await tx.detalle_ventas.create({
               data: {
                 venta: {
@@ -489,11 +517,11 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
                 precio_unitario: item.precio_unitario,
                 subtotal: item.cantidad * item.precio_unitario,
                 costo_unitario: null, // Productos ficticios no tienen costo
-                observaciones: `Producto ficticio: ID temporal ${item.producto_id}`,
+                observaciones: item.observaciones || `Producto ficticio: ID ${item.producto_id}`,
               },
             })
             
-            console.log(`  ✅ Item ficticio agregado sin afectar inventario`)
+            console.log(`  ✅ Item ficticio agregado: ${item.observaciones || 'sin nombre'}`)
             continue // Saltar al siguiente item
           }
           
@@ -506,11 +534,13 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
           const stockAnterior = Number(producto!.stock_actual)
           
           // Descontar stock usando FIFO
+          console.log(`  🔍 Descontando ${item.cantidad} unidades del producto ${item.producto_id}...`)
           const lotesUsados = await descontarStockDeLotes(
             item.producto_id,
             item.cantidad,
             tx
           )
+          console.log(`  ✅ Stock descontado de ${lotesUsados.length} lote(s)`)
 
           // Crear detalle de venta para cada lote usado
           for (const loteUsado of lotesUsados) {

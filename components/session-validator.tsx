@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
@@ -11,27 +11,29 @@ import { useRouter } from "next/navigation"
 export function SessionValidator() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const hasRedirected = useRef(false)
 
   useEffect(() => {
-    // Si la sesión está en estado unauthenticated, redirigir a login
-    if (status === "unauthenticated") {
-      // Guardar la URL actual para redirigir después del login
-      const currentPath = window.location.pathname + window.location.search
-      router.replace(`/login?callbackUrl=${encodeURIComponent(currentPath)}`)
+    // Solo redirigir si el status es definitivamente unauthenticated
+    // y no estamos en proceso de carga
+    if (status === "unauthenticated" && !hasRedirected.current) {
+      // Esperar un momento para asegurar que no es un estado transitorio
+      const timeout = setTimeout(() => {
+        if (status === "unauthenticated") {
+          hasRedirected.current = true
+          const currentPath = window.location.pathname + window.location.search
+          router.replace(`/login?callbackUrl=${encodeURIComponent(currentPath)}`)
+        }
+      }, 100)
+
+      return () => clearTimeout(timeout)
+    }
+
+    // Resetear flag si vuelve a estar autenticado
+    if (status === "authenticated") {
+      hasRedirected.current = false
     }
   }, [status, router])
-
-  useEffect(() => {
-    // Verificar sesión cada 5 minutos
-    const interval = setInterval(() => {
-      if (status === "authenticated" && !session) {
-        // Si está autenticado pero no hay sesión, algo está mal
-        router.replace("/login")
-      }
-    }, 5 * 60 * 1000) // 5 minutos
-
-    return () => clearInterval(interval)
-  }, [status, session, router])
 
   // Este componente no renderiza nada
   return null

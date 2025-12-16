@@ -119,6 +119,13 @@ const navigation = [
     description: "Administración de cajas registradoras"
   },
   { 
+    name: "Unidades Productivas", 
+    href: "/dashboard/admin/unidades-productivas", 
+    icon: Leaf, 
+    roles: ["Admin"],
+    description: "Gestión de unidades de producción"
+  },
+  { 
     name: "Catálogo Público", 
     href: "/", 
     icon: Globe, 

@@ -74,6 +74,7 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
     marcarTodasLeidas,
     eliminarSeleccionadas,
     eliminarTodasLeidas,
+    refetch,
     refetchLeidas,
     selectedIds,
     toggleSelection,

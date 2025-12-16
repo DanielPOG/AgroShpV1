@@ -34,7 +34,7 @@ export function UserMenu() {
             await signOut({
                 redirect: false,
             })
-            router.push("/login")
+            router.push("/catalogo")
             router.refresh()
         } catch (error) {
             console.error("Error al cerrar sesión:", error)

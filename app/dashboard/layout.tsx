@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth.server'
 import { Sidebar } from '@/components/sidebar'
 import { DashboardProviders } from '@/components/providers/dashboard-providers'
+import { SessionValidator } from '@/components/session-validator'
 
 /**
  * Layout del Dashboard - Server Component
@@ -27,6 +28,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardProviders>
+      <SessionValidator />
       <div className="flex h-screen overflow-hidden">
         {/* Sidebar con datos de la sesión */}
         <Sidebar

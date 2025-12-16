@@ -1,14 +1,70 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CatalogHeader } from "@/components/catalog/catalog-header"
 import { ProductCatalogCard } from "@/components/catalog/product-catalog-card"
 import { CategoryFilter } from "@/components/catalog/category-filter"
 import { InquiryModal } from "@/components/catalog/inquiry-modal"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { mockProducts, productiveUnits, type Product } from "@/lib/mock-data"
-import { Search, Leaf, TrendingUp, Award, Clock } from "lucide-react"
+import { Search, Leaf, TrendingUp, Award, Clock, Loader2 } from "lucide-react"
+
+interface ProductoCatalogo {
+  id: string
+  nombre: string
+  descripcion: string
+  codigo: string
+  categoria: string
+  categoriaId: number | null
+  categoriaIcono: string | null
+  categoriaColor: string | null
+  unidadProductiva: string
+  unidadProductivaId: number | null
+  unidadProductivaDescripcion: string | null
+  unidadProductivaTipo: string | null
+  tipoMedida: string
+  unidad: string
+  precio: number
+  precioMayorista: number | null
+  stock: number
+  stockMinimo: number
+  imagen: string
+  esPerecedero: boolean
+  diasVencimiento: number | null
+  estado: "disponible" | "bajo-stock" | "agotado" | "proximo-vencer"
+  loteProximo: {
+    id: number
+    numeroLote: string
+    fechaVencimiento: string | null
+    cantidadDisponible: number
+  } | null
+}
+
+interface UnidadProductiva {
+  id: string
+  codigo: string
+  nombre: string
+  descripcion: string
+  tipo: string | null
+  ubicacion: string | null
+  icono: string
+  totalProductos: number
+}
+
+interface Categoria {
+  id: string
+  nombre: string
+  descripcion: string | null
+  icono: string | null
+  color: string | null
+  totalProductos: number
+}
+
+interface Stats {
+  totalProductos: number
+  totalCategorias: number
+  totalUnidades: number
+}
 
 interface HomeClientPageProps {
   storeName: string
@@ -19,22 +75,75 @@ interface HomeClientPageProps {
 }
 
 export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }: HomeClientPageProps) {
+  const [productos, setProductos] = useState<ProductoCatalogo[]>([])
+  const [unidades, setUnidades] = useState<UnidadProductiva[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [stats, setStats] = useState<Stats>({ totalProductos: 0, totalCategorias: 0, totalUnidades: 0 })
+  const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState("Todas")
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<ProductoCatalogo | null>(null)
   const [isInquiryOpen, setIsInquiryOpen] = useState(false)
 
-  const categories = Array.from(new Set(mockProducts.map((p) => p.category)))
+  // Cargar datos del catálogo
+  useEffect(() => {
+    async function loadCatalogData() {
+      try {
+        setLoading(true)
 
-  const filteredProducts = mockProducts.filter((product) => {
-    const matchesCategory = selectedCategory === "Todas" || product.category === selectedCategory
+        const [productosRes, unidadesRes, categoriasRes, statsRes] = await Promise.all([
+          fetch("/api/catalogo/productos"),
+          fetch("/api/catalogo/unidades"),
+          fetch("/api/catalogo/categorias"),
+          fetch("/api/catalogo/stats"),
+        ])
+
+        const [productosData, unidadesData, categoriasData, statsData] = await Promise.all([
+          productosRes.json(),
+          unidadesRes.json(),
+          categoriasRes.json(),
+          statsRes.json(),
+        ])
+
+        if (productosData.success) {
+          setProductos(productosData.data)
+        }
+
+        if (unidadesData.success) {
+          setUnidades(unidadesData.data)
+        }
+
+        if (categoriasData.success) {
+          setCategorias(categoriasData.data)
+        }
+
+        if (statsData.success) {
+          setStats(statsData.data)
+        }
+      } catch (error) {
+        console.error("Error al cargar datos del catálogo:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCatalogData()
+  }, [])
+
+  // Obtener nombres únicos de categorías
+  const categoryNames = ["Todas", ...categorias.map((c) => c.nombre)]
+
+  // Filtrar productos
+  const filteredProducts = productos.filter((product) => {
+    const matchesCategory = selectedCategory === "Todas" || product.categoria === selectedCategory
     const matchesSearch =
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase())
+      product.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.categoria.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.descripcion.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesCategory && matchesSearch
   })
 
-  const handleInquire = (product: Product) => {
+  const handleInquire = (product: ProductoCatalogo) => {
     setSelectedProduct(product)
     setIsInquiryOpen(true)
   }
@@ -67,24 +176,32 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
             </p>
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-4 sm:pt-6 max-w-2xl mx-auto px-3">
-              {[
-                { icon: Award, value: "100+", label: "Productos", delay: "0s" },
-                { icon: TrendingUp, value: "8", label: "Unidades", delay: "0.1s" },
-                { icon: Clock, value: "24/7", label: "Disponible", delay: "0.2s" },
-              ].map((stat, index) => {
-                const Icon = stat.icon
-                return (
-                  <div
-                    key={index}
-                    className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border border-primary/20 hover:bg-white hover:scale-105 transition-all duration-300 animate-slide-up shadow-lg"
-                    style={{ animationDelay: stat.delay }}
-                  >
-                    <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-primary mx-auto mb-1 sm:mb-2" />
-                    <div className="text-lg sm:text-2xl font-bold text-primary">{stat.value}</div>
-                    <div className="text-[10px] sm:text-xs text-muted-foreground">{stat.label}</div>
-                  </div>
-                )
-              })}
+              {loading ? (
+                <div className="col-span-3 flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {[
+                    { icon: Award, value: stats.totalProductos.toString(), label: "Productos", delay: "0s" },
+                    { icon: TrendingUp, value: stats.totalUnidades.toString(), label: "Unidades", delay: "0.1s" },
+                    { icon: Clock, value: "24/7", label: "Disponible", delay: "0.2s" },
+                  ].map((stat, index) => {
+                    const Icon = stat.icon
+                    return (
+                      <div
+                        key={index}
+                        className="p-2 sm:p-4 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border border-primary/20 hover:bg-white hover:scale-105 transition-all duration-300 animate-slide-up shadow-lg"
+                        style={{ animationDelay: stat.delay }}
+                      >
+                        <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-primary mx-auto mb-1 sm:mb-2" />
+                        <div className="text-lg sm:text-2xl font-bold text-primary">{stat.value}</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">{stat.label}</div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -102,10 +219,11 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 sm:pl-10 h-10 sm:h-12 text-sm sm:text-base md:text-lg focus:ring-2 focus:ring-primary transition-all"
+                  disabled={loading}
                 />
               </div>
               <CategoryFilter
-                categories={categories}
+                categories={categoryNames}
                 activeCategory={selectedCategory}
                 onSelectCategory={setSelectedCategory}
               />
@@ -123,7 +241,14 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
               </p>
             </div>
 
-            {filteredProducts.length > 0 ? (
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <div className="text-center space-y-4">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+                  <p className="text-sm text-muted-foreground">Cargando productos...</p>
+                </div>
+              </div>
+            ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
                 {filteredProducts.map((product, index) => (
                   <div key={product.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
@@ -142,28 +267,32 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
             )}
           </div>
 
-          <section className="animate-slide-up">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-6 px-1">
-              Nuestras Unidades Productivas
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
-              {productiveUnits.map((unit, index) => (
-                <Card
-                  key={unit.id}
-                  className="hover:shadow-xl transition-all duration-300 cursor-pointer group hover:scale-105 animate-slide-up border-2 hover:border-primary/50"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <CardContent className="p-3 sm:p-4 md:p-6 text-center space-y-1 sm:space-y-2">
-                    <div className="text-3xl sm:text-4xl md:text-5xl mb-1 sm:mb-2 group-hover:scale-110 transition-transform duration-300">
-                      {unit.icon}
-                    </div>
-                    <h3 className="font-semibold text-foreground text-xs sm:text-sm md:text-base">{unit.name}</h3>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">{unit.description}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
+          {/* Unidades Productivas */}
+          {!loading && unidades.length > 0 && (
+            <section className="animate-slide-up">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-6 px-1">
+                Nuestras Unidades Productivas
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+                {unidades.map((unit, index) => (
+                  <Card
+                    key={unit.id}
+                    className="hover:shadow-xl transition-all duration-300 cursor-pointer group hover:scale-105 animate-slide-up border-2 hover:border-primary/50"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <CardContent className="p-3 sm:p-4 md:p-6 text-center space-y-1 sm:space-y-2">
+                      <div className="text-3xl sm:text-4xl md:text-5xl mb-1 sm:mb-2 group-hover:scale-110 transition-transform duration-300">
+                        {unit.icono}
+                      </div>
+                      <h3 className="font-semibold text-foreground text-xs sm:text-sm md:text-base">{unit.nombre}</h3>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">{unit.descripcion}</p>
+                      <p className="text-[10px] text-primary font-medium">{unit.totalProductos} productos</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
@@ -209,7 +338,15 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
         </div>
       </footer>
 
-      <InquiryModal product={selectedProduct} open={isInquiryOpen} onClose={() => setIsInquiryOpen(false)} />
+      <InquiryModal 
+        product={selectedProduct} 
+        open={isInquiryOpen} 
+        onClose={() => setIsInquiryOpen(false)}
+        storeName={storeName}
+        telefono={telefono}
+        email={email}
+        direccion={direccion}
+      />
     </div>
   )
 }

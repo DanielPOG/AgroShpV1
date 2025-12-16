@@ -18,43 +18,57 @@ export async function proxy(request: NextRequest) {
 
     // Rutas completamente públicas que no necesitan middleware
     const isPublicPage = pathname === '/' || pathname.startsWith('/catalogo')
-    const isPublicAsset = pathname.startsWith('/_next') || pathname.startsWith('/favicon')
+    const isPublicAsset = pathname.startsWith('/_next') || 
+                          pathname.startsWith('/favicon') ||
+                          pathname.includes('.')
+    const isAuthPage = pathname.startsWith('/login')
+    const isDashboard = pathname.startsWith('/dashboard')
+    const isApiRoute = pathname.startsWith('/api')
+    const isAuthApi = pathname.startsWith('/api/auth')
+    const isPublicApi = pathname.startsWith('/api/public') || 
+                        pathname.startsWith('/api/config/public')
+    const isCronRoute = pathname === '/api/lotes/check-vencimientos'
     
-    // Si es página pública, dejar pasar sin procesar token
-    if (isPublicPage || isPublicAsset) {
+    // Si es página pública o asset, dejar pasar sin procesar
+    if (isPublicPage || isPublicAsset || isAuthApi) {
+        return NextResponse.next()
+    }
+
+    // Permitir rutas públicas de API sin autenticación
+    if (isPublicApi || isCronRoute) {
         return NextResponse.next()
     }
 
     // Obtener token de sesión solo para rutas protegidas
-    const token = await getToken({
-        req: request,
-        secret: process.env.NEXTAUTH_SECRET
-    })
-
-    const isAuthPage = pathname.startsWith('/login')
-    const isDashboard = pathname.startsWith('/dashboard')
-    const isApiRoute = pathname.startsWith('/api')
-    const isPublicApi = pathname.startsWith('/api/public') || pathname.startsWith('/api/config/public')
-    const isCronRoute = pathname === '/api/lotes/check-vencimientos'
-
-    // Permitir rutas públicas de API sin autenticación
-    if (isPublicApi) {
-        return NextResponse.next()
-    }
-
-    // Permitir Vercel Cron para verificación de lotes vencidos
-    if (isCronRoute) {
-        return NextResponse.next()
-    }
-
-    // Proteger rutas de API (excepto auth y cron)
-    if (isApiRoute && !pathname.startsWith('/api/auth')) {
-        if (!token) {
+    let token = null
+    try {
+        token = await getToken({
+            req: request,
+            secret: process.env.NEXTAUTH_SECRET
+        })
+    } catch (error) {
+        console.error('Error al obtener token:', error)
+        // Si hay error obteniendo token, redirigir a login
+        if (isDashboard) {
+            return NextResponse.redirect(new URL('/login', request.url))
+        }
+        if (isApiRoute) {
             return NextResponse.json(
-                { error: 'No autorizado' },
+                { error: 'Sesión inválida o expirada' },
                 { status: 401 }
             )
         }
+    }
+
+    // Proteger rutas de API
+    if (isApiRoute) {
+        if (!token) {
+            return NextResponse.json(
+                { error: 'No autorizado - Se requiere iniciar sesión' },
+                { status: 401 }
+            )
+        }
+        return NextResponse.next()
     }
 
     // Redirigir a login si intenta acceder al dashboard sin autenticación
@@ -66,7 +80,16 @@ export async function proxy(request: NextRequest) {
 
     // Redirigir a dashboard si ya está autenticado e intenta ir a login
     if (isAuthPage && token) {
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        const callbackUrl = request.nextUrl.searchParams.get('callbackUrl')
+        const redirectUrl = callbackUrl && callbackUrl.startsWith('/dashboard') 
+            ? callbackUrl 
+            : '/dashboard'
+        return NextResponse.redirect(new URL(redirectUrl, request.url))
+    }
+
+    // Si está en login sin token, permitir acceso
+    if (isAuthPage) {
+        return NextResponse.next()
     }
 
     return NextResponse.next()

@@ -8,13 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { ArrowRight, CheckCircle2, Package, Loader2, AlertCircle, X } from "lucide-react"
+import { ArrowRight, CheckCircle2, Package, Loader2, AlertCircle } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
+import { Textarea } from "@/components/ui/textarea"
 
 interface MovementWizardProps {
   open: boolean
@@ -56,6 +54,7 @@ interface ProductoSeleccionado {
   lote: Lote
   cantidad: number
 }
+
 
 export function MovementWizard({ open, onClose, onComplete }: MovementWizardProps) {
   const { toast } = useToast()
@@ -120,8 +119,6 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
 
   const cargarProductosDeUnidad = async (unidadId: number) => {
     setLoadingProductos(true)
-    setProductoIdSeleccionado(null)
-    setLoteIdSeleccionado(null)
     try {
       const response = await fetch(`/api/unidades-productivas/${unidadId}/productos`)
       if (!response.ok) throw new Error('Error al cargar productos')
@@ -281,11 +278,11 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
 
   return (
     <Dialog open={open} onOpenChange={handleCerrar}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl lg:text-2xl">Nuevo Movimiento</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Transfiere productos entre unidades productivas con control de lotes
+            Transfiere productos entre unidades productivas
           </DialogDescription>
         </DialogHeader>
 
@@ -350,7 +347,7 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
                     <SelectContent>
                       {unidades.map((unidad) => (
                         <SelectItem key={unidad.id} value={unidad.id.toString()} className="text-xs sm:text-sm">
-                          {unidad.nombre} {unidad.codigo && `(${unidad.codigo})`}
+                          {unidad.nombre}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -382,7 +379,7 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
                         .filter((u) => u.id !== unidadOrigenId)
                         .map((unidad) => (
                           <SelectItem key={unidad.id} value={unidad.id.toString()} className="text-xs sm:text-sm">
-                            {unidad.nombre} {unidad.codigo && `(${unidad.codigo})`}
+                            {unidad.nombre}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -414,7 +411,11 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
               <div>
                 <p className="text-[10px] sm:text-sm text-muted-foreground">Movimiento</p>
                 <p className="font-semibold text-xs sm:text-base">
-                  {unidadOrigen?.nombre} → {unidadDestino?.nombre}
+                  {productiveUnits.find((u) => u.id === fromUnit)?.icon}{" "}
+                  <span className="hidden xs:inline">{productiveUnits.find((u) => u.id === fromUnit)?.name}</span>
+                  {" → "}
+                  {productiveUnits.find((u) => u.id === toUnit)?.icon}{" "}
+                  <span className="hidden xs:inline">{productiveUnits.find((u) => u.id === toUnit)?.name}</span>
                 </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="text-xs">
@@ -422,169 +423,90 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
               </Button>
             </div>
 
-            {loadingProductos ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : productosDisponibles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
-                <AlertCircle className="h-12 w-12" />
-                <p className="text-sm">No hay productos disponibles en esta unidad</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3 sm:space-y-4">
-                  <Label className="text-xs sm:text-sm font-semibold">Agregar Productos</Label>
-                  
-                  {/* Selector de Producto */}
-                  <div className="space-y-2">
-                    <Label htmlFor="producto" className="text-xs">Producto</Label>
-                    <Select 
-                      value={productoIdSeleccionado?.toString() || ''} 
-                      onValueChange={(val) => {
-                        setProductoIdSeleccionado(parseInt(val))
-                        setLoteIdSeleccionado(null)
-                        setCantidadInput("")
-                      }}
-                    >
-                      <SelectTrigger id="producto" className="text-xs sm:text-sm">
-                        <SelectValue placeholder="Selecciona un producto" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productosDisponibles.map((producto) => (
-                          <SelectItem key={producto.id} value={producto.id.toString()} className="text-xs sm:text-sm">
-                            {producto.nombre} - {producto.lotes.length} lote(s) disponible(s)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Selector de Lote */}
-                  {productoSeleccionado && (
-                    <div className="space-y-2">
-                      <Label htmlFor="lote" className="text-xs">Lote</Label>
-                      <Select 
-                        value={loteIdSeleccionado?.toString() || ''} 
-                        onValueChange={(val) => setLoteIdSeleccionado(parseInt(val))}
-                      >
-                        <SelectTrigger id="lote" className="text-xs sm:text-sm">
-                          <SelectValue placeholder="Selecciona un lote" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {productoSeleccionado.lotes.map((lote) => (
-                            <SelectItem key={lote.id} value={lote.id.toString()} className="text-xs sm:text-sm">
-                              {lote.codigo_lote} - Disponible: {lote.cantidad} {productoSeleccionado.unidad}
-                              {lote.fecha_vencimiento && ` - Vence: ${format(new Date(lote.fecha_vencimiento), 'dd/MM/yyyy', { locale: es })}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Input de Cantidad */}
-                  {loteSeleccionado && (
-                    <div className="flex gap-2">
-                      <div className="flex-1 space-y-2">
-                        <Label htmlFor="cantidad" className="text-xs">
-                          Cantidad (máx: {loteSeleccionado.cantidad} {productoSeleccionado?.unidad})
-                        </Label>
-                        <Input
-                          id="cantidad"
-                          type="number"
-                          placeholder="Cantidad"
-                          value={cantidadInput}
-                          onChange={(e) => setCantidadInput(e.target.value)}
-                          className="text-xs sm:text-sm"
-                          min="0.01"
-                          step="0.01"
-                          max={loteSeleccionado.cantidad}
-                        />
-                      </div>
-                      <Button
-                        onClick={handleAgregarProducto}
-                        disabled={!loteIdSeleccionado || !cantidadInput}
-                        className="mt-6"
-                      >
-                        Agregar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Lista de Productos Seleccionados */}
-                {productosSeleccionados.length > 0 && (
-                  <div className="space-y-2 sm:space-y-3">
-                    <Label className="text-xs sm:text-sm font-semibold">
-                      Productos Seleccionados ({productosSeleccionados.length})
-                    </Label>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {productosSeleccionados.map((item) => (
-                        <Card key={item.lote.id}>
-                          <CardContent className="p-3 sm:p-4">
-                            <div className="flex items-start gap-3">
-                              <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-muted shrink-0">
-                                {item.producto.imagen_url ? (
-                                  <Image
-                                    src={item.producto.imagen_url}
-                                    alt={item.producto.nombre}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                ) : (
-                                  <div className="h-full w-full flex items-center justify-center">
-                                    <Package className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-xs sm:text-sm truncate">{item.producto.nombre}</p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                  Lote: {item.lote.codigo_lote}
-                                </p>
-                                <div className="flex gap-2 mt-1">
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    {item.cantidad} {item.producto.unidad}
-                                  </Badge>
-                                  {item.lote.fecha_vencimiento && (
-                                    <Badge variant="outline" className="text-[10px]">
-                                      Vence: {format(new Date(item.lote.fecha_vencimiento), 'dd/MM/yy')}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEliminarProducto(item.lote.id)}
-                                className="shrink-0 h-8 w-8 p-0"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1 text-xs sm:text-sm">
-                    Atrás
-                  </Button>
-                  <Button 
-                    onClick={() => setStep(3)} 
-                    className="flex-1 text-xs sm:text-sm" 
-                    disabled={!puedeAvanzarPaso2}
+            <div className="space-y-3 sm:space-y-4">
+              <Label className="text-xs sm:text-sm">Agregar Productos</Label>
+              <div className="flex flex-col xs:flex-row gap-2">
+                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                  <SelectTrigger className="flex-1 text-xs sm:text-sm">
+                    <SelectValue placeholder="Producto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProducts.map((product) => (
+                      <SelectItem key={product.id} value={product.id} className="text-xs sm:text-sm">
+                        {product.name} ({product.stock} {product.unit})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Cantidad"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    className="w-20 xs:w-28 text-xs sm:text-sm"
+                    min="1"
+                    max={availableProducts.find((p) => p.id === selectedProductId)?.stock || 0}
+                  />
+                  <Button
+                    onClick={handleAddProduct}
+                    disabled={!selectedProductId || !quantity}
+                    size="sm"
+                    className="text-xs"
                   >
-                    Continuar
-                    <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
+                    +
                   </Button>
                 </div>
-              </>
+              </div>
+            </div>
+
+            {selectedProducts.length > 0 && (
+              <div className="space-y-2 sm:space-y-3">
+                <Label className="text-xs sm:text-sm">Seleccionados ({selectedProducts.length})</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {selectedProducts.map((item) => (
+                    <Card key={item.product.id}>
+                      <CardContent className="p-2 sm:p-4">
+                        <div className="flex items-center gap-2 sm:gap-4">
+                          <div className="relative h-10 w-10 sm:h-14 sm:w-14 rounded-lg overflow-hidden bg-muted shrink-0">
+                            <Image
+                              src={item.product.image || "/placeholder.svg"}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>
+                            <p className="text-[10px] sm:text-sm text-muted-foreground">
+                              {item.quantity} {item.product.unit}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveProduct(item.product.id)}
+                            className="text-xs shrink-0"
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(1)} className="flex-1 text-xs sm:text-sm">
+                Atrás
+              </Button>
+              <Button onClick={() => setStep(3)} className="flex-1 text-xs sm:text-sm" disabled={!canProceedStep2}>
+                Continuar
+                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
+              </Button>
+            </div>
           </div>
         )}
 
@@ -596,75 +518,49 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
                 <Package className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               </div>
               <h3 className="text-base sm:text-xl font-semibold">Confirmar Movimiento</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">Revisa los detalles antes de confirmar</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Revisa los detalles</p>
             </div>
 
             <Card>
-              <CardContent className="p-4 sm:p-6 space-y-4">
+              <CardContent className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="space-y-1 flex-1">
+                  <div className="space-y-1 flex-1 min-w-0">
                     <p className="text-[10px] sm:text-sm text-muted-foreground">Origen</p>
-                    <p className="font-semibold text-sm sm:text-base">{unidadOrigen?.nombre}</p>
+                    <p className="font-semibold text-xs sm:text-base truncate">
+                      {productiveUnits.find((u) => u.id === fromUnit)?.icon}{" "}
+                      <span className="hidden xs:inline">{productiveUnits.find((u) => u.id === fromUnit)?.name}</span>
+                    </p>
                   </div>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="space-y-1 text-right flex-1">
+                  <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
+                  <div className="space-y-1 text-right flex-1 min-w-0">
                     <p className="text-[10px] sm:text-sm text-muted-foreground">Destino</p>
-                    <p className="font-semibold text-sm sm:text-base">{unidadDestino?.nombre}</p>
+                    <p className="font-semibold text-xs sm:text-base truncate">
+                      {productiveUnits.find((u) => u.id === toUnit)?.icon}{" "}
+                      <span className="hidden xs:inline">{productiveUnits.find((u) => u.id === toUnit)?.name}</span>
+                    </p>
                   </div>
                 </div>
 
                 <Separator />
 
                 <div className="space-y-2">
-                  <Label className="text-xs">Motivo (opcional)</Label>
-                  <Input
-                    placeholder="Ej: Reposición de stock"
-                    value={motivo}
-                    onChange={(e) => setMotivo(e.target.value)}
-                    className="text-xs sm:text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Observaciones (opcional)</Label>
-                  <Textarea
-                    placeholder="Notas adicionales sobre este movimiento..."
-                    value={observaciones}
-                    onChange={(e) => setObservaciones(e.target.value)}
-                    className="text-xs sm:text-sm"
-                    rows={3}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <p className="text-xs sm:text-sm font-medium">Productos a Transferir</p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {productosSeleccionados.map((item) => (
-                      <div key={item.lote.id} className="flex items-center justify-between py-2 gap-3">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="relative h-10 w-10 rounded overflow-hidden bg-muted shrink-0">
-                            {item.producto.imagen_url ? (
-                              <Image
-                                src={item.producto.imagen_url}
-                                alt={item.producto.nombre}
-                                fill
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center">
-                                <Package className="h-5 w-5 text-muted-foreground" />
-                              </div>
-                            )}
+                  <p className="text-xs sm:text-sm font-medium">Productos a Mover</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {selectedProducts.map((item) => (
+                      <div key={item.product.id} className="flex items-center justify-between py-1.5 sm:py-2 gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded overflow-hidden bg-muted shrink-0">
+                            <Image
+                              src={item.product.image || "/placeholder.svg"}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover"
+                            />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs sm:text-sm truncate font-medium">{item.producto.nombre}</p>
-                            <p className="text-[10px] text-muted-foreground">Lote: {item.lote.codigo_lote}</p>
-                          </div>
+                          <p className="text-xs sm:text-sm truncate">{item.product.name}</p>
                         </div>
                         <Badge variant="secondary" className="text-[10px] sm:text-xs shrink-0">
-                          {item.cantidad} {item.producto.unidad}
+                          {item.quantity} {item.product.unit}
                         </Badge>
                       </div>
                     ))}
@@ -677,22 +573,9 @@ export function MovementWizard({ open, onClose, onComplete }: MovementWizardProp
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1 text-xs sm:text-sm">
                 Atrás
               </Button>
-              <Button 
-                onClick={handleSubmit} 
-                className="flex-1 text-xs sm:text-sm" 
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Confirmar Movimiento
-                  </>
-                )}
+              <Button onClick={handleComplete} className="flex-1 text-xs sm:text-sm">
+                <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                Confirmar
               </Button>
             </div>
           </div>

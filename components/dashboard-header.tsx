@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Bell, ShoppingCart, Package, TrendingDown, AlertTriangle, History, Trash2, CheckSquare, Square } from "lucide-react"
+import { Bell, ShoppingCart, Package, TrendingDown, AlertTriangle, History, Trash2, CheckSquare, Square, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -88,6 +88,53 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteAction, setDeleteAction] = useState<"selected" | "all" | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCleaning, setIsCleaning] = useState(false)
+
+  // Limpiar notificaciones duplicadas
+  const handleLimpiarDuplicados = async () => {
+    setIsCleaning(true)
+    try {
+      const response = await fetch('/api/notificaciones/limpiar-duplicados', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      const data = await response.json()
+      console.log('📥 Respuesta de limpieza:', response.status, data)
+      
+      if (response.ok) {
+        toast({
+          title: "✅ Limpieza completada",
+          description: data.eliminadas > 0 
+            ? `${data.eliminadas} notificación(es) duplicada(s) eliminada(s)`
+            : "No se encontraron notificaciones duplicadas",
+        })
+        // Refrescar listas solo si hubo eliminaciones
+        if (data.eliminadas > 0) {
+          refetch()
+          refetchLeidas()
+        }
+      } else {
+        console.error('❌ Error al limpiar:', data)
+        toast({
+          title: "Error",
+          description: data.error || "No se pudo completar la limpieza",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error en fetch:', error)
+      toast({
+        title: "Error",
+        description: "No se pudieron limpiar las notificaciones duplicadas",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCleaning(false)
+    }
+  }
 
   // Cargar notificaciones leídas cuando se cambia a la pestaña
   const handleTabChange = (value: string) => {
@@ -230,16 +277,29 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
                   {noLeidas > 0 ? `${noLeidas} sin leer` : "Todo al día"}
                 </p>
               </div>
-              {noLeidas > 0 && activeTab === "no-leidas" && (
+              <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-xs"
-                  onClick={marcarTodasLeidas}
+                  onClick={handleLimpiarDuplicados}
+                  disabled={isCleaning}
+                  title="Limpiar notificaciones duplicadas"
                 >
-                  Marcar todas
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {isCleaning ? "Limpiando..." : "Limpiar"}
                 </Button>
-              )}
+                {noLeidas > 0 && activeTab === "no-leidas" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={marcarTodasLeidas}
+                  >
+                    Marcar todas
+                  </Button>
+                )}
+              </div>
             </div>
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">

@@ -16,7 +16,16 @@ import { getToken } from 'next-auth/jwt'
 export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
-    // Obtener token de sesión
+    // Rutas completamente públicas que no necesitan middleware
+    const isPublicPage = pathname === '/' || pathname.startsWith('/catalogo')
+    const isPublicAsset = pathname.startsWith('/_next') || pathname.startsWith('/favicon')
+    
+    // Si es página pública, dejar pasar sin procesar token
+    if (isPublicPage || isPublicAsset) {
+        return NextResponse.next()
+    }
+
+    // Obtener token de sesión solo para rutas protegidas
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET
@@ -25,7 +34,7 @@ export async function proxy(request: NextRequest) {
     const isAuthPage = pathname.startsWith('/login')
     const isDashboard = pathname.startsWith('/dashboard')
     const isApiRoute = pathname.startsWith('/api')
-    const isPublicApi = pathname.startsWith('/api/public')
+    const isPublicApi = pathname.startsWith('/api/public') || pathname.startsWith('/api/config/public')
     const isCronRoute = pathname === '/api/lotes/check-vencimientos'
 
     // Permitir rutas públicas de API sin autenticación
@@ -70,12 +79,21 @@ export async function proxy(request: NextRequest) {
 export const config = {
     matcher: [
         /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder
+         * Solo ejecutar middleware en:
+         * - /dashboard/* (rutas protegidas)
+         * - /api/* (APIs protegidas, excepto públicas que se manejan dentro)
+         * - /login (página de autenticación)
+         * 
+         * NO ejecutar en:
+         * - / (catálogo público)
+         * - /catalogo (catálogo público)
+         * - _next/static (archivos estáticos)
+         * - _next/image (optimización de imágenes)
+         * - favicon.ico
+         * - archivos públicos (imágenes, etc.)
          */
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/dashboard/:path*',
+        '/api/:path*',
+        '/login',
     ],
 }

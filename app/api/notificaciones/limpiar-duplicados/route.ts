@@ -24,7 +24,7 @@ export async function POST() {
       )
     }
 
-    // Buscar el usuario y verificar que sea admin
+    // Buscar el usuario y verificar permisos
     const usuario = await prisma.usuarios.findUnique({
       where: { email: session.user.email! },
       include: {
@@ -34,7 +34,14 @@ export async function POST() {
       }
     })
 
-    if (!usuario || usuario.rol?.nombre.toLowerCase() !== 'admin') {
+    console.log('👤 Usuario:', session.user.email, 'Rol:', usuario?.rol?.nombre)
+
+    // Verificar si tiene permiso "all" o es admin
+    const tienePermiso = usuario?.rol?.nombre.toLowerCase() === 'admin' || 
+                        usuario?.rol?.nombre.toLowerCase() === 'administrador'
+
+    if (!usuario || !tienePermiso) {
+      console.log('❌ Acceso denegado - Usuario sin permisos de admin')
       return NextResponse.json(
         { error: 'Solo administradores pueden ejecutar esta acción' },
         { status: 403 }
@@ -67,20 +74,38 @@ export async function POST() {
 
     let eliminadas = 0
 
-    // Para cada grupo, mantener solo la más reciente
+    // Para cada grupo con duplicados
     for (const [key, grupo] of grupos.entries()) {
       if (grupo.length > 1) {
-        // Mantener la primera (más reciente) y eliminar las demás
-        const idsAEliminar = grupo.slice(1).map(n => n.id)
+        // Prioridad: mantener la más reciente NO LEÍDA, sino la más reciente
+        const noLeidas = grupo.filter(n => !n.leida)
         
-        await prisma.notificaciones.deleteMany({
-          where: {
-            id: { in: idsAEliminar }
+        if (noLeidas.length > 0) {
+          // Hay no leídas: mantener la más reciente no leída
+          const mantener = noLeidas[0]
+          const eliminar = grupo.filter(n => n.id !== mantener.id)
+          const idsAEliminar = eliminar.map(n => n.id)
+          
+          if (idsAEliminar.length > 0) {
+            await prisma.notificaciones.deleteMany({
+              where: { id: { in: idsAEliminar } }
+            })
+            
+            eliminadas += idsAEliminar.length
+            console.log(`🗑️ ${key}: ${idsAEliminar.length} duplicadas eliminadas (mantenida la más reciente NO LEÍDA)`)
           }
-        })
-
-        eliminadas += idsAEliminar.length
-        console.log(`🗑️ Grupo ${key}: Eliminadas ${idsAEliminar.length} duplicadas, mantenida la más reciente`)
+        } else {
+          // Todas están leídas: mantener solo la más reciente
+          const mantener = grupo[0]
+          const idsAEliminar = grupo.slice(1).map(n => n.id)
+          
+          await prisma.notificaciones.deleteMany({
+            where: { id: { in: idsAEliminar } }
+          })
+          
+          eliminadas += idsAEliminar.length
+          console.log(`🗑️ ${key}: ${idsAEliminar.length} duplicadas eliminadas (todas leídas, mantenida la más reciente)`)
+        }
       }
     }
 

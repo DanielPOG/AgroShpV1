@@ -2,7 +2,13 @@ import { Leaf, MapPin, Clock, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
-export function CatalogHeader() {
+interface CatalogHeaderProps {
+  storeName: string
+  ciudad?: string
+  telefono?: string
+}
+
+export function CatalogHeader({ storeName, ciudad, telefono }: CatalogHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
@@ -12,16 +18,16 @@ export function CatalogHeader() {
               <Leaf className="h-5 w-5 sm:h-7 sm:w-7 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-foreground">AgroShop</h1>
-              <p className="text-[10px] sm:text-xs text-muted-foreground hidden xs:block">SENA Centro Agropecuario</p>
+              <h1 className="text-lg sm:text-2xl font-bold text-foreground">{storeName}</h1>
+              <p className="text-[10px] sm:text-xs text-muted-foreground hidden xs:block">{ciudad || 'SENA Centro Agropecuario'}</p>
             </div>
           </Link>
 
           <div className="hidden lg:flex items-center gap-4 xl:gap-6 text-xs xl:text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
-              <span className="hidden xl:inline">Centro Agropecuario SENA</span>
-              <span className="xl:hidden">SENA</span>
+              <span className="hidden xl:inline">{ciudad || 'Centro Agropecuario'}</span>
+              <span className="xl:hidden">{ciudad?.split(' ')[0] || 'SENA'}</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
@@ -30,7 +36,7 @@ export function CatalogHeader() {
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Phone className="h-3.5 w-3.5 xl:h-4 xl:w-4" />
-              <span>+57 300 123 4567</span>
+              <span>{telefono || '+57 300 123 4567'}</span>
             </div>
           </div>
 

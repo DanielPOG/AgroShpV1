@@ -13,6 +13,8 @@ import { InvoiceModal } from "./invoice-modal"
 import { useSalesMutations, usePaymentMethods } from "@/hooks/use-sales"
 import { useToast } from "@/hooks/use-toast"
 import { useCashSession } from "@/hooks/use-cash-session"
+import { cajaEvents } from "@/lib/events"
+import { useConfig } from "@/hooks/use-config"
 
 interface CartItem {
   id: number
@@ -62,9 +64,11 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
     mensaje: string
   } | null>(null)
 
+  const { config } = useConfig()
+  
   // Calcular totales (DEBE estar antes de los useEffect que lo usan)
   const subtotal = items.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
-  const tax = subtotal * 0.19
+  const tax = subtotal * (config.iva_porcentaje / 100)
   const total = subtotal + tax
 
   // Obtener método seleccionado (DEBE estar antes de los useEffect que lo usan)
@@ -338,6 +342,10 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
         await onSaleComplete()
       }
 
+      // Emitir evento para actualizar sesión en todos los componentes
+      console.log('🔔 Emitiendo evento session-updated después de completar venta')
+      cajaEvents.emit('session-updated')
+
       // El toast ya lo muestra el hook useSalesMutations, pero agregamos mensaje específico
       toast({
         title: "✅ Venta Completada",
@@ -383,7 +391,7 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
                 <span>${subtotal.toLocaleString("es-CO")}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">IVA (19%)</span>
+                <span className="text-muted-foreground">IVA ({config.iva_porcentaje}%)</span>
                 <span>${tax.toLocaleString("es-CO")}</span>
               </div>
               {/* ✨ NUEVO: Mostrar efectivo disponible */}

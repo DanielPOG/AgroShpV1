@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * Detectar productos con problemas de stock y crear alertas
@@ -84,16 +85,18 @@ export async function checkStockBajo(): Promise<{agotado: number, bajo: number, 
         mensaje = `El producto ${producto.nombre} tiene ${stockActual} ${producto.unidad || 'unidades'}. Stock mínimo: ${stockMinimo} ${producto.unidad || 'unidades'}`
       }
 
-      // Si hay alerta, verificar si ya existe una reciente (últimas 24h) - LEÍDA O NO
+      // Si hay alerta, verificar si ya existe una reciente (últimas 24 horas)
       if (tipoAlerta) {
-        const alertaReciente = await prisma.notificaciones.findFirst({
+        const hace24Horas = new Date()
+        hace24Horas.setHours(hace24Horas.getHours() - 24)
+
+        const alertaExistente = await prisma.notificaciones.findFirst({
           where: {
             tipo: tipoAlerta,
             referencia_id: producto.id,
             referencia_tipo: 'producto',
-            // ✅ CRÍTICO: Buscar CUALQUIER alerta (leída o no) en últimas 24h
             created_at: {
-              gte: hace24Horas
+              gte: hace24Horas // ✅ Buscar alertas creadas en las últimas 24 horas (leídas o no)
             }
           },
           orderBy: {
@@ -101,8 +104,8 @@ export async function checkStockBajo(): Promise<{agotado: number, bajo: number, 
           }
         })
 
-        // Solo crear si NO existe NINGUNA alerta reciente (últimas 24h)
-        if (!alertaReciente) {
+        if (!alertaExistente) {
+          // No existe alerta reciente → Crear nueva
           await prisma.notificaciones.create({
             data: {
               tipo: tipoAlerta,
@@ -121,9 +124,20 @@ export async function checkStockBajo(): Promise<{agotado: number, bajo: number, 
           if (tipoAlerta === 'stock_agotado') alertasAgotado++
           else if (tipoAlerta === 'stock_bajo') alertasBajo++
           else if (tipoAlerta === 'stock_exceso') alertasExceso++
+        } else if (!alertaExistente.leida) {
+          // Existe alerta reciente NO LEÍDA → Actualizar timestamp y mensaje
+          await prisma.notificaciones.update({
+            where: { id: alertaExistente.id },
+            data: {
+              mensaje, // Actualizar mensaje con stock actual
+              created_at: new Date() // Renovar timestamp
+            }
+          })
+          
+          console.log(`🔄 Alerta ${tipoAlerta} actualizada para: ${producto.nombre}`)
         } else {
-          const estadoAlerta = alertaReciente.leida ? 'LEÍDA' : 'NO LEÍDA'
-          console.log(`⏭️ Alerta ${tipoAlerta} reciente (${estadoAlerta}) existe para: ${producto.nombre} - No crear duplicado`)
+          // Existe alerta reciente pero ya fue LEÍDA → No hacer nada
+          console.log(`⏭️ Alerta ${tipoAlerta} ya fue leída recientemente para: ${producto.nombre}`)
         }
       }
     }
@@ -149,16 +163,19 @@ export async function checkStockBajo(): Promise<{agotado: number, bajo: number, 
  * - ALTA: 4-5 días
  * - NORMAL: 6-7 días
  * 
- * @param {number} diasAnticipacion - Días de anticipación para alertar (default: 7)
+ * @param {number} diasAnticipacion - Días de anticipación para alertar (si no se pasa, usa config)
  * @returns {Promise<number>} Cantidad de alertas creadas
  */
-export async function checkLotesProximosVencer(diasAnticipacion: number = 7): Promise<number> {
+export async function checkLotesProximosVencer(diasAnticipacion?: number): Promise<number> {
   try {
-    console.log('🔍 Verificando lotes próximos a vencer...')
+    // Usar configuración global si no se especifica
+    const diasAlerta = diasAnticipacion ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    
+    console.log(`🔍 Verificando lotes próximos a vencer (${diasAlerta} días)...`)
     
     const ahora = new Date()
     const fechaLimite = new Date()
-    fechaLimite.setDate(fechaLimite.getDate() + diasAnticipacion)
+    fechaLimite.setDate(fechaLimite.getDate() + Number(diasAlerta))
 
     // Buscar lotes disponibles que vencen dentro del período
     const lotesProximos = await prisma.lotes_productos.findMany({
@@ -182,21 +199,20 @@ export async function checkLotesProximosVencer(diasAnticipacion: number = 7): Pr
     console.log(`📦 Lotes próximos a vencer encontrados: ${lotesProximos.length}`)
 
     let alertasCreadas = 0
+    const hace24Horas = new Date()
+    hace24Horas.setHours(hace24Horas.getHours() - 24)
 
     for (const lote of lotesProximos) {
       if (!lote.fecha_vencimiento) continue
 
-      // Verificar si ya existe alerta reciente para este lote (últimas 24 horas)
-      const hace24Horas = new Date()
-      hace24Horas.setHours(hace24Horas.getHours() - 24)
-
-      const alertaReciente = await prisma.notificaciones.findFirst({
+      // Verificar si ya existe alerta reciente (últimas 24 horas)
+      const alertaExistente = await prisma.notificaciones.findFirst({
         where: {
           tipo: 'lote_vencimiento',
           referencia_id: lote.id,
           referencia_tipo: 'lote',
           created_at: {
-            gte: hace24Horas // Buscar alertas creadas en las últimas 24 horas
+            gte: hace24Horas // ✅ Buscar alertas creadas en las últimas 24 horas (leídas o no)
           }
         },
         orderBy: {
@@ -204,31 +220,31 @@ export async function checkLotesProximosVencer(diasAnticipacion: number = 7): Pr
         }
       })
 
-      // Solo crear nueva alerta si no existe una reciente (últimas 24 horas)
-      if (!alertaReciente) {
-        // Calcular días restantes
-        const diasRestantes = Math.ceil(
-          (new Date(lote.fecha_vencimiento).getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24)
-        )
+      // Calcular días restantes
+      const diasRestantes = Math.ceil(
+        (new Date(lote.fecha_vencimiento).getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24)
+      )
 
-        // Determinar prioridad según días restantes
-        let prioridad: string
-        let emoji: string
+      // Determinar prioridad según días restantes
+      let prioridad: string
+      let emoji: string
 
-        if (diasRestantes <= 3) {
-          prioridad = 'critica'
-          emoji = '🚨'
-        } else if (diasRestantes <= 5) {
-          prioridad = 'alta'
-          emoji = '⚠️'
-        } else {
-          prioridad = 'normal'
-          emoji = '📅'
-        }
+      if (diasRestantes <= 3) {
+        prioridad = 'critica'
+        emoji = '🚨'
+      } else if (diasRestantes <= 5) {
+        prioridad = 'alta'
+        emoji = '⚠️'
+      } else {
+        prioridad = 'normal'
+        emoji = '📅'
+      }
 
-        const titulo = `${emoji} Lote Próximo a Vencer: ${lote.codigo_lote}`
-        const mensaje = `El lote ${lote.codigo_lote} de ${lote.producto?.nombre} vence en ${diasRestantes} día${diasRestantes !== 1 ? 's' : ''} (${lote.cantidad} ${lote.producto?.unidad}). Fecha de vencimiento: ${new Date(lote.fecha_vencimiento).toLocaleDateString('es-ES')}`
+      const titulo = `${emoji} Lote Próximo a Vencer: ${lote.codigo_lote}`
+      const mensaje = `El lote ${lote.codigo_lote} de ${lote.producto?.nombre} vence en ${diasRestantes} día${diasRestantes !== 1 ? 's' : ''} (${lote.cantidad} ${lote.producto?.unidad}). Fecha de vencimiento: ${new Date(lote.fecha_vencimiento).toLocaleDateString('es-ES')}`
 
+      if (!alertaExistente) {
+        // No existe alerta reciente → Crear nueva
         await prisma.notificaciones.create({
           data: {
             tipo: 'lote_vencimiento',
@@ -244,10 +260,22 @@ export async function checkLotesProximosVencer(diasAnticipacion: number = 7): Pr
 
         console.log(`✅ Alerta lote_vencimiento creada para: ${lote.codigo_lote} (${diasRestantes} días)`)
         alertasCreadas++
+      } else if (!alertaExistente.leida) {
+        // Existe alerta reciente NO LEÍDA → Actualizar con información actualizada
+        await prisma.notificaciones.update({
+          where: { id: alertaExistente.id },
+          data: {
+            titulo,
+            mensaje,
+            prioridad, // Actualizar prioridad por si cambió (ej: pasó de 5 días a 3 días)
+            created_at: new Date() // Renovar timestamp
+          }
+        })
+        
+        console.log(`🔄 Alerta lote_vencimiento actualizada para: ${lote.codigo_lote} (${diasRestantes} días)`)
       } else {
-        const estadoAlerta = alertaReciente.leida ? 'LEÍDA' : 'NO LEÍDA'
-        const horasDesdeCreacion = Math.floor((ahora.getTime() - new Date(alertaReciente.created_at!).getTime()) / (1000 * 60 * 60))
-        console.log(`⏭️ Alerta lote_vencimiento reciente (${estadoAlerta}, hace ${horasDesdeCreacion}h) existe para: ${lote.codigo_lote} - No crear duplicado`)
+        // Existe alerta reciente pero ya fue LEÍDA → No hacer nada
+        console.log(`⏭️ Alerta lote_vencimiento ya fue leída recientemente para: ${lote.codigo_lote}`)
       }
     }
 

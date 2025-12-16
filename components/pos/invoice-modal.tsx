@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
 import { FileText, Printer, Download, CheckCircle2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useConfig } from "@/hooks/use-config"
 
 interface InvoiceModalProps {
   open: boolean
@@ -26,14 +27,13 @@ interface InvoiceModalProps {
     factura_generada: boolean
     factura_enviada_email: boolean
     email_destino?: string
-    cliente_nombre?: string  // ✨ NUEVO: Nombre del cliente
-    cliente_documento?: string  // ✨ NUEVO: NIT/Cédula del cliente
   }) => Promise<void> | void  // ✨ Puede retornar Promise para async
 }
 
 export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceModalProps) {
-  // ✨ NUEVO: Solo una opción a la vez - 'none', 'fisica', 'email'
-  const [invoiceType, setInvoiceType] = useState<'none' | 'fisica' | 'email'>('none')
+  const { config } = useConfig()
+  const [generateInvoice, setGenerateInvoice] = useState(true)
+  const [sendEmail, setSendEmail] = useState(false)
   const [email, setEmail] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerId, setCustomerId] = useState("")
@@ -53,31 +53,23 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     // Simulate processing
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    // ✨ Validar que haya seleccionado una opción
-    if (invoiceType === 'none') {
-      setProcessing(false)
-      return
+    if (generateInvoice) {
+      console.log("[v0] Generating invoice:", invoiceNumber)
     }
 
-    if (invoiceType === 'fisica') {
-      console.log("[v0] Generating physical invoice:", invoiceNumber)
-    }
-
-    if (invoiceType === 'email' && email) {
+    if (sendEmail && email) {
       console.log("[v0] Sending invoice to:", email)
     }
 
     setCompleted(true)
 
-    // Completar la venta CON factura
+    // Esperar a que se complete la venta antes de cerrar
     try {
       await onComplete({
-        requiere_factura: true,  // ✅ SÍ requiere factura
-        factura_generada: invoiceType === 'fisica',  // ✅ Solo si seleccionó factura física
-        factura_enviada_email: invoiceType === 'email' && !!email,  // ✅ Solo si seleccionó email
-        email_destino: invoiceType === 'email' && email ? email : undefined,
-        cliente_nombre: customerName || undefined,  // ✨ NUEVO: Incluir nombre del cliente
-        cliente_documento: customerId || undefined,  // ✨ NUEVO: Incluir NIT/Cédula
+        requiere_factura: generateInvoice || sendEmail, // Requiere factura si seleccionó alguna opción
+        factura_generada: generateInvoice, // Solo true si seleccionó "Generar Factura"
+        factura_enviada_email: sendEmail,
+        email_destino: sendEmail ? email : undefined,
       })
       
       setProcessing(false)
@@ -95,24 +87,29 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
   const handleSkip = async () => {
     setProcessing(true)
     
-    // Usuario no quiere factura
+    // Usuario no quiere factura - esperar a que se complete la venta
     try {
       await onComplete({
-        requiere_factura: false,  // ❌ NO requiere factura
-        factura_generada: false,  // ❌ NO generar factura
-        factura_enviada_email: false,  // ❌ NO enviar email
+        requiere_factura: false,
+        factura_generada: false,
+        factura_enviada_email: false,
       })
+      
+      // Esperar un momento para que se procese
+      await new Promise(resolve => setTimeout(resolve, 500))
       
       setProcessing(false)
       handleClose()
     } catch (error) {
       setProcessing(false)
+      // Si hay error, mantener el modal abierto
       console.error('Error al omitir facturación:', error)
     }
   }
 
   const handleClose = () => {
-    setInvoiceType('none')
+    setGenerateInvoice(true)
+    setSendEmail(false)
     setEmail("")
     setCustomerName("")
     setCustomerId("")
@@ -254,7 +251,8 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     
     // Totales
     yPos += 10
-    const subtotal = saleData.total / 1.19 // Calcular subtotal sin IVA
+    const ivaDivisor = 1 + (config.iva_porcentaje / 100)
+    const subtotal = saleData.total / ivaDivisor // Calcular subtotal sin IVA
     const iva = saleData.total - subtotal
     
     doc.setFontSize(10)
@@ -263,7 +261,7 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     doc.text(`$${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 185, yPos, { align: 'right' })
     
     yPos += 7
-    doc.text('IVA (19%):', 140, yPos)
+    doc.text(`IVA (${config.iva_porcentaje}%):`, 140, yPos)
     doc.text(`$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 185, yPos, { align: 'right' })
     
     yPos += 10
@@ -311,10 +309,11 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             </div>
             <h3 className="text-2xl font-bold text-foreground">Venta Finalizada</h3>
             <p className="text-muted-foreground">
-              {invoiceType === 'fisica' && "Factura física generada exitosamente"}
-              {invoiceType === 'email' && email && (
+              {generateInvoice && "Factura generada exitosamente"}
+              {sendEmail && email && (
                 <>
-                  Factura enviada a: {email}
+                  <br />
+                  Enviada a: {email}
                 </>
               )}
             </p>
@@ -357,124 +356,96 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
         <Separator />
 
         <div className="space-y-4">
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Selecciona UNA opción de facturación:</h4>
-            
-            {/* Opción 1: Factura Física */}
-            <div 
-              className={`flex items-start space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                invoiceType === 'fisica' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border bg-transparent hover:border-primary/50'
-              }`}
-              onClick={() => setInvoiceType(invoiceType === 'fisica' ? 'none' : 'fisica')}
-            >
-              <Checkbox
-                id="generate-invoice"
-                checked={invoiceType === 'fisica'}
-                onCheckedChange={(checked) => setInvoiceType(checked ? 'fisica' : 'none')}
-              />
-              <div className="flex-1">
-                <Label htmlFor="generate-invoice" className="text-base font-semibold cursor-pointer">
-                  📄 Generar Factura Física
-                </Label>
-                <p className="text-sm text-muted-foreground">Crear documento impreso para entregar al cliente</p>
-              </div>
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="generate-invoice"
+              checked={generateInvoice}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setGenerateInvoice(true)
+                  setSendEmail(false) // Desmarcar el otro checkbox
+                } else {
+                  setGenerateInvoice(false)
+                }
+              }}
+            />
+            <div className="flex-1">
+              <Label htmlFor="generate-invoice" className="text-base font-semibold cursor-pointer">
+                Generar Factura
+              </Label>
+              <p className="text-sm text-muted-foreground">Crear documento de factura para esta venta e imprimir ticket</p>
             </div>
-
-            {invoiceType === 'fisica' && (
-              <div className="ml-6 space-y-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <div className="space-y-2">
-                  <Label htmlFor="customer-name">Nombre del Cliente (Opcional)</Label>
-                  <Input
-                    id="customer-name"
-                    placeholder="Juan Pérez"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="customer-id">Cédula/NIT (Opcional)</Label>
-                  <Input
-                    id="customer-id"
-                    placeholder="1234567890"
-                    value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handlePrint} className="flex-1 bg-transparent">
-                    <Printer className="h-4 w-4 mr-2" />
-                    Imprimir
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownload} className="flex-1 bg-transparent">
-                    <Download className="h-4 w-4 mr-2" />
-                    Descargar PDF
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Opción 2: Enviar por Email */}
-            <div 
-              className={`flex items-start space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                invoiceType === 'email' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border bg-transparent hover:border-primary/50'
-              }`}
-              onClick={() => setInvoiceType(invoiceType === 'email' ? 'none' : 'email')}
-            >
-              <Checkbox
-                id="send-email"
-                checked={invoiceType === 'email'}
-                onCheckedChange={(checked) => setInvoiceType(checked ? 'email' : 'none')}
-              />
-              <div className="flex-1">
-                <Label htmlFor="send-email" className="text-base font-semibold cursor-pointer">
-                  📧 Enviar por Correo Electrónico
-                </Label>
-                <p className="text-sm text-muted-foreground">Enviar factura digital al email del cliente</p>
-              </div>
-            </div>
-
-            {invoiceType === 'email' && (
-              <div className="ml-6 space-y-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <div className="space-y-2">
-                  <Label htmlFor="customer-name">Nombre del Cliente (Opcional)</Label>
-                  <Input
-                    id="customer-name"
-                    placeholder="Juan Pérez"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="customer-id">Cédula/NIT (Opcional)</Label>
-                  <Input
-                    id="customer-id"
-                    placeholder="1234567890"
-                    value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo Electrónico *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="cliente@ejemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            )}
           </div>
+
+          {generateInvoice && (
+            <div className="ml-6 space-y-4 p-4 rounded-lg bg-secondary/30">
+              <div className="space-y-2">
+                <Label htmlFor="customer-name">Nombre del Cliente (Opcional)</Label>
+                <Input
+                  id="customer-name"
+                  placeholder="Juan Pérez"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="customer-id">Cédula/NIT (Opcional)</Label>
+                <Input
+                  id="customer-id"
+                  placeholder="1234567890"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handlePrint} className="flex-1 bg-transparent">
+                  <Printer className="h-4 w-4 mr-2" />
+                  Imprimir
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownload} className="flex-1 bg-transparent">
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar PDF
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="send-email"
+              checked={sendEmail}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSendEmail(true)
+                  setGenerateInvoice(false) // Desmarcar el otro checkbox
+                } else {
+                  setSendEmail(false)
+                }
+              }}
+            />
+            <div className="flex-1">
+              <Label htmlFor="send-email" className="text-base font-semibold cursor-pointer">
+                Enviar por Correo
+              </Label>
+              <p className="text-sm text-muted-foreground">Enviar factura al correo electrónico del cliente (no imprime ticket)</p>
+            </div>
+          </div>
+
+          {sendEmail && (
+            <div className="ml-6 space-y-2 p-4 rounded-lg bg-secondary/30">
+              <Label htmlFor="email">Correo Electrónico</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="cliente@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required={sendEmail}
+              />
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -515,28 +486,33 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             className="flex-1 bg-transparent" 
             disabled={processing}
           >
-            Sin Factura
+            Omitir
           </Button>
           <Button 
             onClick={handleComplete} 
             className="flex-1" 
-            disabled={processing || invoiceType === 'none' || (invoiceType === 'email' && !email)}
+            disabled={
+              processing || 
+              (sendEmail && !email) // Solo validar email si se seleccionó envío por correo
+            }
           >
             {processing ? (
               <>Procesando...</>
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                {invoiceType === 'fisica' ? 'Generar Factura Física' : invoiceType === 'email' ? 'Enviar Factura' : 'Selecciona una opción'}
+                Finalizar
               </>
             )}
           </Button>
         </div>
         
         {/* Mensaje de ayuda */}
-        <p className="text-xs text-center text-muted-foreground mt-2">
-          💡 Presiona "Sin Factura" si no requiere factura, o selecciona UNA opción de facturación
-        </p>
+        {!generateInvoice && !sendEmail && (
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            ⚠️ Selecciona "Generar Factura" para imprimir ticket, "Enviar por Correo" para enviar digitalmente, o "Omitir" para solo abrir el cajón
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   )

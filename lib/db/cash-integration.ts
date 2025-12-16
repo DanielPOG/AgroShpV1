@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { getActiveCashSession } from './cash-sessions'
 import { createCashMovement } from './cash-movements'
+import { validarTurnoActivo } from './turnos-caja'
 
 /**
- * Validar que el cajero tenga una sesión de caja abierta
+ * Validar que el cajero tenga una sesión de caja abierta Y un turno activo
  * Esta función DEBE llamarse antes de permitir cualquier venta
+ * 
+ * @returns Objeto con sesión y turno activos
  */
 export async function validateCashSessionForSale(userId: number) {
   console.log(`🔍 Validando sesión de caja para usuario ${userId}`)
@@ -18,7 +21,23 @@ export async function validateCashSessionForSale(userId: number) {
   }
 
   console.log(`✅ Sesión de caja activa: ID ${activeSession.id}`)
-  return activeSession
+
+  // ⭐ NUEVO: Validar turno activo
+  console.log(`🔍 Validando turno activo para sesión ${activeSession.id}`)
+  const turnoActivo = await validarTurnoActivo(activeSession.id, userId)
+
+  if (!turnoActivo) {
+    throw new Error(
+      'No tienes un turno activo. Debes iniciar tu turno antes de realizar ventas.'
+    )
+  }
+
+  console.log(`✅ Turno activo validado: ID ${turnoActivo.id}`)
+  
+  return {
+    session: activeSession,
+    turno: turnoActivo
+  }
 }
 
 /**
@@ -27,6 +46,7 @@ export async function validateCashSessionForSale(userId: number) {
  */
 export async function registerSaleInCashMovements(data: {
   sessionId: number
+  turnoId: number
   ventaId: number
   codigoVenta: string
   total: number
@@ -36,9 +56,11 @@ export async function registerSaleInCashMovements(data: {
   console.log(`💰 Registrando venta en movimientos de caja: ${data.codigoVenta}`)
   console.log(`   - Método: ${data.metodoPagoNombre} (ID: ${data.metodoPagoId})`)
   console.log(`   - Monto: $${data.total}`)
+  console.log(`   - Turno ID: ${data.turnoId}`)
 
   const movement = await createCashMovement({
     sesion_caja_id: data.sessionId,
+    turno_caja_id: data.turnoId,
     tipo_movimiento: 'ingreso',
     descripcion: `Venta ${data.codigoVenta}`,
     monto: data.total,

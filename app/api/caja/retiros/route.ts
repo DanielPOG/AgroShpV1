@@ -8,6 +8,7 @@ import {
   getRetirosAutorizadosPendientes
 } from "@/lib/db/retiros-caja"
 import { retiroCajaSchema } from "@/lib/validations/retiro-caja.schema"
+import { validateCashSessionForSale } from "@/lib/db/cash-integration"
 import { ZodError } from "zod"
 
 /**
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const sesionId = searchParams.get("sesion_id")
+    const turnoId = searchParams.get("turno_id")
     const estado = searchParams.get("estado")
     const pendientes = searchParams.get("pendientes") === "true"
     const autorizados = searchParams.get("autorizados") === "true"
@@ -57,11 +59,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Obtener retiros de una sesión específica
+    // Obtener retiros de una sesión o turno específico
     const retiros = await getRetirosCaja(
       sesionId ? parseInt(sesionId) : undefined,
       {
         estado: estado || undefined,
+        turnoId: turnoId ? parseInt(turnoId) : undefined,
         limit: 100,
       }
     )
@@ -95,12 +98,34 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = parseInt(session.user.id)
+
+    // Validar sesión de caja y turno activo
+    let cashSession, turnoActivo
+    try {
+      const validation = await validateCashSessionForSale(userId)
+      cashSession = validation.session
+      turnoActivo = validation.turno
+    } catch (error) {
+      if (error instanceof Error) {
+        return NextResponse.json(
+          {
+            error: 'Sesión de caja y turno requeridos',
+            message: error.message,
+            code: 'NO_CASH_SESSION_OR_TURNO',
+          },
+          { status: 400 }
+        )
+      }
+      throw error
+    }
+
     const body = await request.json()
 
-    // Agregar usuario_id del usuario autenticado
+    // Agregar usuario_id y turno_caja_id
     const dataToValidate = {
       ...body,
       solicitado_por: userId,
+      turno_caja_id: turnoActivo.id,
     }
 
     // Validar con Zod

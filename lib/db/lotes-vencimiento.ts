@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * Verificar lotes próximos a vencer y crear alertas
@@ -7,19 +8,22 @@ import { prisma } from '@/lib/prisma'
 export async function checkLotesProximosVencer() {
   console.log('🔍 Verificando lotes próximos a vencer...')
 
+  // Obtener días de alerta desde configuración
+  const diasAlerta = await getConfigValue('dias_alerta_vencimiento', 7) as number
+  
   const ahora = new Date()
-  const en7Dias = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const enDiasAlerta = new Date(ahora.getTime() + diasAlerta * 24 * 60 * 60 * 1000)
   const en3Dias = new Date(ahora.getTime() + 3 * 24 * 60 * 60 * 1000)
 
   try {
-    // 1. Buscar lotes que vencen en 7 días o menos
-    const lotes7Dias = await prisma.lotes_productos.findMany({
+    // 1. Buscar lotes que vencen en X días o menos (según configuración)
+    const lotesProximos = await prisma.lotes_productos.findMany({
       where: {
         estado: 'disponible',
         cantidad: { gt: 0 },
         fecha_vencimiento: {
           gte: ahora,
-          lte: en7Dias,
+          lte: enDiasAlerta,
         },
       },
       include: {
@@ -34,7 +38,7 @@ export async function checkLotesProximosVencer() {
     })
 
     // 2. Crear alertas para lotes próximos a vencer
-    for (const lote of lotes7Dias) {
+    for (const lote of lotesProximos) {
       const diasRestantes = Math.ceil(
         (new Date(lote.fecha_vencimiento!).getTime() - ahora.getTime()) / (24 * 60 * 60 * 1000)
       )
@@ -48,7 +52,7 @@ export async function checkLotesProximosVencer() {
       } else if (diasRestantes <= 3) {
         severidad = 'alta'
         titulo = `Lote ${lote.codigo_lote} vence en ${diasRestantes} días`
-      } else if (diasRestantes <= 7) {
+      } else if (diasRestantes <= diasAlerta) {
         severidad = 'media'
         titulo = `Lote ${lote.codigo_lote} vence en ${diasRestantes} días`
       }
@@ -169,9 +173,12 @@ export async function checkLotesProximosVencer() {
 /**
  * Obtener reporte de lotes próximos a vencer
  */
-export async function getLotesProximosVencer(dias: number = 7) {
+export async function getLotesProximosVencer(dias?: number) {
+  // Usar configuración global si no se especifica
+  const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7)
+  
   const ahora = new Date()
-  const enXDias = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000)
+  const enXDias = new Date(ahora.getTime() + diasAlerta * 24 * 60 * 60 * 1000)
 
   try {
     const lotes = await prisma.lotes_productos.findMany({

@@ -5,23 +5,30 @@ import {
   MONTO_REQUIERE_AUTORIZACION,
   TIPOS_MOVIMIENTO 
 } from "@/lib/validations/movimiento-caja.schema"
-import { validarEfectivoSuficiente } from "./cash-sessions"
+import { validarSaldoPorMetodoPago } from "./cash-sessions"
 
 /**
- * Obtener movimientos de caja extra de una sesión
+ * Obtener movimientos de caja extra de una sesión o turno
  * Excluye movimientos de ventas (que tienen venta_id)
  */
 export async function getMovimientosCajaExtra(
-  sesionId: number,
+  sesionId?: number,
   filters?: {
     tipo?: string
     metodo?: string
     limit?: number
+    turnoId?: number
   }
 ) {
   const where: Prisma.movimientos_cajaWhereInput = {
-    sesion_caja_id: sesionId,
     venta_id: null, // Solo movimientos extra (no ventas)
+  }
+
+  // Filtrar por turno o sesión
+  if (filters?.turnoId) {
+    where.turno_caja_id = filters.turnoId
+  } else if (sesionId) {
+    where.sesion_caja_id = sesionId
   }
 
   if (filters?.tipo) {
@@ -120,17 +127,14 @@ export async function createMovimientoCaja(data: MovimientoCajaCreate) {
     throw new Error('La sesión de caja no está abierta')
   }
 
-  // ✅ FASE 4: Si es EGRESO y método EFECTIVO, validar que haya suficiente efectivo
-  if (data.tipo_movimiento === TIPOS_MOVIMIENTO.EGRESO_OPERATIVO && data.metodo_pago === 'efectivo') {
-    const validacion = await validarEfectivoSuficiente(data.sesion_caja_id, data.monto)
+  // ✅ FASE 4: Si es EGRESO, validar que haya suficiente saldo según método de pago
+  if (data.tipo_movimiento === TIPOS_MOVIMIENTO.EGRESO_OPERATIVO) {
+    const metodoPago = data.metodo_pago as 'efectivo' | 'nequi' | 'tarjeta' | 'transferencia'
+    const validacion = await validarSaldoPorMetodoPago(data.sesion_caja_id, metodoPago, data.monto)
     
     if (!validacion.valido) {
       console.error(`❌ [createMovimientoCaja] ${validacion.mensaje}`)
       throw new Error(validacion.mensaje)
-    }
-    
-    if (validacion.alertaBajoEfectivo) {
-      console.warn(`⚠️ [createMovimientoCaja] ${validacion.mensaje}`)
     }
   }
 
@@ -143,6 +147,7 @@ export async function createMovimientoCaja(data: MovimientoCajaCreate) {
     const movimiento = await tx.movimientos_caja.create({
       data: {
         sesion_caja_id: data.sesion_caja_id,
+        turno_caja_id: data.turno_caja_id || null,
         tipo_movimiento: data.tipo_movimiento,
         metodo_pago: data.metodo_pago,
         monto: data.monto,

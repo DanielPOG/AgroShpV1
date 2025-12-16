@@ -215,37 +215,6 @@ export function LoginForm({}: LoginFormProps) {
                 )}
               </Button>
             </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-3 text-muted-foreground font-medium">Acceso Rápido Demo</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                { email: "admin@sena.edu.co", role: "admin" as UserRole },
-                { email: "inventario@sena.edu.co", role: "inventarista" as UserRole },
-                { email: "cajero@sena.edu.co", role: "cajero" as UserRole },
-                { email: "consulta@sena.edu.co", role: "consulta" as UserRole },
-              ].map((demo) => (
-                <Button
-                  key={demo.email}
-                  variant="outline"
-                  onClick={() => quickLogin(demo.email)}
-                  disabled={isLoading}
-                  className="flex flex-col items-start h-auto py-3 px-4 gap-2 hover:scale-[1.02] transition-all duration-300 hover:shadow-md"
-                >
-                  <Badge className={`text-xs font-medium ${roleColors[demo.role]} shadow-sm`}>
-                    {getRoleLabel(demo.role)}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground text-left">{getRoleDescription(demo.role)}</span>
-                </Button>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>

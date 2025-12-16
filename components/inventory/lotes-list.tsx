@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Package, Calendar, AlertTriangle, CheckCircle, XCircle, MoreVertical, Edit, RotateCcw, RefreshCw, Trash2 } from "lucide-react"
+import { useConfig } from "@/hooks/use-config"
 
 interface Lote {
   id: number
@@ -68,6 +69,8 @@ export function LotesList({
   onReactivate,
   showProductInfo = true,
 }: LotesListProps) {
+  const { config } = useConfig()
+  
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
       case 'disponible':
@@ -103,9 +106,11 @@ export function LotesList({
     const hoy = new Date()
     const diff = Math.ceil((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
 
+    const diasAlerta = config.dias_alerta_vencimiento // ✅ Usando configuración dinámica
+
     if (diff < 0) return { dias: Math.abs(diff), tipo: 'vencido' }
     if (diff <= 3) return { dias: diff, tipo: 'critico' }
-    if (diff <= 7) return { dias: diff, tipo: 'proximo' }
+    if (diff <= diasAlerta) return { dias: diff, tipo: 'proximo' }
     return { dias: diff, tipo: 'normal' }
   }
 

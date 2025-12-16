@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { cajaEvents } from "@/lib/events"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -120,6 +121,10 @@ export function OpenCashSessionModal({
         fondo_inicial: "",
         observaciones_apertura: "",
       })
+
+      // Emitir evento para que otros componentes se actualicen
+      console.log('🔔 Emitiendo evento session-updated después de abrir sesión')
+      cajaEvents.emit('session-updated')
 
       onSuccess()
       onOpenChange(false)

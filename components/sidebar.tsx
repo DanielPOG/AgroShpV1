@@ -23,6 +23,7 @@ import {
   Receipt,
   Calculator,
   Clock,
+  Layers,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -105,10 +106,17 @@ const navigation = [
   },
   { 
     name: "Configuración", 
-    href: "/dashboard/configuracion/cajas", 
+    href: "/dashboard/configuracion", 
     icon: Settings, 
     roles: ["Admin"],
-    description: "Gestión de cajas y configuración"
+    description: "Variables globales del sistema"
+  },
+  { 
+    name: "Gestión de Cajas", 
+    href: "/dashboard/cajas", 
+    icon: Layers, 
+    roles: ["Admin"],
+    description: "Administración de cajas registradoras"
   },
   { 
     name: "Catálogo Público", 

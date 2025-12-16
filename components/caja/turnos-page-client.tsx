@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { IniciarTurnoModal } from "@/components/caja/iniciar-turno-modal"
 import { FinalizarTurnoModal } from "@/components/caja/finalizar-turno-modal"
+import { cajaEvents } from "@/lib/events"
 import { 
   Clock, 
   Plus, 
@@ -58,35 +59,28 @@ interface TurnosPageClientProps {
 
 interface Turno {
   id: number
-  monto_inicial_turno: number | string
-  monto_final_turno: number | string | null
-  total_ventas_turno: number | string | null
-  total_retiros_turno: number | string | null
-  total_gastos_turno: number | string | null
-  diferencia_turno: number | string | null
+  efectivo_inicial: number | string
+  efectivo_final: number | string | null
+  monto_inicial: number | string
+  monto_final: number | string | null
+  diferencia: number | string | null
   tipo_relevo: string
   estado: string
   fecha_inicio: string | Date
   fecha_fin: string | Date | null
-  observaciones_inicio: string | null
+  observaciones: string | null
   observaciones_cierre: string | null
   motivo_suspension: string | null
+  duracion_minutos: number | null
   cajero: {
     id: number
     nombre: string
     apellido: string
   }
-  autorizador: {
+  autorizador?: {
     nombre: string
     apellido: string
   } | null
-  sesion_caja: {
-    codigo_sesion: string
-    caja: {
-      nombre: string
-      codigo: string
-    }
-  }
 }
 
 export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageClientProps) {
@@ -114,13 +108,21 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
   const loadTurnoActivo = async () => {
     setLoadingTurnoActivo(true)
     try {
-      const response = await fetch(`/api/caja/turnos?mi_turno=true`)
+      if (!sesionCaja) {
+        setTurnoActivo(null)
+        setLoadingTurnoActivo(false)
+        return
+      }
+      const response = await fetch(`/api/turnos?sesion_id=${sesionCaja.id}&activo=true`)
       if (response.ok) {
         const data = await response.json()
-        setTurnoActivo(data)
+        setTurnoActivo(data.turno)
+      } else {
+        setTurnoActivo(null)
       }
     } catch (error) {
       console.error("Error cargando turno activo:", error)
+      setTurnoActivo(null)
     } finally {
       setLoadingTurnoActivo(false)
     }
@@ -129,66 +131,68 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
   const loadTurnos = async () => {
     setLoadingTurnos(true)
     try {
-      // Admin/Supervisor ven todos los turnos, Cajero solo los suyos
-      let url = `/api/caja/turnos`
-      if (sesionCaja) {
-        url += `?sesion_id=${sesionCaja.id}`
-      }
-      if (isCajero) {
-        url += sesionCaja ? `&cajero_id=${userId}` : `?cajero_id=${userId}`
+      if (!sesionCaja) {
+        setTurnos([])
+        setTurnosFiltrados([])
+        setLoadingTurnos(false)
+        return
       }
 
-      const response = await fetch(url)
+      const response = await fetch(`/api/turnos?sesion_id=${sesionCaja.id}`)
       if (response.ok) {
         const data = await response.json()
-        setTurnos(data)
-        setTurnosFiltrados(data)
+        const turnosList = data.turnos || []
+        
+        // Si es cajero, filtrar solo sus turnos
+        const turnosFiltrados = isCajero 
+          ? turnosList.filter((t: Turno) => t.cajero.id === userId)
+          : turnosList
+        
+        setTurnos(turnosFiltrados)
+        setTurnosFiltrados(turnosFiltrados)
+      } else {
+        setTurnos([])
+        setTurnosFiltrados([])
       }
     } catch (error) {
       console.error("Error cargando turnos:", error)
+      setTurnos([])
+      setTurnosFiltrados([])
     } finally {
       setLoadingTurnos(false)
-    }
-  }
-
-  const loadEstadisticas = async () => {
-    setLoadingEstadisticas(true)
-    try {
-      let url = `/api/caja/turnos?estadisticas=true`
-      if (sesionCaja) {
-        url += `&sesion_id=${sesionCaja.id}`
-      }
-      if (isCajero) {
-        url += `&cajero_id=${userId}`
-      }
-
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setEstadisticas(data)
-      }
-    } catch (error) {
-      console.error("Error cargando estadísticas:", error)
-    } finally {
-      setLoadingEstadisticas(false)
     }
   }
 
   useEffect(() => {
     loadTurnoActivo()
     loadTurnos()
-    loadEstadisticas()
   }, [sesionCaja?.id, userId])
+
+  // Calcular estadísticas desde los turnos cargados
+  useEffect(() => {
+    if (turnos.length > 0) {
+      const stats = {
+        total: turnos.length,
+        activos: turnos.filter(t => t.estado === 'activo').length,
+        finalizados: turnos.filter(t => t.estado === 'finalizado').length,
+        suspendidos: turnos.filter(t => t.estado === 'suspendido').length,
+      }
+      setEstadisticas(stats)
+      setLoadingEstadisticas(false)
+    } else {
+      setEstadisticas({ total: 0, activos: 0, finalizados: 0, suspendidos: 0 })
+      setLoadingEstadisticas(false)
+    }
+  }, [turnos])
 
   // Aplicar filtros
   useEffect(() => {
     let filtered = [...turnos]
 
-    // Filtro por búsqueda (nombre cajero o código sesión)
+    // Filtro por búsqueda (nombre cajero)
     if (searchTerm) {
       filtered = filtered.filter(t => 
-        `${t.cajero.nombre} ${t.cajero.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.sesion_caja.codigo_sesion.toLowerCase().includes(searchTerm.toLowerCase())
+        `${t.cajero.nombre} ${t.cajero.apellido}`.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
@@ -208,7 +212,9 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
   const handleSuccess = () => {
     loadTurnoActivo()
     loadTurnos()
-    loadEstadisticas()
+    // Emitir evento para que otros componentes se actualicen
+    console.log('🔔 Emitiendo evento session-updated después de cambio en turno')
+    cajaEvents.emit('session-updated')
   }
 
   const handleFinalize = (turno: Turno) => {
@@ -224,11 +230,11 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
     }
 
     try {
-      const response = await fetch(`/api/caja/turnos/${id}`, {
+      const response = await fetch(`/api/turnos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accion: "suspender",
+          action: "suspender",
           motivo,
         }),
       })
@@ -243,11 +249,11 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
 
   const handleResume = async (id: number) => {
     try {
-      const response = await fetch(`/api/caja/turnos/${id}`, {
+      const response = await fetch(`/api/turnos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accion: "reanudar",
+          action: "reanudar",
         }),
       })
 
@@ -346,7 +352,7 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
                     style: "currency",
                     currency: "COP",
                     minimumFractionDigits: 0,
-                  }).format(Number(turnoActivo.monto_inicial_turno))}
+                  }).format(Number(turnoActivo.efectivo_inicial))}
                 </p>
               </div>
 
@@ -571,12 +577,9 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
             <div className="space-y-3">
               {turnosFiltrados.map((turno) => {
                 const isExpanded = expandedTurnos.has(turno.id)
-                const montoInicial = Number(turno.monto_inicial_turno)
-                const montoFinal = Number(turno.monto_final_turno || 0)
-                const diferencia = Number(turno.diferencia_turno || 0)
-                const totalVentas = Number(turno.total_ventas_turno || 0)
-                const totalRetiros = Number(turno.total_retiros_turno || 0)
-                const totalGastos = Number(turno.total_gastos_turno || 0)
+                const montoInicial = Number(turno.efectivo_inicial)
+                const montoFinal = turno.efectivo_final ? Number(turno.efectivo_final) : null
+                const diferencia = turno.diferencia ? Number(turno.diferencia) : null
 
                 const ESTADO_COLORS = {
                   activo: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
@@ -637,51 +640,40 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
                                 </p>
                               </div>
 
-                              {turno.estado !== 'activo' && (
-                                <>
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Final</p>
-                                    <p className="font-semibold text-green-600">
-                                      {new Intl.NumberFormat("es-CO", {
-                                        style: "currency",
-                                        currency: "COP",
-                                        minimumFractionDigits: 0,
-                                      }).format(montoFinal)}
-                                    </p>
-                                  </div>
+                              {montoFinal !== null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Final</p>
+                                  <p className="font-semibold text-green-600">
+                                    {new Intl.NumberFormat("es-CO", {
+                                      style: "currency",
+                                      currency: "COP",
+                                      minimumFractionDigits: 0,
+                                    }).format(montoFinal)}
+                                  </p>
+                                </div>
+                              )}
 
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Ventas</p>
-                                    <p className="font-semibold">
-                                      {new Intl.NumberFormat("es-CO", {
-                                        style: "currency",
-                                        currency: "COP",
-                                        minimumFractionDigits: 0,
-                                      }).format(totalVentas)}
-                                    </p>
-                                  </div>
-
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Diferencia</p>
-                                    <p className={`font-bold flex items-center gap-1 ${
-                                      diferencia === 0 
-                                        ? 'text-gray-600' 
-                                        : diferencia > 0 
-                                        ? 'text-green-600' 
-                                        : 'text-red-600'
-                                    }`}>
-                                      {diferencia > 0 && <TrendingUp className="h-3 w-3" />}
-                                      {diferencia < 0 && <TrendingDown className="h-3 w-3" />}
-                                      {diferencia === 0 && <CheckCircle2 className="h-3 w-3" />}
-                                      {new Intl.NumberFormat("es-CO", {
-                                        style: "currency",
-                                        currency: "COP",
-                                        minimumFractionDigits: 0,
-                                        signDisplay: "exceptZero"
-                                      }).format(diferencia)}
-                                    </p>
-                                  </div>
-                                </>
+                              {diferencia !== null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Diferencia</p>
+                                  <p className={`font-bold flex items-center gap-1 ${
+                                    diferencia === 0 
+                                      ? 'text-gray-600' 
+                                      : diferencia > 0 
+                                      ? 'text-green-600' 
+                                      : 'text-red-600'
+                                  }`}>
+                                    {diferencia > 0 && <TrendingUp className="h-3 w-3" />}
+                                    {diferencia < 0 && <TrendingDown className="h-3 w-3" />}
+                                    {diferencia === 0 && <CheckCircle2 className="h-3 w-3" />}
+                                    {new Intl.NumberFormat("es-CO", {
+                                      style: "currency",
+                                      currency: "COP",
+                                      minimumFractionDigits: 0,
+                                      signDisplay: "exceptZero"
+                                    }).format(diferencia)}
+                                  </p>
+                                </div>
                               )}
                             </div>
 
@@ -698,12 +690,14 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
                                 <span>{calcularDuracion(new Date(turno.fecha_inicio), turno.fecha_fin ? new Date(turno.fecha_fin) : null)}</span>
                               </div>
 
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>
-                                  {turno.sesion_caja.caja.nombre} - {turno.sesion_caja.codigo_sesion}
-                                </span>
-                              </div>
+                              {sesionCaja && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>
+                                    {sesionCaja.caja.nombre} - {sesionCaja.codigo_sesion}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -764,17 +758,17 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
                         </div>
                       </div>
 
-                      {/* Detalles Expandidos (Arqueo Integrado) */}
-                      {isExpanded && turno.estado === 'finalizado' && (
+                      {/* Detalles Expandidos */}
+                      {isExpanded && (
                         <div className="mt-4 pt-4 border-t space-y-4">
                           <div className="flex items-center gap-2 mb-3">
                             <DollarSign className="h-5 w-5 text-muted-foreground" />
-                            <h4 className="font-semibold">Arqueo del Turno</h4>
+                            <h4 className="font-semibold">Información del Turno</h4>
                           </div>
 
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-md">
-                              <p className="text-xs text-muted-foreground mb-1">Monto Inicial</p>
+                              <p className="text-xs text-muted-foreground mb-1">Efectivo Inicial</p>
                               <p className="text-lg font-bold text-blue-600">
                                 {new Intl.NumberFormat("es-CO", {
                                   style: "currency",
@@ -784,103 +778,75 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
                               </p>
                             </div>
 
-                            <div className="p-3 bg-green-50 dark:bg-green-950 rounded-md">
-                              <p className="text-xs text-muted-foreground mb-1">Ventas</p>
-                              <p className="text-lg font-bold text-green-600">
-                                {new Intl.NumberFormat("es-CO", {
-                                  style: "currency",
-                                  currency: "COP",
-                                  minimumFractionDigits: 0,
-                                }).format(totalVentas)}
-                              </p>
-                            </div>
-
-                            <div className="p-3 bg-red-50 dark:bg-red-950 rounded-md">
-                              <p className="text-xs text-muted-foreground mb-1">Retiros + Gastos</p>
-                              <p className="text-lg font-bold text-red-600">
-                                {new Intl.NumberFormat("es-CO", {
-                                  style: "currency",
-                                  currency: "COP",
-                                  minimumFractionDigits: 0,
-                                }).format(totalRetiros + totalGastos)}
-                              </p>
-                              <div className="mt-1 space-y-0.5 text-xs">
-                                <p className="text-muted-foreground">
-                                  Retiros: {new Intl.NumberFormat("es-CO", {
-                                    style: "currency",
-                                    currency: "COP",
-                                    minimumFractionDigits: 0,
-                                  }).format(totalRetiros)}
-                                </p>
-                                <p className="text-muted-foreground">
-                                  Gastos: {new Intl.NumberFormat("es-CO", {
-                                    style: "currency",
-                                    currency: "COP",
-                                    minimumFractionDigits: 0,
-                                  }).format(totalGastos)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-md">
-                              <p className="text-xs text-muted-foreground mb-1">Monto Final</p>
-                              <p className="text-lg font-bold text-purple-600">
-                                {new Intl.NumberFormat("es-CO", {
-                                  style: "currency",
-                                  currency: "COP",
-                                  minimumFractionDigits: 0,
-                                }).format(montoFinal)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Estado del Arqueo */}
-                          <div className={`p-4 rounded-md ${
-                            diferencia === 0
-                              ? 'bg-gray-100 dark:bg-gray-900'
-                              : diferencia > 0
-                              ? 'bg-green-100 dark:bg-green-950'
-                              : 'bg-red-100 dark:bg-red-950'
-                          }`}>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium mb-1">
-                                  {diferencia === 0 ? '✅ Arqueo Cuadrado' : diferencia > 0 ? '📈 Sobrante' : '📉 Faltante'}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {diferencia === 0 
-                                    ? 'El turno cerró sin diferencias' 
-                                    : `Diferencia detectada en el arqueo`}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-2xl font-bold">
+                            {montoFinal !== null && (
+                              <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-md">
+                                <p className="text-xs text-muted-foreground mb-1">Efectivo Final</p>
+                                <p className="text-lg font-bold text-purple-600">
                                   {new Intl.NumberFormat("es-CO", {
                                     style: "currency",
                                     currency: "COP",
                                     minimumFractionDigits: 0,
-                                    signDisplay: "exceptZero"
-                                  }).format(diferencia)}
+                                  }).format(montoFinal)}
                                 </p>
                               </div>
-                            </div>
+                            )}
                           </div>
 
-                          {/* Observaciones */}
-                          {turno.observaciones_cierre && (
-                            <div className="p-3 bg-muted rounded-md border-l-4 border-blue-500">
-                              <p className="text-sm font-medium mb-1">Observaciones de Cierre:</p>
-                              <p className="text-sm text-muted-foreground">{turno.observaciones_cierre}</p>
+                          {/* Diferencia */}
+                          {diferencia !== null && turno.estado === 'finalizado' && (
+                            <div className={`p-4 rounded-md ${
+                              diferencia === 0
+                                ? 'bg-gray-100 dark:bg-gray-900'
+                                : diferencia > 0
+                                ? 'bg-green-100 dark:bg-green-950'
+                                : 'bg-red-100 dark:bg-red-950'
+                            }`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium mb-1">
+                                    {diferencia === 0 ? '✅ Sin Diferencia' : diferencia > 0 ? '📈 Sobrante' : '📉 Faltante'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {diferencia === 0 
+                                      ? 'El turno cerró sin diferencias' 
+                                      : `Diferencia en el cierre del turno`}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-2xl font-bold">
+                                    {new Intl.NumberFormat("es-CO", {
+                                      style: "currency",
+                                      currency: "COP",
+                                      minimumFractionDigits: 0,
+                                      signDisplay: "exceptZero"
+                                    }).format(diferencia)}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           )}
-                        </div>
-                      )}
 
-                      {/* Motivo Suspensión */}
-                      {turno.estado === 'suspendido' && turno.motivo_suspension && (
-                        <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-950 rounded-md border-l-4 border-orange-500">
-                          <p className="text-sm font-medium mb-1">Motivo de Suspensión:</p>
-                          <p className="text-sm text-muted-foreground">{turno.motivo_suspension}</p>
+                          {/* Observaciones */}
+                          {turno.observaciones && (
+                            <div className="p-3 bg-muted rounded-md">
+                              <p className="text-xs text-muted-foreground mb-1">Observaciones Inicio</p>
+                              <p className="text-sm">{turno.observaciones}</p>
+                            </div>
+                          )}
+
+                          {turno.observaciones_cierre && (
+                            <div className="p-3 bg-muted rounded-md">
+                              <p className="text-xs text-muted-foreground mb-1">Observaciones Cierre</p>
+                              <p className="text-sm">{turno.observaciones_cierre}</p>
+                            </div>
+                          )}
+
+                          {turno.motivo_suspension && (
+                            <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-md">
+                              <p className="text-xs text-muted-foreground mb-1">Motivo de Suspensión</p>
+                              <p className="text-sm">{turno.motivo_suspension}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -907,7 +873,7 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
           open={finalizarModalOpen}
           onOpenChange={setFinalizarModalOpen}
           turnoId={turnoActivo.id}
-          montoInicial={Number(turnoActivo.monto_inicial_turno)}
+          montoInicial={Number(turnoActivo.efectivo_inicial)}
           onSuccess={handleSuccess}
         />
       )}

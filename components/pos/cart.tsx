@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Trash2, Plus, Minus, ShoppingCart, Package, ChevronRight } from "lucide-react"
 import Image from "next/image"
+import { useConfig } from "@/hooks/use-config"
 
 interface CartItem {
   id: number
@@ -32,8 +33,9 @@ interface CartProps {
 }
 
 export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: CartProps) {
+  const { config } = useConfig()
   const subtotal = items.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
-  const tax = subtotal * 0.19
+  const tax = subtotal * (config.iva_porcentaje / 100)
   const total = subtotal + tax
   const totalItems = items.reduce((sum, item) => sum + item.cantidad, 0)
 
@@ -211,7 +213,7 @@ export function Cart({ items, onUpdateQuantity, onRemoveItem, onCheckout }: Cart
                   <span className="font-bold">${subtotal.toLocaleString("es-CO")}</span>
                 </div>
                 <div className="flex justify-between items-center py-1 px-1.5 sm:px-2 rounded-lg hover:bg-white/50 transition-colors">
-                  <span className="text-muted-foreground font-medium">IVA (19%)</span>
+                  <span className="text-muted-foreground font-medium">IVA ({config.iva_porcentaje}%)</span>
                   <span className="font-bold">${tax.toLocaleString("es-CO")}</span>
                 </div>
                 <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent my-1"></div>

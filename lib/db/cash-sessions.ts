@@ -76,18 +76,56 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
   }
 
   console.log(`📊 [getEfectivoDisponible] Sesión: ${session.codigo_sesion}`)
-  console.log(`   💵 Fondo inicial: $${Number(session.fondo_inicial).toLocaleString('es-CO')}`)
-  console.log(`   💵 Ventas efectivo: $${Number(session.total_ventas_efectivo || 0).toLocaleString('es-CO')}`)
 
-  // 2. Obtener movimientos de efectivo (ingresos y egresos extra)
-  const movimientos = await prisma.movimientos_caja.findMany({
+  // 2. Buscar el último turno cerrado de la sesión
+  const ultimoTurnoCerrado = await prisma.turnos_caja.findFirst({
     where: {
       sesion_caja_id: sessionId,
-      metodo_pago: 'efectivo',
-      tipo_movimiento: {
-        in: ['ingreso_adicional', 'egreso_operativo']
-      }
+      estado: 'finalizado',
+      efectivo_final: { not: null }
     },
+    orderBy: {
+      fecha_fin: 'desc'
+    },
+    select: {
+      id: true,
+      efectivo_final: true,
+      fecha_fin: true
+    }
+  })
+
+  // Determinar la base de cálculo
+  let efectivoBase: number
+  let fechaDesde: Date | undefined
+
+  if (ultimoTurnoCerrado) {
+    // Si hay turno cerrado, usar su efectivo final como base
+    efectivoBase = Number(ultimoTurnoCerrado.efectivo_final)
+    fechaDesde = ultimoTurnoCerrado.fecha_fin!
+    console.log(`   💵 Base: Último turno cerrado (ID ${ultimoTurnoCerrado.id})`)
+    console.log(`   💵 Efectivo base: $${efectivoBase.toLocaleString('es-CO')} (desde ${fechaDesde.toISOString()})`)
+  } else {
+    // Si no hay turno cerrado, usar fondo inicial
+    efectivoBase = Number(session.fondo_inicial)
+    console.log(`   💵 Base: Fondo inicial de sesión`)
+    console.log(`   💵 Efectivo base: $${efectivoBase.toLocaleString('es-CO')}`)
+  }
+
+  // 3. Obtener movimientos desde la fecha base
+  const whereMovimientos: any = {
+    sesion_caja_id: sessionId,
+    metodo_pago: 'efectivo',
+    tipo_movimiento: {
+      in: ['ingreso_adicional', 'egreso_operativo']
+    }
+  }
+  
+  if (fechaDesde) {
+    whereMovimientos.fecha_movimiento = { gt: fechaDesde }
+  }
+
+  const movimientos = await prisma.movimientos_caja.findMany({
+    where: whereMovimientos,
     select: {
       id: true,
       tipo_movimiento: true,
@@ -107,20 +145,88 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
   console.log(`   💵 Ingresos extra (${movimientos.filter(m => m.tipo_movimiento === 'ingreso_adicional').length}): $${ingresosEfectivo.toLocaleString('es-CO')}`)
   console.log(`   💵 Egresos extra (${movimientos.filter(m => m.tipo_movimiento === 'egreso_operativo').length}): -$${egresosEfectivo.toLocaleString('es-CO')}`)
 
-  // 3. Retiros completados (ya están en session.total_retiros)
-  const totalRetiros = Number(session.total_retiros || 0)
-  console.log(`   💵 Retiros completados: -$${totalRetiros.toLocaleString('es-CO')}`)
+  // 4. Obtener ventas, retiros y gastos desde la fecha base
+  // Para turnos: obtener IDs de turnos desde la fecha base
+  const whereTurnos: any = {
+    sesion_caja_id: sessionId
+  }
+  
+  if (fechaDesde) {
+    whereTurnos.fecha_inicio = { gt: fechaDesde }
+  }
 
-  // 4. Gastos pagados en efectivo (ya están en session.total_gastos)
-  // TODO FASE 3: Filtrar por metodo_pago cuando se agregue el campo
-  // Por ahora asumimos que todos los gastos son en efectivo
-  const totalGastos = Number(session.total_gastos || 0)
-  console.log(`   💵 Gastos en efectivo: -$${totalGastos.toLocaleString('es-CO')}`)
+  const turnosDesdeBase = await prisma.turnos_caja.findMany({
+    where: whereTurnos,
+    select: { id: true }
+  })
+
+  const turnoIds = turnosDesdeBase.map(t => t.id)
+
+  // Ventas en efectivo desde la fecha base
+  let totalVentasEfectivo = 0
+  if (turnoIds.length > 0) {
+    const ventas = await prisma.ventas.findMany({
+      where: {
+        turno_caja_id: { in: turnoIds },
+        estado: { not: 'cancelada' }
+      },
+      select: {
+        pagos_venta: {
+          where: {
+            metodo_pago: { nombre: 'efectivo' }
+          },
+          select: { monto: true }
+        }
+      }
+    })
+    
+    totalVentasEfectivo = ventas.reduce((sum, v) => 
+      sum + v.pagos_venta.reduce((s, p) => s + Number(p.monto), 0), 0
+    )
+  }
+
+  console.log(`   💵 Ventas efectivo (desde base): $${totalVentasEfectivo.toLocaleString('es-CO')}`)
+
+  // Retiros desde la fecha base
+  const whereRetiros: any = {
+    sesion_caja_id: sessionId,
+    estado: 'aprobado'
+  }
+  
+  if (fechaDesde) {
+    whereRetiros.fecha_solicitud = { gt: fechaDesde }
+  }
+
+  const retiros = await prisma.retiros_caja.aggregate({
+    where: whereRetiros,
+    _sum: { monto: true }
+  })
+
+  const totalRetiros = Number(retiros._sum.monto || 0)
+  console.log(`   💵 Retiros completados (desde base): -$${totalRetiros.toLocaleString('es-CO')}`)
+
+  // Gastos en efectivo desde la fecha base
+  const whereGastos: any = {
+    sesion_caja_id: sessionId,
+    metodo_pago: 'efectivo'
+  }
+  
+  if (fechaDesde) {
+    whereGastos.fecha_gasto = { gt: fechaDesde }
+  }
+
+  const gastos = await prisma.gastos_caja.aggregate({
+    where: whereGastos,
+    _sum: { monto: true }
+  })
+
+  const totalGastos = Number(gastos._sum.monto || 0)
+  console.log(`   💵 Gastos en efectivo (desde base): -$${totalGastos.toLocaleString('es-CO')}`)
 
   // 5. CÁLCULO FINAL
   const efectivoDisponible =
-    Number(session.fondo_inicial) +
-    Number(session.total_ventas_efectivo || 0) +
+    efectivoBase +
+    totalVentasEfectivo +
     ingresosEfectivo -
     egresosEfectivo -
     totalRetiros -
@@ -234,6 +340,141 @@ export async function verificarEstadoEfectivo(sessionId: number): Promise<{
 }
 
 /**
+ * 💳 FUNCIÓN CRÍTICA: Validar saldo disponible por método de pago
+ * 
+ * Valida que haya saldo suficiente para hacer un egreso según el método de pago:
+ * - EFECTIVO: Puede tener saldo negativo (préstamo temporal)
+ * - NEQUI, TARJETA, TRANSFERENCIA: NO pueden tener saldo negativo
+ * 
+ * @param sessionId - ID de la sesión de caja
+ * @param metodoPago - Método de pago a validar
+ * @param montoRequerido - Monto que se desea retirar/gastar
+ * @returns Validación con saldo disponible y mensaje
+ */
+export async function validarSaldoPorMetodoPago(
+  sessionId: number,
+  metodoPago: 'efectivo' | 'nequi' | 'tarjeta' | 'transferencia',
+  montoRequerido: number
+): Promise<{
+  valido: boolean
+  saldoDisponible: number
+  mensaje: string
+}> {
+  console.log(`\n💳 [validarSaldoPorMetodoPago] Validando ${metodoPago.toUpperCase()} - Monto: $${montoRequerido.toLocaleString('es-CO')}`)
+
+  // 1. Para efectivo, usar la validación existente
+  if (metodoPago === 'efectivo') {
+    const validacion = await validarEfectivoSuficiente(sessionId, montoRequerido)
+    return {
+      valido: validacion.valido,
+      saldoDisponible: validacion.efectivoDisponible,
+      mensaje: validacion.mensaje
+    }
+  }
+
+  // 2. Para otros métodos de pago, calcular saldo exacto
+  const session = await prisma.sesiones_caja.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      codigo_sesion: true,
+      total_ventas_nequi: true,
+      total_ventas_tarjeta: true,
+      total_ventas_transferencia: true,
+    }
+  })
+
+  if (!session) {
+    throw new Error('Sesión no encontrada')
+  }
+
+  // 3. Calcular saldo según método de pago
+  let saldoVentas = 0
+  let campoTotal = ''
+
+  switch (metodoPago) {
+    case 'nequi':
+      saldoVentas = Number(session.total_ventas_nequi || 0)
+      campoTotal = 'Nequi'
+      break
+    case 'tarjeta':
+      saldoVentas = Number(session.total_ventas_tarjeta || 0)
+      campoTotal = 'Tarjeta'
+      break
+    case 'transferencia':
+      saldoVentas = Number(session.total_ventas_transferencia || 0)
+      campoTotal = 'Transferencia'
+      break
+  }
+
+  // 4. Obtener egresos de este método de pago (gastos + movimientos)
+  const gastos = await prisma.gastos_caja.aggregate({
+    where: {
+      sesion_caja_id: sessionId,
+      metodo_pago: metodoPago,
+    },
+    _sum: {
+      monto: true
+    }
+  })
+
+  const movimientosEgreso = await prisma.movimientos_caja.aggregate({
+    where: {
+      sesion_caja_id: sessionId,
+      metodo_pago: metodoPago,
+      tipo_movimiento: 'egreso_operativo'
+    },
+    _sum: {
+      monto: true
+    }
+  })
+
+  const totalGastos = Number(gastos._sum.monto || 0)
+  const totalEgresos = Number(movimientosEgreso._sum.monto || 0)
+
+  // 5. Obtener ingresos adicionales de este método
+  const movimientosIngreso = await prisma.movimientos_caja.aggregate({
+    where: {
+      sesion_caja_id: sessionId,
+      metodo_pago: metodoPago,
+      tipo_movimiento: 'ingreso_adicional'
+    },
+    _sum: {
+      monto: true
+    }
+  })
+
+  const totalIngresos = Number(movimientosIngreso._sum.monto || 0)
+
+  // 6. Calcular saldo disponible
+  const saldoDisponible = saldoVentas + totalIngresos - totalGastos - totalEgresos
+
+  console.log(`   📊 Saldo ${campoTotal}:`)
+  console.log(`      Ventas: $${saldoVentas.toLocaleString('es-CO')}`)
+  console.log(`      Ingresos adicionales: $${totalIngresos.toLocaleString('es-CO')}`)
+  console.log(`      Gastos: -$${totalGastos.toLocaleString('es-CO')}`)
+  console.log(`      Egresos: -$${totalEgresos.toLocaleString('es-CO')}`)
+  console.log(`      DISPONIBLE: $${saldoDisponible.toLocaleString('es-CO')}`)
+
+  // 7. Validar saldo
+  if (saldoDisponible < montoRequerido) {
+    console.error(`   ❌ Saldo insuficiente en ${campoTotal}`)
+    return {
+      valido: false,
+      saldoDisponible,
+      mensaje: `Saldo insuficiente en ${campoTotal}. Disponible: $${saldoDisponible.toLocaleString('es-CO')}, Requerido: $${montoRequerido.toLocaleString('es-CO')}`
+    }
+  }
+
+  console.log(`   ✅ Saldo suficiente en ${campoTotal}`)
+  return {
+    valido: true,
+    saldoDisponible,
+    mensaje: `Saldo suficiente en ${campoTotal}`
+  }
+}
+
+/**
  * Abrir una nueva sesión de caja
  */
 export async function openCashSession(userId: number, data: OpenCashSessionData) {
@@ -331,6 +572,36 @@ export async function closeCashSession(sessionId: number, userId: number, data: 
     if (session.estado !== 'abierta') {
       throw new Error('La sesión ya está cerrada')
     }
+
+    // ⭐ NUEVO: Validar que no haya turnos activos
+    console.log(`🔍 Verificando turnos activos en sesión ${sessionId}`)
+    const turnosActivos = await tx.turnos_caja.findMany({
+      where: {
+        sesion_caja_id: sessionId,
+        estado: 'activo'
+      },
+      include: {
+        cajero: {
+          select: {
+            nombre: true,
+            apellido: true
+          }
+        }
+      }
+    })
+
+    if (turnosActivos.length > 0) {
+      const cajerosConTurnos = turnosActivos.map(t => 
+        `${t.cajero.nombre} ${t.cajero.apellido}`
+      ).join(', ')
+      
+      throw new Error(
+        `No se puede cerrar la sesión. Hay ${turnosActivos.length} turno(s) activo(s): ${cajerosConTurnos}. ` +
+        `Todos los turnos deben cerrarse antes de cerrar la sesión.`
+      )
+    }
+
+    console.log(`✅ No hay turnos activos, procediendo con cierre de sesión`)
 
     // 2. Calcular diferencia entre contado y esperado
     const efectivoContado = data.efectivo_contado

@@ -16,6 +16,7 @@ import { useCategoriesSelect } from "@/hooks/use-categories"
 import { useUnitsSelect } from "@/hooks/use-units"
 import { useProveedoresSelect } from "@/hooks/use-proveedores"
 import { useProductMutations } from "@/hooks/use-products"
+import { useConfig } from "@/hooks/use-config"
 import Image from "next/image"
 
 interface CreateProductModalProps {
@@ -26,6 +27,7 @@ interface CreateProductModalProps {
 
 export function CreateProductModal({ isOpen, onClose, onCreate }: CreateProductModalProps) {
   const { toast } = useToast()
+  const { config } = useConfig()
   const { categories, isLoading: loadingCategories } = useCategoriesSelect()
   const { units, isLoading: loadingUnits } = useUnitsSelect()
   const { proveedores, isLoading: loadingProveedores } = useProveedoresSelect()
@@ -43,7 +45,7 @@ export function CreateProductModal({ isOpen, onClose, onCreate }: CreateProductM
     precio_unitario: "",
     precio_mayorista: "",
     stock_inicial: "",
-    stock_minimo: "",
+    stock_minimo: String(config.stock_minimo_default),
     stock_maximo: "",
     es_perecedero: false,
     dias_vencimiento: "",
@@ -67,7 +69,7 @@ export function CreateProductModal({ isOpen, onClose, onCreate }: CreateProductM
       precio_unitario: "",
       precio_mayorista: "",
       stock_inicial: "",
-      stock_minimo: "",
+      stock_minimo: String(config.stock_minimo_default),
       stock_maximo: "",
       es_perecedero: false,
       dias_vencimiento: "",

@@ -173,6 +173,7 @@ model detalle_ventas {
   cantidad        Decimal          @db.Decimal(10, 2)
   precio_unitario Decimal          @db.Decimal(10, 2)
   subtotal        Decimal          @db.Decimal(10, 2)
+  costo_unitario  Decimal?         @db.Decimal(10, 2)
   observaciones   String?          @db.VarChar(500)
   lote            lotes_productos? @relation(fields: [lote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   producto        productos?       @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -352,75 +353,84 @@ model sesiones_caja {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model movimientos_caja {
-  id                    Int           @id @default(autoincrement())
+  id                    Int            @id @default(autoincrement())
   sesion_caja_id        Int
+  turno_caja_id         Int?
   venta_id              Int?
-  tipo_movimiento       String        @db.VarChar(20)
-  metodo_pago           String?       @db.VarChar(20)
-  monto                 Decimal       @db.Decimal(10, 2)
+  tipo_movimiento       String         @db.VarChar(20)
+  metodo_pago           String?        @db.VarChar(20)
+  monto                 Decimal        @db.Decimal(10, 2)
   descripcion           String?
   usuario_id            Int?
-  requiere_autorizacion Boolean?      @default(false)
+  requiere_autorizacion Boolean?       @default(false)
   autorizado_por        Int?
-  fecha_movimiento      DateTime?     @default(now()) @db.Timestamp(6)
-  monto_recibido        Decimal?      @db.Decimal(10, 2)
-  monto_cambio          Decimal?      @db.Decimal(10, 2)
-  autorizador           usuarios?     @relation("movimientos_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  sesion_caja           sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuario               usuarios?     @relation("movimientos_caja_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  venta                 ventas?       @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fecha_movimiento      DateTime?      @default(now()) @db.Timestamp(6)
+  monto_recibido        Decimal?       @db.Decimal(10, 2)
+  monto_cambio          Decimal?       @db.Decimal(10, 2)
+  autorizador           usuarios?      @relation("movimientos_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja           sesiones_caja  @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turno_caja            turnos_caja?   @relation(fields: [turno_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario               usuarios?      @relation("movimientos_caja_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  venta                 ventas?        @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_movimientos_caja_sesion")
   @@index([tipo_movimiento], map: "idx_movimientos_caja_tipo")
   @@index([fecha_movimiento], map: "idx_movimientos_caja_fecha")
   @@index([venta_id], map: "idx_movimientos_caja_venta")
+  @@index([turno_caja_id], map: "idx_movimientos_caja_turno")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model retiros_caja {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   sesion_caja_id  Int
-  monto           Decimal       @db.Decimal(10, 2)
-  motivo          String        @db.VarChar(200)
+  turno_caja_id   Int?
+  monto           Decimal        @db.Decimal(10, 2)
+  motivo          String         @db.VarChar(200)
   solicitado_por  Int
   autorizado_por  Int?
-  estado          String?       @default("pendiente") @db.VarChar(20)
-  fecha_solicitud DateTime?     @default(now()) @db.Timestamp(6)
-  fecha_respuesta DateTime?     @db.Timestamp(6)
+  estado          String?        @default("pendiente") @db.VarChar(20)
+  fecha_solicitud DateTime?      @default(now()) @db.Timestamp(6)
+  fecha_respuesta DateTime?      @db.Timestamp(6)
   observaciones   String?
-  recibo_url      String?       @db.VarChar(500)
-  destino_fondos  String?       @db.VarChar(200)
-  autorizador     usuarios?     @relation("retiros_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  solicitante     usuarios      @relation("retiros_caja_solicitante", fields: [solicitado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recibo_url      String?        @db.VarChar(500)
+  destino_fondos  String?        @db.VarChar(200)
+  autorizador     usuarios?      @relation("retiros_caja_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja     sesiones_caja  @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turno_caja      turnos_caja?   @relation(fields: [turno_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  solicitante     usuarios       @relation("retiros_caja_solicitante", fields: [solicitado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_retiros_sesion")
   @@index([estado], map: "idx_retiros_estado")
   @@index([fecha_solicitud], map: "idx_retiros_fecha")
+  @@index([turno_caja_id], map: "idx_retiros_turno")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model gastos_caja {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   sesion_caja_id  Int
-  monto           Decimal       @db.Decimal(10, 2)
-  categoria_gasto String        @db.VarChar(100)
+  turno_caja_id   Int?
+  monto           Decimal        @db.Decimal(10, 2)
+  categoria_gasto String         @db.VarChar(100)
   descripcion     String
-  beneficiario    String?       @db.VarChar(200)
-  comprobante_url String?       @db.VarChar(500)
-  numero_factura  String?       @db.VarChar(100)
+  beneficiario    String?        @db.VarChar(200)
+  comprobante_url String?        @db.VarChar(500)
+  numero_factura  String?        @db.VarChar(100)
   autorizado_por  Int?
-  fecha_gasto     DateTime?     @default(now()) @db.Timestamp(6)
+  fecha_gasto     DateTime?      @default(now()) @db.Timestamp(6)
   observaciones   String?
-  metodo_pago     String        @default("efectivo") @db.VarChar(20)
-  autorizador     usuarios?     @relation(fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  sesion_caja     sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  metodo_pago     String         @default("efectivo") @db.VarChar(20)
+  autorizador     usuarios?      @relation(fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja     sesiones_caja  @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turno_caja      turnos_caja?   @relation(fields: [turno_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([sesion_caja_id], map: "idx_gastos_sesion")
   @@index([categoria_gasto], map: "idx_gastos_categoria")
   @@index([fecha_gasto], map: "idx_gastos_fecha")
+  @@index([turno_caja_id], map: "idx_gastos_turno")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -457,30 +467,45 @@ model arqueos_caja {
 
 /// Modelo para gestión de turnos de caja
 model turnos_caja {
-  id                Int           @id @default(autoincrement())
-  sesion_caja_id    Int
-  cajero_id         Int
-  caja_id           Int
-  tipo_relevo       String        @db.VarChar(30)
-  fecha_inicio      DateTime      @default(now()) @db.Timestamp(6)
-  fecha_fin         DateTime?     @db.Timestamp(6)
-  monto_inicial     Decimal       @db.Decimal(10, 2)
-  monto_final       Decimal?      @db.Decimal(10, 2)
-  diferencia        Decimal?      @db.Decimal(10, 2)
-  duracion_minutos  Int?
-  estado            String        @default("activo") @db.VarChar(20)
-  motivo_suspension String?
-  observaciones     String?
-  created_at        DateTime?     @default(now()) @db.Timestamp(6)
-  caja              cajas         @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cajero            usuarios      @relation("turnos_cajero", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  sesion_caja       sesiones_caja @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                    Int                    @id @default(autoincrement())
+  sesion_caja_id        Int
+  cajero_id             Int
+  caja_id               Int
+  tipo_relevo           String                 @db.VarChar(30)
+  fecha_inicio          DateTime               @default(now()) @db.Timestamp(6)
+  fecha_fin             DateTime?              @db.Timestamp(6)
+  efectivo_inicial      Decimal                @db.Decimal(10, 2)
+  efectivo_final        Decimal?               @db.Decimal(10, 2)
+  monto_inicial         Decimal                @db.Decimal(10, 2)
+  monto_final           Decimal?               @db.Decimal(10, 2)
+  diferencia            Decimal?               @db.Decimal(10, 2)
+  duracion_minutos      Int?
+  estado                String                 @default("activo") @db.VarChar(20)
+  motivo_suspension     String?
+  observaciones         String?
+  observaciones_cierre  String?
+  desglose_efectivo     Json?
+  turno_anterior_id     Int?
+  autorizado_por        Int?
+  created_at            DateTime?              @default(now()) @db.Timestamp(6)
+  caja                  cajas                  @relation(fields: [caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cajero                usuarios               @relation("turnos_cajero", fields: [cajero_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sesion_caja           sesiones_caja          @relation(fields: [sesion_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  autorizador           usuarios?              @relation("turnos_autorizador", fields: [autorizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turno_anterior        turnos_caja?           @relation("relevos", fields: [turno_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turnos_siguientes     turnos_caja[]          @relation("relevos")
+  ventas                ventas[]
+  movimientos_caja      movimientos_caja[]
+  retiros_caja          retiros_caja[]
+  gastos_caja           gastos_caja[]
 
   @@index([sesion_caja_id], map: "idx_turnos_caja_sesion")
   @@index([cajero_id], map: "idx_turnos_caja_cajero")
   @@index([caja_id], map: "idx_turnos_caja_id")
   @@index([estado], map: "idx_turnos_caja_estado")
   @@index([fecha_inicio], map: "idx_turnos_caja_fecha")
+  @@index([sesion_caja_id, estado], map: "idx_turnos_activos")
+  @@index([turno_anterior_id], map: "idx_turnos_anterior")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -647,6 +672,7 @@ model usuarios {
   solicitudes_transferencia_respuesta   solicitudes_transferencia[] @relation("solicitudes_respuesta")
   solicitudes_transferencia_solicitante solicitudes_transferencia[] @relation("solicitudes_solicitante")
   turnos_caja                           turnos_caja[]               @relation("turnos_cajero")
+  turnos_autorizados                    turnos_caja[]               @relation("turnos_autorizador")
   unidades_productivas                  unidades_productivas[]
   rol                                   roles?                      @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   ventas                                ventas[]
@@ -658,6 +684,7 @@ model ventas {
   id                   Int                    @id @default(autoincrement())
   codigo_venta         String                 @unique @db.VarChar(50)
   usuario_id           Int?
+  turno_caja_id        Int?
   fecha_venta          DateTime?              @default(now()) @db.Timestamptz(6)
   subtotal             Decimal                @db.Decimal(10, 2)
   impuesto             Decimal?               @default(0) @db.Decimal(10, 2)
@@ -680,10 +707,25 @@ model ventas {
   pagos_venta          pagos_venta[]
   cliente              clientes?              @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   usuario              usuarios?              @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  turno_caja           turnos_caja?           @relation(fields: [turno_caja_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([estado], map: "idx_ventas_estado")
   @@index([fecha_venta], map: "idx_ventas_fecha")
   @@index([usuario_id], map: "idx_ventas_usuario")
   @@index([fecha_venta, usuario_id], map: "idx_ventas_fecha_usuario")
   @@index([cliente_id], map: "idx_ventas_cliente")
+  @@index([turno_caja_id], map: "idx_ventas_turno")
+}
+
+model metas_ventas {
+  id             Int       @id @default(autoincrement())
+  nombre         String    @db.VarChar(150)
+  monto_objetivo Decimal   @db.Decimal(12, 2)
+  anio           Int
+  activa         Boolean?  @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([anio], map: "idx_metas_anio")
+  @@index([activa], map: "idx_metas_activa")
 }

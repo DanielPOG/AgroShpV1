@@ -285,9 +285,7 @@ export async function calcularTotalEsperado(sesionId: number): Promise<number> {
     where: { id: sesionId },
     select: {
       fondo_inicial: true,
-      total_ventas_efectivo: true,
-      total_retiros: true,
-      total_gastos: true,
+      estado: true,
     }
   })
 
@@ -295,13 +293,127 @@ export async function calcularTotalEsperado(sesionId: number): Promise<number> {
     throw new Error('Sesión no encontrada')
   }
 
-  const montoInicial = Number(sesion.fondo_inicial)
-  const totalVentas = Number(sesion.total_ventas_efectivo)
-  const totalRetiros = Number(sesion.total_retiros)
-  const totalGastos = Number(sesion.total_gastos)
+  // Buscar el último arqueo de esta sesión
+  const ultimoArqueo = await prisma.arqueos_caja.findFirst({
+    where: { sesion_caja_id: sesionId },
+    orderBy: { fecha_arqueo: 'desc' },
+    select: {
+      total_contado: true,
+      fecha_arqueo: true,
+    }
+  })
 
-  // Total esperado = Monto Inicial + Ventas Efectivo - Retiros - Gastos
-  const totalEsperado = montoInicial + totalVentas - totalRetiros - totalGastos
+  // Si hay arqueo previo, partir desde el efectivo contado en ese arqueo
+  // Si no, partir desde el fondo inicial
+  const efectivoBase = ultimoArqueo 
+    ? Number(ultimoArqueo.total_contado)
+    : Number(sesion.fondo_inicial)
+  
+  const fechaDesde = ultimoArqueo?.fecha_arqueo
+
+  // 1. Ventas en efectivo desde último arqueo
+  // Primero obtenemos los IDs de los turnos de esta sesión
+  const turnosDeSesion = await prisma.turnos_caja.findMany({
+    where: { sesion_caja_id: sesionId },
+    select: { id: true }
+  })
+  
+  const turnoIds = turnosDeSesion.map(t => t.id)
+
+  // Ahora obtenemos las ventas que pertenecen a estos turnos
+  const ventasQuery: any = {
+    turno_caja_id: { in: turnoIds },
+    estado: { not: 'cancelada' }
+  }
+
+  if (fechaDesde) {
+    ventasQuery.fecha_venta = { gt: fechaDesde }
+  }
+
+  const ventas = await prisma.ventas.findMany({
+    where: ventasQuery,
+    select: {
+      id: true,
+      pagos_venta: {
+        where: {
+          metodo_pago: {
+            nombre: 'efectivo'
+          }
+        },
+        select: {
+          monto: true
+        }
+      }
+    }
+  })
+
+  // Sumar los montos de pagos en efectivo
+  const totalVentas = ventas.reduce((sum, venta) => {
+    const pagoEfectivo = venta.pagos_venta.reduce((s, p) => s + Number(p.monto), 0)
+    return sum + pagoEfectivo
+  }, 0)
+
+  // 2. Retiros desde último arqueo
+  const retiros = await prisma.retiros_caja.aggregate({
+    where: {
+      sesion_caja_id: sesionId,
+      estado: 'aprobado',
+      ...(fechaDesde && { fecha_solicitud: { gt: fechaDesde } })
+    },
+    _sum: { monto: true }
+  })
+
+  // 3. Gastos en efectivo desde último arqueo
+  const gastos = await prisma.gastos_caja.aggregate({
+    where: {
+      sesion_caja_id: sesionId,
+      metodo_pago: 'efectivo',
+      ...(fechaDesde && { fecha_gasto: { gt: fechaDesde } })
+    },
+    _sum: { monto: true }
+  })
+
+  // 4. Movimientos de caja en efectivo desde último arqueo
+  const movimientosIngreso = await prisma.movimientos_caja.aggregate({
+    where: {
+      sesion_caja_id: sesionId,
+      tipo_movimiento: 'ingreso_adicional',
+      metodo_pago: 'efectivo',
+      venta_id: null,
+      ...(fechaDesde && { fecha_movimiento: { gt: fechaDesde } })
+    },
+    _sum: { monto: true }
+  })
+
+  const movimientosEgreso = await prisma.movimientos_caja.aggregate({
+    where: {
+      sesion_caja_id: sesionId,
+      tipo_movimiento: 'egreso_operativo',
+      metodo_pago: 'efectivo',
+      venta_id: null,
+      ...(fechaDesde && { fecha_movimiento: { gt: fechaDesde } })
+    },
+    _sum: { monto: true }
+  })
+
+  const totalRetiros = Number(retiros._sum.monto || 0)
+  const totalGastos = Number(gastos._sum.monto || 0)
+  const totalIngresos = Number(movimientosIngreso._sum.monto || 0)
+  const totalEgresos = Number(movimientosEgreso._sum.monto || 0)
+
+  // Total esperado = Base + Ventas + Ingresos - Retiros - Gastos - Egresos
+  const totalEsperado = efectivoBase + totalVentas + totalIngresos - totalRetiros - totalGastos - totalEgresos
+
+  console.log(`💰 [calcularTotalEsperado] Sesión ${sesionId}:`, {
+    efectivoBase,
+    ultimoArqueo: !!ultimoArqueo,
+    totalVentas,
+    totalIngresos,
+    totalRetiros,
+    totalGastos,
+    totalEgresos,
+    totalEsperado,
+  })
 
   return totalEsperado
 }
@@ -374,4 +486,297 @@ export async function getArqueosPendientesAprobacion() {
     pendientesAprobacion: true,
     limit: 50,
   })
+}
+
+/**
+ * Obtener historial detallado de un arqueo con todos los turnos y operaciones
+ * Retorna la sesión, todos los turnos y las operaciones detalladas de cada turno
+ */
+export async function getArqueoHistoryDetail(arqueoId: number) {
+  // Obtener el arqueo con la sesión
+  const arqueo = await prisma.arqueos_caja.findUnique({
+    where: { id: arqueoId },
+    include: {
+      sesion_caja: {
+        include: {
+          cajero: {
+            select: {
+              nombre: true,
+              apellido: true,
+              email: true,
+            }
+          },
+          caja: {
+            select: {
+              id: true,
+              nombre: true,
+              codigo: true,
+            }
+          }
+        }
+      },
+      realizador: {
+        select: {
+          nombre: true,
+          apellido: true,
+          email: true,
+        }
+      }
+    }
+  })
+
+  if (!arqueo) {
+    throw new Error('Arqueo no encontrado')
+  }
+
+  // Obtener todos los turnos de la sesión en orden cronológico
+  const turnos = await prisma.turnos_caja.findMany({
+    where: {
+      sesion_caja_id: arqueo.sesion_caja_id
+    },
+    include: {
+      cajero: {
+        select: {
+          nombre: true,
+          apellido: true,
+          email: true,
+        }
+      }
+    },
+    orderBy: {
+      fecha_inicio: 'asc'
+    }
+  })
+
+  // Para cada turno, obtener todas las operaciones
+  const turnosConOperaciones = await Promise.all(
+    turnos.map(async (turno) => {
+      // Ventas del turno
+      const ventas = await prisma.ventas.findMany({
+        where: {
+          turno_caja_id: turno.id
+        },
+        select: {
+          id: true,
+          codigo_venta: true,
+          fecha_venta: true,
+          subtotal: true,
+          descuento: true,
+          total: true,
+          estado: true,
+          pagos_venta: {
+            select: {
+              id: true,
+              monto: true,
+              metodo_pago: {
+                select: {
+                  nombre: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          fecha_venta: 'asc'
+        }
+      })
+
+      // Retiros del turno
+      const retiros = await prisma.retiros_caja.findMany({
+        where: {
+          turno_caja_id: turno.id
+        },
+        select: {
+          id: true,
+          fecha_solicitud: true,
+          monto: true,
+          motivo: true,
+          estado: true,
+          autorizador: {
+            select: {
+              nombre: true,
+              apellido: true,
+            }
+          },
+        },
+        orderBy: {
+          fecha_solicitud: 'asc'
+        }
+      })
+
+      // Gastos del turno
+      const gastos = await prisma.gastos_caja.findMany({
+        where: {
+          turno_caja_id: turno.id
+        },
+        select: {
+          id: true,
+          fecha_gasto: true,
+          monto: true,
+          metodo_pago: true,
+          categoria_gasto: true,
+          descripcion: true,
+        },
+        orderBy: {
+          fecha_gasto: 'asc'
+        }
+      })
+
+      // Movimientos extra del turno
+      const movimientos = await prisma.movimientos_caja.findMany({
+        where: {
+          turno_caja_id: turno.id,
+          venta_id: null, // Solo movimientos extra, no ventas
+        },
+        select: {
+          id: true,
+          fecha_movimiento: true,
+          tipo_movimiento: true,
+          metodo_pago: true,
+          monto: true,
+          descripcion: true,
+        },
+        orderBy: {
+          fecha_movimiento: 'asc'
+        }
+      })
+
+      // Calcular totales del turno por método de pago
+      const totalesPorMetodo = {
+        efectivo: { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        nequi: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        tarjeta: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        transferencia: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
+      }
+
+      // Sumar ventas por método
+      ventas.forEach(venta => {
+        if (venta.estado !== 'cancelada') {
+          // Cada venta puede tener múltiples pagos
+          venta.pagos_venta.forEach(pago => {
+            const nombreMetodo = pago.metodo_pago.nombre.toLowerCase()
+            const metodo = nombreMetodo as keyof typeof totalesPorMetodo
+            if (totalesPorMetodo[metodo]) {
+              totalesPorMetodo[metodo].ventas += Number(pago.monto)
+            }
+          })
+        }
+      })
+
+      // Sumar retiros (siempre efectivo)
+      retiros.forEach(retiro => {
+        totalesPorMetodo.efectivo.retiros += Number(retiro.monto)
+      })
+
+      // Sumar gastos por método
+      gastos.forEach(gasto => {
+        const metodo = gasto.metodo_pago as keyof typeof totalesPorMetodo
+        if (totalesPorMetodo[metodo]) {
+          totalesPorMetodo[metodo].gastos += Number(gasto.monto)
+        }
+      })
+
+      // Sumar movimientos por método
+      movimientos.forEach(mov => {
+        const metodo = mov.metodo_pago as keyof typeof totalesPorMetodo
+        if (totalesPorMetodo[metodo]) {
+          if (mov.tipo_movimiento === 'ingreso_operativo') {
+            totalesPorMetodo[metodo].ingresos += Number(mov.monto)
+          } else if (mov.tipo_movimiento === 'egreso_operativo') {
+            totalesPorMetodo[metodo].egresos += Number(mov.monto)
+          }
+        }
+      })
+
+      // Calcular saldo final por método
+      const saldosPorMetodo = Object.entries(totalesPorMetodo).reduce((acc, [metodo, totales]) => {
+        const saldo = totales.ventas + totales.ingresos - totales.gastos - totales.egresos - 
+                     (metodo === 'efectivo' ? totales.retiros : 0)
+        return {
+          ...acc,
+          [metodo]: saldo
+        }
+      }, {} as Record<string, number>)
+
+      return {
+        turno: {
+          id: turno.id,
+          fecha_inicio: turno.fecha_inicio,
+          fecha_fin: turno.fecha_fin,
+          tipo_relevo: turno.tipo_relevo,
+          efectivo_inicial: Number(turno.efectivo_inicial),
+          efectivo_final: turno.efectivo_final ? Number(turno.efectivo_final) : null,
+          cajero: turno.cajero,
+          observaciones: turno.observaciones,
+        },
+        operaciones: {
+          ventas,
+          retiros,
+          gastos,
+          movimientos,
+        },
+        totales: {
+          porMetodo: totalesPorMetodo,
+          saldos: saldosPorMetodo,
+          cantidades: {
+            ventas: ventas.length,
+            retiros: retiros.length,
+            gastos: gastos.length,
+            movimientos: movimientos.length,
+          }
+        }
+      }
+    })
+  )
+
+  // Calcular totales generales de la sesión
+  const totalesGenerales = turnosConOperaciones.reduce((acc, turno) => {
+    Object.entries(turno.totales.porMetodo).forEach(([metodo, totales]) => {
+      if (!acc[metodo]) {
+        acc[metodo] = { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 }
+      }
+      acc[metodo].ventas += totales.ventas
+      acc[metodo].gastos += totales.gastos
+      acc[metodo].ingresos += totales.ingresos
+      acc[metodo].egresos += totales.egresos
+      if (metodo === 'efectivo') {
+        acc[metodo].retiros += totales.retiros
+      }
+    })
+    return acc
+  }, {} as Record<string, any>)
+
+  // Usar los valores originales del arqueo tal como fueron guardados
+  // NO recalcular porque ya están en la base de datos
+  return {
+    arqueo: {
+      id: arqueo.id,
+      tipo_arqueo: arqueo.tipo_arqueo,
+      fecha_arqueo: arqueo.fecha_arqueo,
+      total_contado: Number(arqueo.total_contado),
+      total_esperado: Number(arqueo.total_esperado),
+      diferencia: Number(arqueo.diferencia),
+      observaciones: arqueo.observaciones,
+      realizador: arqueo.realizador,
+    },
+    sesion: {
+      id: arqueo.sesion_caja.id,
+      fecha_apertura: arqueo.sesion_caja.fecha_apertura,
+      fecha_cierre: arqueo.sesion_caja.fecha_cierre,
+      fondo_inicial: Number(arqueo.sesion_caja.fondo_inicial),
+      responsable: arqueo.sesion_caja.cajero,
+      tienda: arqueo.sesion_caja.caja,
+    },
+    turnos: turnosConOperaciones,
+    totalesGenerales: {
+      porMetodo: totalesGenerales,
+      cantidades: {
+        turnos: turnos.length,
+        ventas: turnosConOperaciones.reduce((sum, t) => sum + t.totales.cantidades.ventas, 0),
+        retiros: turnosConOperaciones.reduce((sum, t) => sum + t.totales.cantidades.retiros, 0),
+        gastos: turnosConOperaciones.reduce((sum, t) => sum + t.totales.cantidades.gastos, 0),
+        movimientos: turnosConOperaciones.reduce((sum, t) => sum + t.totales.cantidades.movimientos, 0),
+      }
+    }
+  }
 }

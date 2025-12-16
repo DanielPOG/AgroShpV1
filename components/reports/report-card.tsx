@@ -26,30 +26,43 @@ export function ReportCard({
 }: ReportCardProps) {
   return (
     <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Icon className="h-5 w-5 text-primary" />
+      <CardHeader className="p-3 sm:p-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {/* Icon y Título */}
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
-            <div>
-              <CardTitle className="text-lg">{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-sm sm:text-base md:text-lg truncate">{title}</CardTitle>
+              <CardDescription className="text-xs sm:text-sm line-clamp-2">{description}</CardDescription>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onDownloadPDF}>
-              <FileText className="h-4 w-4 mr-1" />
-              PDF
+          
+          {/* Botones de Exportación */}
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onDownloadPDF}
+              className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-9"
+            >
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden xs:inline">PDF</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={onDownloadExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-1" />
-              Excel
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onDownloadExcel}
+              className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-9"
+            >
+              <FileSpreadsheet className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden xs:inline">Excel</span>
             </Button>
           </div>
         </div>
       </CardHeader>
-      {children && <CardContent>{children}</CardContent>}
+      {children && <CardContent className="p-3 sm:p-6 pt-0">{children}</CardContent>}
     </Card>
   )
 }

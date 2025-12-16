@@ -159,17 +159,21 @@ export const useCartStore = create<CartStore>()(
       },
 
       /**
-       * Calcular impuesto (IVA 19%)
+       * Calcular impuesto (DEPRECADO: Usa useConfig().config.iva_porcentaje)
+       * @deprecated Esta función no usa configuración dinámica. Usar cálculo directo con useConfig()
        */
       getImpuesto: () => {
+        console.warn('⚠️ getImpuesto() está deprecado. Usa useConfig() para obtener iva_porcentaje dinámico')
         const subtotal = get().getSubtotal()
-        return subtotal * 0.19
+        return subtotal * 0.19 // DEPRECADO: Valor hardcodeado
       },
 
       /**
-       * Calcular total (subtotal + impuesto)
+       * Calcular total (DEPRECADO: Usa cálculo directo con useConfig())
+       * @deprecated Esta función no usa configuración dinámica. Calcular en componente
        */
       getTotal: () => {
+        console.warn('⚠️ getTotal() está deprecado. Usa useConfig() para obtener iva_porcentaje dinámico')
         const subtotal = get().getSubtotal()
         const impuesto = get().getImpuesto()
         return subtotal + impuesto

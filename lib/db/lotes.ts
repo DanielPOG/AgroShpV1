@@ -791,10 +791,13 @@ export async function getLotesByProducto(producto_id: number) {
 /**
  * Obtener lotes próximos a vencer
  */
-export async function getLotesProximosVencer(dias: number = 7) {
+export async function getLotesProximosVencer(dias?: number) {
   try {
+    // Usar configuración global si no se especifica
+    const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    
     const fechaLimite = getColombiaDate()
-    fechaLimite.setDate(fechaLimite.getDate() + dias)
+    fechaLimite.setDate(fechaLimite.getDate() + diasAlerta)
 
     const lotes = await prisma.lotes_productos.findMany({
       where: {

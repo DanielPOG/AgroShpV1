@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { cajaEvents } from "@/lib/events"
 
 interface CashSession {
   id: number
@@ -62,6 +63,18 @@ export function useCashSession() {
 
   useEffect(() => {
     loadSession()
+
+    // Escuchar eventos de actualización de sesión
+    const handleSessionUpdate = () => {
+      console.log('🔄 Evento session-updated recibido, recargando sesión...')
+      loadSession()
+    }
+
+    cajaEvents.on('session-updated', handleSessionUpdate)
+
+    return () => {
+      cajaEvents.off('session-updated', handleSessionUpdate)
+    }
   }, [loadSession])
 
   return {

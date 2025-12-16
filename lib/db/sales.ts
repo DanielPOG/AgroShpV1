@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { checkStockBajo } from './alertas'
 import { getEfectivoDisponible } from './cash-sessions'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * ✅ ACTUALIZADO - FASE 1
@@ -83,6 +84,7 @@ export interface CreateSaleData {
     referencia?: string
   }[]
   usuario_id: number
+  turno_caja_id?: number
   cliente_id?: number
   cliente_nombre?: string
   cliente_email?: string
@@ -251,7 +253,12 @@ async function descontarStockDeLotes(
   cantidadTotal: number,
   tx: Prisma.TransactionClient
 ) {
-  const lotesUsados: { lote_id: number; cantidad: number; codigo_lote: string }[] = []
+  const lotesUsados: { 
+    lote_id: number
+    cantidad: number
+    codigo_lote: string
+    costo_unitario: number | null
+  }[] = []
   let cantidadRestante = cantidadTotal
 
   // Obtener lotes disponibles en orden FIFO
@@ -263,6 +270,12 @@ async function descontarStockDeLotes(
     const cantidadEnLote = Number(lote.cantidad)
     const cantidadADescontar = Math.min(cantidadRestante, cantidadEnLote)
     const nuevaCantidad = cantidadEnLote - cantidadADescontar
+
+    // Obtener costo de producción del lote (si existe)
+    const costoProduccion = await tx.costos_produccion.findFirst({
+      where: { lote_id: lote.id },
+      select: { costo_unitario: true }
+    })
 
     // ✅ SOLO actualizar el lote - el trigger SQL actualizará el producto automáticamente
     await tx.lotes_productos.update({
@@ -277,12 +290,17 @@ async function descontarStockDeLotes(
       lote_id: lote.id,
       cantidad: cantidadADescontar,
       codigo_lote: lote.codigo_lote,
+      costo_unitario: costoProduccion?.costo_unitario ? Number(costoProduccion.costo_unitario) : null
     })
 
     cantidadRestante -= cantidadADescontar
 
+    const costoInfo = costoProduccion?.costo_unitario 
+      ? `(costo: $${Number(costoProduccion.costo_unitario).toFixed(2)}/u)`
+      : '(sin costo configurado)'
+    
     console.log(
-      `✅ Descontado ${cantidadADescontar} unidades del lote ${lote.codigo_lote} (quedan ${nuevaCantidad})`
+      `✅ Descontado ${cantidadADescontar} unidades del lote ${lote.codigo_lote} ${costoInfo} (quedan ${nuevaCantidad})`
     )
   }
 
@@ -323,8 +341,9 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
         const descuentoMonto = subtotal * (descuentoGlobal / 100)
         const subtotalConDescuento = subtotal - descuentoMonto
 
-        // Calcular impuesto (IVA 19%)
-        const impuesto = subtotalConDescuento * 0.19
+        // Calcular impuesto (IVA desde configuración)
+        const ivaPorcentaje = await getConfigValue('iva_porcentaje', 19) as number
+        const impuesto = subtotalConDescuento * (ivaPorcentaje / 100)
         const total = subtotalConDescuento + impuesto
 
         console.log(`💰 Totales calculados:`, {
@@ -433,6 +452,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
           data: {
             codigo_venta: codigoVenta,
             usuario_id: data.usuario_id,
+            turno_caja_id: data.turno_caja_id,
             cliente_id: data.cliente_id,
             cliente_nombre: data.cliente_nombre,
             cliente_email: data.cliente_email,
@@ -468,6 +488,7 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
                 cantidad: item.cantidad,
                 precio_unitario: item.precio_unitario,
                 subtotal: item.cantidad * item.precio_unitario,
+                costo_unitario: null, // Productos ficticios no tienen costo
                 observaciones: `Producto ficticio: ID temporal ${item.producto_id}`,
               },
             })
@@ -501,11 +522,16 @@ export async function createSale(data: CreateSaleData, sessionId?: number) {
                 cantidad: loteUsado.cantidad,
                 precio_unitario: item.precio_unitario,
                 subtotal: loteUsado.cantidad * item.precio_unitario,
+                costo_unitario: loteUsado.costo_unitario, // 💰 Guardar costo al momento de la venta
               },
             })
 
+            const costoInfo = loteUsado.costo_unitario 
+              ? `(costo: $${loteUsado.costo_unitario.toFixed(2)}/u)`
+              : '(sin costo)'
+            
             console.log(
-              `  📦 Item creado: ${loteUsado.cantidad} unidades del lote ${loteUsado.codigo_lote}`
+              `  📦 Item creado: ${loteUsado.cantidad} unidades del lote ${loteUsado.codigo_lote} ${costoInfo}`
             )
           }
 

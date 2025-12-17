@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,11 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Image from "next/image"
-import { Package, Calendar, AlertCircle, CheckCircle, XCircle, Clock, Building2, User, MapPin, Pencil } from "lucide-react"
+import { Package, Calendar, AlertCircle, CheckCircle, XCircle, Clock, Building2, User, MapPin, Pencil, Download, Barcode } from "lucide-react"
+import dynamic from "next/dynamic"
+
+// Importar Barcode dinámicamente para evitar errores de SSR
+const BarcodeComponent = dynamic(() => import('react-barcode'), { ssr: false })
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useLoteById } from "@/hooks/use-lotes"
@@ -26,6 +30,47 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
   
   // Estados para el modal de edición de costos
   const [isEditCostosOpen, setIsEditCostosOpen] = useState(false)
+  const barcodeRef = useRef<HTMLDivElement>(null)
+  
+  // Función para descargar el código de barras como imagen
+  const handleDownloadBarcode = () => {
+    if (!barcodeRef.current || !lote) return
+    
+    const svg = barcodeRef.current.querySelector('svg')
+    if (!svg) return
+    
+    // Convertir SVG a canvas y descargar
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    
+    const data = new XMLSerializer().serializeToString(svg)
+    const img = new window.Image()
+    const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+    
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0)
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const link = document.createElement('a')
+          link.download = `codigo-barras-${lote.codigo_lote}.png`
+          link.href = URL.createObjectURL(blob)
+          link.click()
+          URL.revokeObjectURL(link.href)
+        }
+      })
+      
+      URL.revokeObjectURL(url)
+    }
+    
+    img.src = url
+  }
   
   // Solo llamar al hook si hay un loteId válido
   const shouldFetch = isOpen && loteId !== null
@@ -300,6 +345,52 @@ export function LoteDetailModal({ loteId, isOpen, onClose }: LoteDetailModalProp
               </div>
             </div>
           )}
+
+          {/* Código de Barras */}
+          <Separator />
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Barcode className="h-5 w-5 text-primary" />
+              Código de Barras
+            </h3>
+            
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-xs">
+                  Escanea este código en el POS para agregar el producto de este lote al carrito
+                </AlertDescription>
+              </Alert>
+              
+              <div ref={barcodeRef} className="flex justify-center items-center bg-white p-4 rounded-lg">
+                <BarcodeComponent 
+                  value={lote.codigo_lote}
+                  format="CODE128"
+                  width={2}
+                  height={80}
+                  displayValue={true}
+                  fontSize={14}
+                  margin={10}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadBarcode}
+                  className="flex-1"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar Código de Barras
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground text-center">
+                Código: <span className="font-mono font-semibold">{lote.codigo_lote}</span>
+              </p>
+            </div>
+          </div>
 
           {/* Información de Costos de Producción */}
           {lote.costos_produccion && lote.costos_produccion.length > 0 ? (

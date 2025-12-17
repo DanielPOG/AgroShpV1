@@ -148,23 +148,49 @@ export default function POSPage() {
   /**
    * Manejar escaneo de código de barras
    */
-  const handleBarcodeScan = (barcode: string) => {
-    // Buscar producto por código de barras (código del producto)
-    const product = availableProducts.find((p) => p.codigo === barcode)
+  const handleBarcodeScan = async (barcode: string) => {
+    // Primero intentar buscar por código de producto
+    let product = availableProducts.find((p) => p.codigo === barcode)
     
-    if (product) {
+    // Si no se encuentra, buscar por código de lote
+    if (!product) {
+      try {
+        const response = await fetch(`/api/lotes?codigo_lote=${barcode}&estado=disponible&limit=1`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.data && data.data.length > 0) {
+            const lote = data.data[0]
+            // Buscar el producto asociado al lote
+            product = availableProducts.find((p) => p.id === lote.producto_id)
+            
+            if (product) {
+              handleAddToCart(product)
+              toast({
+                title: "Producto Agregado",
+                description: `${product.nombre} del lote ${lote.codigo_lote} añadido al carrito`,
+              })
+              return
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error buscando lote:', error)
+      }
+    } else {
       handleAddToCart(product)
       toast({
         title: "Producto Agregado",
         description: `${product.nombre} añadido al carrito`,
       })
-    } else {
-      toast({
-        title: "Producto No Encontrado",
-        description: `No se encontró el código de barras: ${barcode}`,
-        variant: "destructive",
-      })
+      return
     }
+    
+    // Si no se encontró ni por código de producto ni por código de lote
+    toast({
+      title: "Producto No Encontrado",
+      description: `No se encontró el código: ${barcode}`,
+      variant: "destructive",
+    })
   }
 
   /**

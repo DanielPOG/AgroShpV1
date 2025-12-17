@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
       dias_vencimiento: searchParams.get('dias_vencimiento')
         ? parseInt(searchParams.get('dias_vencimiento')!)
         : undefined,
-      search: searchParams.get('search') || undefined,
+      // Aceptar tanto 'search' como 'codigo_lote' para buscar por código de lote
+      search: searchParams.get('search') || searchParams.get('codigo_lote') || undefined,
     }
 
     // Validar filtros

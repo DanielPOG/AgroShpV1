@@ -56,21 +56,44 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     console.log('   - generateInvoice:', generateInvoice)
     console.log('   - sendEmail:', sendEmail)
 
-    // Simulate processing
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    if (generateInvoice) {
-      console.log("[v0] Generating invoice:", invoiceNumber)
-    }
-
-    if (sendEmail && email) {
-      console.log("[v0] Sending invoice to:", email)
-    }
-
-    setCompleted(true)
-
-    // Esperar a que se complete la venta antes de cerrar
     try {
+      // Si se seleccionó envío por correo, llamar al API
+      if (sendEmail && email) {
+        console.log("📧 Enviando factura por correo a:", email)
+        
+        const response = await fetch('/api/send-invoice', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            saleData,
+            invoiceNumber,
+            customerName,
+            customerId,
+            config: {
+              iva_porcentaje: config.iva_porcentaje || 19
+            }
+          })
+        })
+
+        const result = await response.json()
+
+        if (!result.success) {
+          throw new Error(result.error || 'Error al enviar el correo')
+        }
+
+        console.log("✅ Factura enviada exitosamente:", result.emailId)
+      }
+
+      if (generateInvoice) {
+        console.log("📄 Generando factura física:", invoiceNumber)
+      }
+
+      setCompleted(true)
+
+      // Esperar a que se complete la venta antes de cerrar
       const dataToSend = {
         requiere_factura: generateInvoice || sendEmail, // Requiere factura si seleccionó alguna opción
         factura_generada: generateInvoice, // Solo true si seleccionó "Generar Factura"
@@ -89,10 +112,11 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
       setTimeout(() => {
         handleClose()
       }, 1500)
-    } catch (error) {
+    } catch (error: any) {
       setProcessing(false)
       setCompleted(false)
-      console.error('Error al completar venta:', error)
+      console.error('❌ Error al completar facturación:', error)
+      alert(`Error: ${error.message || 'No se pudo procesar la facturación'}`)
     }
   }
 
@@ -263,9 +287,9 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     
     // Totales
     yPos += 10
-    const ivaDivisor = 1 + (config.iva_porcentaje / 100)
-    const subtotal = saleData.total / ivaDivisor // Calcular subtotal sin IVA
-    const iva = saleData.total - subtotal
+    // Usar los valores correctos que ya vienen calculados en saleData
+    const subtotal = saleData.subtotal
+    const iva = saleData.tax
     
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')

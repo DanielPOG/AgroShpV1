@@ -71,6 +71,7 @@
     "react-hook-form": "^7.60.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
+    "resend": "^6.6.0",
     "serialport": "^13.0.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.5.5",

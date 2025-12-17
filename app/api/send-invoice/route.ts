@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { jsPDF } from "jspdf"
+import nodemailer from "nodemailer"
+import { getConfigValue } from "@/lib/constants"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Configurar transporter de Gmail como fallback
+const gmailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ''), // Remover espacios
+  },
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,14 +50,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar que RESEND_API_KEY esté configurada
-    if (!process.env.RESEND_API_KEY) {
-      console.error('❌ RESEND_API_KEY no está configurada en las variables de entorno')
-      return NextResponse.json(
-        { success: false, error: "El servicio de correo no está configurado. Por favor contacte al administrador." },
-        { status: 500 }
-      )
+    // Obtener configuración actual de IVA desde la base de datos
+    let ivaPorcentaje: number
+    try {
+      ivaPorcentaje = await getConfigValue('iva_porcentaje', 19) as number
+      console.log('💰 IVA obtenido desde BD:', ivaPorcentaje + '%')
+    } catch (dbError: any) {
+      console.error('❌ Error al obtener IVA de BD, usando 19% por defecto:', dbError)
+      ivaPorcentaje = 19
     }
+
+    // Recalcular totales con la configuración actual de la BD
+    const subtotal = saleData.items.reduce((sum: number, item: any) => 
+      sum + (item.price * item.quantity), 0
+    )
+    const ivaDecimal = ivaPorcentaje / 100
+    const iva = subtotal * ivaDecimal
+    const total = subtotal + iva
+
+    // Actualizar saleData con valores recalculados
+    saleData.subtotal = subtotal
+    saleData.tax = iva
+    saleData.total = total
+
+    console.log('💰 Totales recalculados desde BD:', {
+      subtotal,
+      iva: `${ivaPorcentaje}% = $${iva}`,
+      total
+    })
 
     // Generar PDF en el servidor
     const pdfBuffer = await generateInvoicePDF({
@@ -54,17 +85,112 @@ export async function POST(request: NextRequest) {
       invoiceNumber,
       customerName,
       customerId,
-      config
+      config: {
+        iva_porcentaje: ivaPorcentaje
+      }
     })
 
     console.log('📄 PDF generado, tamaño:', pdfBuffer.length, 'bytes')
 
-    // Enviar correo con Resend
-    const { data, error } = await resend.emails.send({
-      from: 'AgroShop SENA <onboarding@resend.dev>', // ⚠️ Cambiar cuando tengas dominio verificado
-      to: [email],
-      subject: `Factura ${invoiceNumber} - AgroShop SENA`,
-      html: `
+    // Intentar enviar con Resend primero
+    let emailSent = false
+    let emailId = null
+    let emailError = null
+
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const { data, error } = await resend.emails.send({
+          from: 'AgroShop SENA <onboarding@resend.dev>',
+          to: [email],
+          subject: `Factura ${invoiceNumber} - AgroShop SENA`,
+          html: generateEmailHTML(saleData, invoiceNumber, customerName, customerId),
+          attachments: [
+            {
+              filename: `Factura_${invoiceNumber}.pdf`,
+              content: pdfBuffer,
+            },
+          ],
+        })
+
+        if (error) {
+          console.warn('⚠️ Resend falló:', error)
+          emailError = error
+        } else {
+          console.log('✅ Correo enviado con Resend:', data?.id)
+          emailSent = true
+          emailId = data?.id
+        }
+      } catch (error) {
+        console.warn('⚠️ Error en Resend:', error)
+        emailError = error
+      }
+    }
+
+    // Si Resend falló o no está configurado, usar Gmail (Nodemailer)
+    if (!emailSent && process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      try {
+        console.log('📧 Intentando enviar con Gmail (Nodemailer)...')
+        
+        const info = await gmailTransporter.sendMail({
+          from: `"AgroShop SENA" <${process.env.GMAIL_USER}>`,
+          to: email,
+          subject: `Factura ${invoiceNumber} - AgroShop SENA`,
+          html: generateEmailHTML(saleData, invoiceNumber, customerName, customerId),
+          attachments: [
+            {
+              filename: `Factura_${invoiceNumber}.pdf`,
+              content: pdfBuffer,
+            },
+          ],
+        })
+
+        console.log('✅ Correo enviado con Gmail:', info.messageId)
+        emailSent = true
+        emailId = info.messageId
+      } catch (gmailError: any) {
+        console.error('❌ Error con Gmail:', gmailError)
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `No se pudo enviar el correo. Error: ${gmailError.message}` 
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (!emailSent) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "No hay servicios de correo configurados o todos fallaron" 
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Factura enviada exitosamente",
+      emailId,
+      provider: emailId?.includes('gmail') ? 'Gmail' : 'Resend'
+    })
+
+  } catch (error: any) {
+    console.error('❌ Error en send-invoice API:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error.message || "Error interno al procesar la solicitud" 
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// Función para generar el HTML del email
+function generateEmailHTML(saleData: any, invoiceNumber: string, customerName: string, customerId: string): string {
+  return `
         <!DOCTYPE html>
         <html>
           <head>
@@ -214,41 +340,7 @@ export async function POST(request: NextRequest) {
             </div>
           </body>
         </html>
-      `,
-      attachments: [
-        {
-          filename: `Factura_${invoiceNumber}.pdf`,
-          content: pdfBuffer,
-        },
-      ],
-    })
-
-    if (error) {
-      console.error('❌ Error al enviar correo:', error)
-      return NextResponse.json(
-        { success: false, error: error.message || "Error al enviar el correo" },
-        { status: 500 }
-      )
-    }
-
-    console.log('✅ Correo enviado exitosamente:', data?.id)
-
-    return NextResponse.json({
-      success: true,
-      message: "Factura enviada exitosamente",
-      emailId: data?.id
-    })
-
-  } catch (error: any) {
-    console.error('❌ Error en send-invoice API:', error)
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error.message || "Error interno al procesar la solicitud" 
-      },
-      { status: 500 }
-    )
-  }
+      `
 }
 
 // Función para generar el PDF (misma lógica que en el frontend)

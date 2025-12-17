@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
 import { CreditCard, Smartphone, DollarSign, ArrowLeftRight, CheckCircle2, Loader2 } from "lucide-react"
@@ -78,6 +77,12 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
   const change = selectedMethod?.nombre.toLowerCase() === "efectivo" 
     ? Math.max(0, Number.parseFloat(amountPaid || "0") - total) 
     : 0
+
+  // Filtrar métodos de pago (memoizado para mejor rendimiento)
+  const filteredPaymentMethods = useMemo(() => 
+    paymentMethods?.filter(method => !method.nombre.toLowerCase().includes('transferencia')) || [],
+    [paymentMethods]
+  )
 
   // ✅ NUEVO: Validar sesión de caja antes de mostrar modal
   useEffect(() => {
@@ -415,58 +420,47 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
             </div>
           ) : (
             <div className="space-y-6">
-              <RadioGroup 
-                value={selectedMethodId?.toString()} 
-                onValueChange={(value) => setSelectedMethodId(Number(value))}
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  {paymentMethods
-                    ?.filter(method => !method.nombre.toLowerCase().includes('transferencia')) // ✨ Filtrar transferencia
-                    .map((method) => {
-                    const isSelected = selectedMethodId === method.id
-                    const icon = method.nombre.toLowerCase().includes("efectivo") ? (
-                      <DollarSign className="h-8 w-8" />
-                    ) : method.nombre.toLowerCase().includes("nequi") ? (
-                      <Smartphone className="h-8 w-8" />
-                    ) : method.nombre.toLowerCase().includes("tarjeta") ? (
-                      <CreditCard className="h-8 w-8" />
-                    ) : (
-                      <ArrowLeftRight className="h-8 w-8" />
-                    )
-
-                    return (
-                      <Label
-                        key={method.id}
-                        htmlFor={`method-${method.id}`}
-                        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                          isSelected ? "border-primary bg-primary/5" : "border-border"
-                        }`}
-                      >
-                        <RadioGroupItem 
-                          value={method.id.toString()} 
-                          id={`method-${method.id}`} 
-                          className="sr-only" 
-                        />
-                        {icon}
-                        <span className="font-semibold text-center">{method.nombre}</span>
-                      </Label>
-                    )
-                  })}
-                  
-                  {/* ✨ NUEVO: Botón Pago Mixto */}
-                  <Label
-                    htmlFor="method-mixto"
-                    className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                      selectedMethodId === -1 ? "border-primary bg-primary/5" : "border-border"
-                    }`}
-                    onClick={() => setSelectedMethodId(-1)}
-                  >
+              <div className="grid grid-cols-2 gap-3">
+                {filteredPaymentMethods.map((method) => {
+                  const isSelected = selectedMethodId === method.id
+                  const icon = method.nombre.toLowerCase().includes("efectivo") ? (
+                    <DollarSign className="h-8 w-8" />
+                  ) : method.nombre.toLowerCase().includes("nequi") ? (
+                    <Smartphone className="h-8 w-8" />
+                  ) : method.nombre.toLowerCase().includes("tarjeta") ? (
+                    <CreditCard className="h-8 w-8" />
+                  ) : (
                     <ArrowLeftRight className="h-8 w-8" />
-                    <span className="font-semibold text-center">Pago Mixto</span>
-                    <span className="text-xs text-muted-foreground">Efectivo + Digital</span>
-                  </Label>
-                </div>
-              </RadioGroup>
+                  )
+
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setSelectedMethodId(method.id)}
+                      className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+                        isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      {icon}
+                      <span className="font-semibold text-center">{method.nombre}</span>
+                    </button>
+                  )
+                })}
+                
+                {/* Botón Pago Mixto */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedMethodId(-1)}
+                  className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+                    selectedMethodId === -1 ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  <ArrowLeftRight className="h-8 w-8" />
+                  <span className="font-semibold text-center">Pago Mixto</span>
+                  <span className="text-xs text-muted-foreground">Efectivo + Digital</span>
+                </button>
+              </div>
 
               {selectedMethod?.nombre.toLowerCase() === "efectivo" && (
                 <div className="space-y-4">

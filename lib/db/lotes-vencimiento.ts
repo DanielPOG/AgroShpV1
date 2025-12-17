@@ -157,11 +157,11 @@ export async function checkLotesProximosVencer() {
     })
 
     console.log(
-      `✅ Verificación completada: ${lotes7Dias.length} lotes próximos a vencer, ${lotesVencidos.count} lotes vencidos`
+      `✅ Verificación completada: ${lotesProximos.length} lotes próximos a vencer, ${lotesVencidos.count} lotes vencidos`
     )
 
     return {
-      proximosVencer: lotes7Dias.length,
+      proximosVencer: lotesProximos.length,
       vencidos: lotesVencidos.count,
     }
   } catch (error) {

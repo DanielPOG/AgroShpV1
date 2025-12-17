@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '@/hooks/use-toast'
 
 /**
@@ -129,7 +129,13 @@ export function usePaymentMethods() {
       }
 
       const data = await response.json()
-      setMetodos(data)
+      
+      // Deduplicar por ID en caso de duplicados en BD
+      const uniqueMetodos = data.filter((metodo: any, index: number, self: any[]) => 
+        index === self.findIndex((m) => m.id === metodo.id)
+      )
+      
+      setMetodos(uniqueMetodos)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
       setError(message)
@@ -140,9 +146,9 @@ export function usePaymentMethods() {
   }, [])
 
   // Cargar métodos de pago al montar el componente
-  useState(() => {
+  useEffect(() => {
     fetchMetodos()
-  })
+  }, [fetchMetodos])
 
   return {
     metodos,

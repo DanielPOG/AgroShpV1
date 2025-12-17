@@ -87,7 +87,31 @@ export const authOptions: NextAuthOptions = {
 
     cookies: {
         sessionToken: {
-            name: `next-auth.session-token`,
+            name: process.env.NODE_ENV === 'production' 
+                ? '__Secure-next-auth.session-token'
+                : 'next-auth.session-token',
+            options: {
+                httpOnly: true,
+                sameSite: 'lax',
+                path: '/',
+                secure: process.env.NODE_ENV === 'production',
+                domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
+            }
+        },
+        callbackUrl: {
+            name: process.env.NODE_ENV === 'production'
+                ? '__Secure-next-auth.callback-url'
+                : 'next-auth.callback-url',
+            options: {
+                sameSite: 'lax',
+                path: '/',
+                secure: process.env.NODE_ENV === 'production'
+            }
+        },
+        csrfToken: {
+            name: process.env.NODE_ENV === 'production'
+                ? '__Host-next-auth.csrf-token'
+                : 'next-auth.csrf-token',
             options: {
                 httpOnly: true,
                 sameSite: 'lax',
@@ -103,18 +127,22 @@ export const authOptions: NextAuthOptions = {
     },
 
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger }) {
             // Agregar role al token en el primer login
             if (user) {
                 token.role = user.role
                 token.id = user.id
+            }
+            // Refresh token si es necesario
+            if (trigger === "update") {
+                // Aquí podrías refrescar datos del usuario si cambian
             }
             return token
         },
 
         async session({ session, token }) {
             // Agregar role e id a la sesión
-            if (session.user) {
+            if (session.user && token) {
                 session.user.role = token.role as string
                 session.user.id = token.id as string
             }

@@ -13,7 +13,7 @@ import { getToken } from 'next-auth/jwt'
  * - /catalogo - Catálogo público alternativo
  * - /login - Página de login
  */
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // Rutas completamente públicas que no necesitan middleware
@@ -26,7 +26,8 @@ export async function proxy(request: NextRequest) {
     const isApiRoute = pathname.startsWith('/api')
     const isAuthApi = pathname.startsWith('/api/auth')
     const isPublicApi = pathname.startsWith('/api/public') || 
-                        pathname.startsWith('/api/config/public')
+                        pathname.startsWith('/api/config/public') ||
+                        pathname.startsWith('/api/catalogo')
     const isCronRoute = pathname === '/api/lotes/check-vencimientos'
     
     // Si es página pública o asset, dejar pasar sin procesar
@@ -44,7 +45,11 @@ export async function proxy(request: NextRequest) {
     try {
         token = await getToken({
             req: request,
-            secret: process.env.NEXTAUTH_SECRET
+            secret: process.env.NEXTAUTH_SECRET,
+            secureCookie: process.env.NODE_ENV === 'production',
+            cookieName: process.env.NODE_ENV === 'production' 
+                ? '__Secure-next-auth.session-token'
+                : 'next-auth.session-token'
         })
     } catch (error) {
         console.error('Error al obtener token:', error)
@@ -74,7 +79,6 @@ export async function proxy(request: NextRequest) {
     // Redirigir a login si intenta acceder al dashboard sin autenticación
     if (isDashboard && !token) {
         const loginUrl = new URL('/login', request.url)
-        loginUrl.searchParams.set('callbackUrl', pathname)
         return NextResponse.redirect(loginUrl)
     }
 

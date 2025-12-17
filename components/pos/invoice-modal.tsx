@@ -505,6 +505,7 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
             className="flex-1" 
             disabled={
               processing || 
+              !generateInvoice && !sendEmail || // ✨ Validación: Al menos uno debe estar seleccionado
               (sendEmail && !email) // Solo validar email si se seleccionó envío por correo
             }
           >
@@ -521,9 +522,11 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
         
         {/* Mensaje de ayuda */}
         {!generateInvoice && !sendEmail && (
-          <p className="text-xs text-center text-muted-foreground mt-2">
-            ⚠️ Selecciona "Generar Factura" para imprimir ticket, "Enviar por Correo" para enviar digitalmente, o "Omitir" para solo abrir el cajón
-          </p>
+          <div className="mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+            <p className="text-sm text-center text-yellow-700 dark:text-yellow-500 font-medium">
+              ⚠️ Debes seleccionar al menos una opción: "Generar Factura" o "Enviar por Correo", o presiona "Omitir" para continuar sin factura
+            </p>
+          </div>
         )}
       </DialogContent>
     </Dialog>

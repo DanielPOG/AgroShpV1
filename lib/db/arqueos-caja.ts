@@ -663,9 +663,11 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
         }
       })
 
-      // Sumar retiros (siempre efectivo)
+      // Sumar retiros (siempre efectivo) - SOLO autorizados o completados
       retiros.forEach(retiro => {
-        totalesPorMetodo.efectivo.retiros += Number(retiro.monto)
+        if (retiro.estado === 'autorizado' || retiro.estado === 'completado') {
+          totalesPorMetodo.efectivo.retiros += Number(retiro.monto)
+        }
       })
 
       // Sumar gastos por método

@@ -20,6 +20,7 @@ interface InvoiceModalProps {
     subtotal: number
     tax: number
     paymentMethod: string
+    cashReceived?: number
     change?: number
   }
   onComplete: (data: {

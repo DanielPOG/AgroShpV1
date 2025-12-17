@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Leaf, Loader2, Sparkles, Lock } from "lucide-react"
+import { Leaf, Loader2, Sparkles, Lock, Home, ArrowLeft } from "lucide-react"
 import { type UserRole, getRoleLabel, getRoleDescription } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
 
@@ -143,6 +143,15 @@ export function LoginForm({}: LoginFormProps) {
             <Lock className="h-5 w-5 text-white/80" />
             <p className="text-sm text-white/80">Plataforma segura con roles y permisos diferenciados</p>
           </div>
+
+          <Button
+            onClick={() => router.push("/")}
+            variant="outline"
+            className="w-full bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white transition-all duration-300"
+          >
+            <Home className="mr-2 h-4 w-4" />
+            Ver Catálogo Público
+          </Button>
         </div>
 
         <Card className="shadow-2xl border-white/20 bg-white/95 backdrop-blur-xl animate-scale-in">
@@ -215,6 +224,24 @@ export function LoginForm({}: LoginFormProps) {
                 )}
               </Button>
             </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-muted-foreground">O</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => router.push("/")}
+              variant="outline"
+              className="w-full h-11 border-2 hover:bg-primary/5 transition-all duration-300"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver al Catálogo
+            </Button>
           </CardContent>
         </Card>
       </div>

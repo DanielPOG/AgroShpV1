@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       email,
       invoiceNumber,
       customerName,
+      paymentMethod: saleData?.paymentMethod,
       itemsCount: saleData?.items?.length
     })
 
@@ -35,6 +36,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "No hay datos de venta para generar la factura" },
         { status: 400 }
+      )
+    }
+
+    // Verificar que RESEND_API_KEY esté configurada
+    if (!process.env.RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY no está configurada en las variables de entorno')
+      return NextResponse.json(
+        { success: false, error: "El servicio de correo no está configurado. Por favor contacte al administrador." },
+        { status: 500 }
       )
     }
 
@@ -157,7 +167,7 @@ export async function POST(request: NextRequest) {
                   </tr>
                   <tr>
                     <td>Método de Pago:</td>
-                    <td style="text-transform: capitalize;">${saleData.paymentMethod}</td>
+                    <td style="text-transform: capitalize;">${saleData.paymentMethod || 'Efectivo'}</td>
                   </tr>
                   ${customerName ? `
                   <tr>
@@ -169,6 +179,18 @@ export async function POST(request: NextRequest) {
                   <tr>
                     <td>Cédula/NIT:</td>
                     <td>${customerId}</td>
+                  </tr>
+                  ` : ''}
+                  ${saleData.cashReceived && saleData.cashReceived > 0 ? `
+                  <tr>
+                    <td>Efectivo Recibido:</td>
+                    <td>$${saleData.cashReceived.toLocaleString("es-CO")}</td>
+                  </tr>
+                  ` : ''}
+                  ${saleData.change && saleData.change > 0 ? `
+                  <tr>
+                    <td>Cambio:</td>
+                    <td>$${saleData.change.toLocaleString("es-CO")}</td>
                   </tr>
                   ` : ''}
                 </table>
@@ -351,15 +373,27 @@ async function generateInvoicePDF({
   doc.text('TOTAL:', 140, yPos + 2)
   doc.text(`$${saleData.total.toLocaleString('es-CO')}`, 185, yPos + 2, { align: 'right' })
   
-  // Cambio si existe
-  if (saleData.change && saleData.change > 0) {
+  // Cambio si existe (solo para efectivo)
+  if (saleData.paymentMethod?.toLowerCase() === 'efectivo' && saleData.change && saleData.change > 0) {
     yPos += 12
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
+    doc.text('Efectivo Recibido:', 140, yPos)
+    doc.text(`$${saleData.cashReceived.toLocaleString('es-CO')}`, 185, yPos, { align: 'right' })
+    
+    yPos += 7
     doc.text('Cambio Entregado:', 140, yPos)
     doc.text(`$${saleData.change.toLocaleString('es-CO')}`, 185, yPos, { align: 'right' })
   }
+  
+  // Método de pago
+  yPos += 15
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Método de Pago:', 15, yPos)
+  doc.setFont('helvetica', 'normal')
+  doc.text(saleData.paymentMethod || 'Efectivo', 60, yPos)
   
   // Footer
   yPos = 270

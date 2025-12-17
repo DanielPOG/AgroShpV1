@@ -31,11 +31,5 @@ export default function PublicLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return (
-    <html lang="es">
-      <body className={`font-sans antialiased`}>
-        {children}
-      </body>
-    </html>
-  )
+  return <>{children}</>
 }

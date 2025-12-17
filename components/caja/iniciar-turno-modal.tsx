@@ -65,7 +65,7 @@ export function IniciarTurnoModal({
 
   // Cargar último turno cerrado de la sesión
   useEffect(() => {
-    console.error('[ MODAL ACTUALIZADO - EFECTO] open:', open, 'sesionCajaId:', sesionCajaId)
+    console.log('[ MODAL ACTUALIZADO - EFECTO] open:', open, 'sesionCajaId:', sesionCajaId)
     if (open && sesionCajaId) {
       console.log('🔄 Cargando último turno para sesión:', sesionCajaId)
       loadUltimoTurno()

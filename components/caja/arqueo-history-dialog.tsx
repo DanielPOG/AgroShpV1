@@ -29,9 +29,23 @@ import {
   ArrowUpCircle,
   Loader2
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, isValid, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatearMoneda } from '@/lib/utils'
+
+// Función auxiliar para formatear fechas de forma segura
+const formatearFecha = (fecha: string | Date | null | undefined, formato: string = "dd/MM/yyyy HH:mm"): string => {
+  if (!fecha) return 'N/A'
+  
+  try {
+    const fechaObj = typeof fecha === 'string' ? parseISO(fecha) : fecha
+    if (!isValid(fechaObj)) return 'Fecha inválida'
+    return format(fechaObj, formato, { locale: es })
+  } catch (error) {
+    console.error('Error al formatear fecha:', error, fecha)
+    return 'Error en fecha'
+  }
+}
 
 interface ArqueoHistoryDialogProps {
   arqueoId: number | null
@@ -115,7 +129,7 @@ export function ArqueoHistoryDialog({
                 <div>
                   <p className="text-xs text-muted-foreground">Fecha</p>
                   <p className="font-medium text-xs sm:text-sm">
-                    {format(new Date(data.arqueo.fecha_arqueo), "dd/MM/yyyy HH:mm", { locale: es })}
+                    {formatearFecha(data.arqueo.fecha_arqueo)}
                   </p>
                 </div>
                 <div>
@@ -169,7 +183,7 @@ export function ArqueoHistoryDialog({
                 <div>
                   <p className="text-xs text-muted-foreground">Apertura</p>
                   <p className="font-medium text-xs sm:text-sm">
-                    {format(new Date(data.sesion.fecha_apertura), "dd/MM/yyyy HH:mm", { locale: es })}
+                    {formatearFecha(data.sesion.fecha_apertura)}
                   </p>
                 </div>
                 <div>
@@ -374,16 +388,16 @@ export function ArqueoHistoryDialog({
                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            <span className="hidden sm:inline">{format(new Date(turnoData.turno.fecha_inicio), "dd/MM/yyyy HH:mm", { locale: es })}</span>
-                            <span className="sm:hidden">{format(new Date(turnoData.turno.fecha_inicio), "dd/MM HH:mm", { locale: es })}</span>
+                            <span className="hidden sm:inline">{formatearFecha(turnoData.turno.fecha_inicio)}</span>
+                            <span className="sm:hidden">{formatearFecha(turnoData.turno.fecha_inicio, "dd/MM HH:mm")}</span>
                           </div>
                           {turnoData.turno.fecha_fin && (
                             <>
                               <span>→</span>
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                <span className="hidden sm:inline">{format(new Date(turnoData.turno.fecha_fin), "dd/MM/yyyy HH:mm", { locale: es })}</span>
-                                <span className="sm:hidden">{format(new Date(turnoData.turno.fecha_fin), "dd/MM HH:mm", { locale: es })}</span>
+                                <span className="hidden sm:inline">{formatearFecha(turnoData.turno.fecha_fin)}</span>
+                                <span className="sm:hidden">{formatearFecha(turnoData.turno.fecha_fin, "dd/MM HH:mm")}</span>
                               </div>
                             </>
                           )}
@@ -462,7 +476,7 @@ export function ArqueoHistoryDialog({
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                                           <span className="font-mono">#{venta.id}</span>
                                           <span className="text-muted-foreground">
-                                            {format(new Date(venta.fecha_venta), "HH:mm", { locale: es })}
+                                            {formatearFecha(venta.fecha_venta, "HH:mm")}
                                           </span>
                                           <Badge variant="outline" className="text-xs h-5">
                                             {METODO_PAGO_LABELS[venta.metodo_pago as keyof typeof METODO_PAGO_LABELS]}
@@ -490,7 +504,7 @@ export function ArqueoHistoryDialog({
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                                           <span className="font-mono">#{retiro.id}</span>
                                           <span className="text-muted-foreground">
-                                            {format(new Date(retiro.fecha_retiro), "HH:mm", { locale: es })}
+                                            {formatearFecha(retiro.fecha_retiro, "HH:mm")}
                                           </span>
                                           <span className="text-xs truncate max-w-[150px]">{retiro.motivo}</span>
                                         </div>
@@ -516,7 +530,7 @@ export function ArqueoHistoryDialog({
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                                           <span className="font-mono">#{gasto.id}</span>
                                           <span className="text-muted-foreground">
-                                            {format(new Date(gasto.fecha_gasto), "HH:mm", { locale: es })}
+                                            {formatearFecha(gasto.fecha_gasto, "HH:mm")}
                                           </span>
                                           <span className="text-xs truncate max-w-[100px]">{gasto.categoria}</span>
                                           <Badge variant="outline" className="text-xs h-5">
@@ -545,7 +559,7 @@ export function ArqueoHistoryDialog({
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                                           <span className="font-mono">#{mov.id}</span>
                                           <span className="text-muted-foreground">
-                                            {format(new Date(mov.fecha_movimiento), "HH:mm", { locale: es })}
+                                            {formatearFecha(mov.fecha_movimiento, "HH:mm")}
                                           </span>
                                           <span className="text-xs truncate max-w-[100px]">{mov.motivo}</span>
                                           <Badge variant="outline" className="text-xs h-5">

@@ -32,10 +32,9 @@ export function UserMenu() {
         setIsSigningOut(true)
         try {
             await signOut({
-                redirect: false,
+                callbackUrl: "/login",
+                redirect: true,
             })
-            router.push("/catalogo")
-            router.refresh()
         } catch (error) {
             console.error("Error al cerrar sesión:", error)
             setIsSigningOut(false)

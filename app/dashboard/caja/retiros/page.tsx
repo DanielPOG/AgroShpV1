@@ -152,7 +152,8 @@ export default function RetirosPage() {
     )
   }
 
-  if (!hasActiveSession) {
+  // Solo validar sesión de caja si NO es admin
+  if (!hasActiveSession && !isAdmin) {
     return (
       <div className="container mx-auto p-6">
         <Alert variant="destructive">
@@ -172,13 +173,15 @@ export default function RetirosPage() {
         <div>
           <h1 className="text-3xl font-bold">Retiros de Caja</h1>
           <p className="text-muted-foreground">
-            Sesión: {session?.codigo_sesion}
+            {session?.codigo_sesion ? `Sesión: ${session.codigo_sesion}` : 'Todas las sesiones'}
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Solicitar Retiro
-        </Button>
+        {hasActiveSession && (
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Solicitar Retiro
+          </Button>
+        )}
       </div>
 
       {/* Card de Total */}

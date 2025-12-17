@@ -268,6 +268,7 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
       subtotal,
       tax,
       paymentMethod: paymentMethodDisplay || 'Desconocido',
+      cashReceived: selectedMethod?.nombre.toLowerCase() === 'efectivo' ? Number.parseFloat(amountPaid || "0") : undefined,
       change: change > 0 ? change : undefined,
     })
     

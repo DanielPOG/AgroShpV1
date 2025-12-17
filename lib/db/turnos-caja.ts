@@ -248,6 +248,18 @@ export async function cerrarTurno(data: CerrarTurno) {
     throw new Error('El turno no está activo')
   }
 
+  // 1.5. Validar que NO hay retiros pendientes
+  const retirosPendientes = await prisma.retiros_caja.count({
+    where: {
+      turno_caja_id: data.turno_id,
+      estado: 'pendiente',
+    },
+  })
+
+  if (retirosPendientes > 0) {
+    throw new Error(`No puedes cerrar el turno. Tienes ${retirosPendientes} retiro(s) pendiente(s) de autorización. Espera a que sean autorizados o rechazados.`)
+  }
+
   // 2. Calcular totales del turno
   console.log(`📊 [cerrarTurno] Calculando totales del turno...`)
 

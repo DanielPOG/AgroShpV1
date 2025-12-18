@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-config"
 import {
-  getTurnoById,
-  finalizarTurno,
+  getResumenTurno,
+  cerrarTurno,
   suspenderTurno,
   reanudarTurno,
 } from "@/lib/db/turnos-caja"
-import { finalizarTurnoSchema, suspenderTurnoSchema } from "@/lib/validations/turno-caja.schema"
+import { cerrarTurnoSchema, suspenderTurnoSchema } from "@/lib/validations/turno-caja.schema"
 
 /**
  * GET /api/caja/turnos/[id]
@@ -26,7 +26,7 @@ export async function GET(
       )
     }
 
-    const turno = await getTurnoById(parseInt(params.id))
+    const turno = await getResumenTurno(parseInt(params.id))
 
     if (!turno) {
       return NextResponse.json(
@@ -68,13 +68,13 @@ export async function PUT(
     // Verificar acción
     if (body.accion === "finalizar") {
       // Validar datos de finalización
-      const validatedData = finalizarTurnoSchema.parse({
+      const validatedData = cerrarTurnoSchema.parse({
         turno_id: turnoId,
         ...body
       })
 
       // Obtener el turno para verificar permisos
-      const turno = await getTurnoById(turnoId)
+      const turno = await getResumenTurno(turnoId)
       if (!turno) {
         return NextResponse.json(
           { error: "Turno no encontrado" },
@@ -90,7 +90,7 @@ export async function PUT(
         )
       }
 
-      const turnoFinalizado = await finalizarTurno(validatedData)
+      const turnoFinalizado = await cerrarTurno(validatedData)
 
       return NextResponse.json({
         success: true,
@@ -114,7 +114,11 @@ export async function PUT(
         autorizado_por: session.user.id,
       })
 
-      const turnoSuspendido = await suspenderTurno(validatedData)
+      const turnoSuspendido = await suspenderTurno(
+        turnoId,
+        validatedData.motivo,
+        parseInt(session.user.id)
+      )
 
       return NextResponse.json({
         success: true,

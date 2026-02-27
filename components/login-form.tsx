@@ -45,9 +45,9 @@ export function LoginForm({}: LoginFormProps) {
       if (result?.error) {
         setError("Credenciales inválidas. Verifica tu email y contraseña.")
       } else if (result?.ok) {
-        // Login exitoso, redirigir al dashboard
-        router.push("/dashboard")
-        router.refresh()
+        // Login exitoso, redirigir al dashboard usando window.location
+        // para asegurar una navegación limpia con las cookies actualizadas
+        window.location.href = "/dashboard"
       }
     } catch (err) {
       setError("Error al iniciar sesión. Intenta nuevamente.")
@@ -73,8 +73,7 @@ export function LoginForm({}: LoginFormProps) {
       if (result?.error) {
         setError("Error al iniciar sesión con cuenta de demostración")
       } else if (result?.ok) {
-        router.push("/dashboard")
-        router.refresh()
+        window.location.href = "/dashboard"
       }
     } catch (err) {
       setError("Error al iniciar sesión")

@@ -1,0 +1,67 @@
+# =====================================================
+# AGROSHOP - DOCKER IGNORE
+# Archivos excluidos del contexto de build
+# =====================================================
+
+# Dependencias
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Next.js build output
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment (se pasan como variables en docker-compose)
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker
+
+# Documentación
+README.md
+docs/
+*.md
+
+# Logs
+logs
+*.log
+
+# Prisma migrations backup
+prisma/backup_migrations_antiguas
+
+# Scripts de desarrollo
+scripts/
+
+# Database dumps
+*.dump
+*.sql
+
+# Misc
+.turbo
+.vercel

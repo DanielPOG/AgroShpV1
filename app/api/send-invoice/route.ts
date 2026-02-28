@@ -4,16 +4,29 @@ import { jsPDF } from "jspdf"
 import nodemailer from "nodemailer"
 import { getConfigValue } from "@/lib/constants"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Inicialización lazy para evitar errores durante el build
+let resend: Resend | null = null
+function getResend() {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resend
+}
 
-// Configurar transporter de Gmail como fallback
-const gmailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ''), // Remover espacios
-  },
-})
+// Configurar transporter de Gmail como fallback (lazy)
+let gmailTransporter: nodemailer.Transporter | null = null
+function getGmailTransporter() {
+  if (!gmailTransporter && process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    gmailTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ''),
+      },
+    })
+  }
+  return gmailTransporter
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,9 +110,10 @@ export async function POST(request: NextRequest) {
     let emailId = null
     let emailError = null
 
-    if (process.env.RESEND_API_KEY) {
+    const resendClient = getResend()
+    if (resendClient) {
       try {
-        const { data, error } = await resend.emails.send({
+        const { data, error } = await resendClient.emails.send({
           from: 'AgroShop SENA <onboarding@resend.dev>',
           to: [email],
           subject: `Factura ${invoiceNumber} - AgroShop SENA`,
@@ -127,11 +141,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Si Resend falló o no está configurado, usar Gmail (Nodemailer)
-    if (!emailSent && process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    const transporter = getGmailTransporter()
+    if (!emailSent && transporter) {
       try {
         console.log('📧 Intentando enviar con Gmail (Nodemailer)...')
         
-        const info = await gmailTransporter.sendMail({
+        const info = await transporter.sendMail({
           from: `"AgroShop SENA" <${process.env.GMAIL_USER}>`,
           to: email,
           subject: `Factura ${invoiceNumber} - AgroShop SENA`,

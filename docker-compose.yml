@@ -1,0 +1,77 @@
+# =====================================================
+# AGROSHOP - DOCKER COMPOSE
+# Orquestación de servicios: App + PostgreSQL
+# =====================================================
+
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: agroshop-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+      POSTGRES_DB: ${POSTGRES_DB:-AgroShop}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Puerto externo 5433 para evitar conflicto con PostgreSQL local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-AgroShop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aplicación Next.js
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agroshop-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Base de datos - apunta al servicio 'db'
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-AgroShop}
+      
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-AgroShop2025SecretKeyParaSENACentroAgropecuario123456789}
+      
+      # Configuración de la app
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-AgroShop SENA}
+      NEXT_PUBLIC_IVA_PERCENTAGE: ${NEXT_PUBLIC_IVA_PERCENTAGE:-10}
+      NEXT_PUBLIC_STOCK_BAJO_UMBRAL: ${NEXT_PUBLIC_STOCK_BAJO_UMBRAL:-10}
+      NEXT_PUBLIC_DIAS_ALERTA_VENCIMIENTO: ${NEXT_PUBLIC_DIAS_ALERTA_VENCIMIENTO:-7}
+      
+      # Email (opcional)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Servicio para ejecutar migraciones y seed (opcional, ejecutar manualmente)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agroshop-migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-AgroShop}
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma db seed"
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+volumes:
+  postgres_data:
+    driver: local

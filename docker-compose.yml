@@ -31,7 +31,7 @@ services:
     container_name: agroshop-app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
       # Base de datos - apunta al servicio 'db'
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-AgroShop}

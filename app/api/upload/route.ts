@@ -70,8 +70,10 @@ export async function POST(request: NextRequest) {
     const filepath = join(uploadDir, filename)
     await writeFile(filepath, buffer)
     
-    // Retornar URL pública
-    const url = `/productos/${filename}`
+    // Retornar URL de la API que sirve imágenes dinámicamente
+    // Esto es necesario porque en modo standalone, Next.js no sirve
+    // archivos subidos después del build desde /public
+    const url = `/api/productos-img/${filename}`
     
     return NextResponse.json({ url }, { status: 200 })
   } catch (error) {

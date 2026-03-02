@@ -135,7 +135,7 @@ export async function GET(request: Request) {
         precioMayorista: producto.precio_mayorista ? Number(producto.precio_mayorista) : null,
         stock: stockActual,
         stockMinimo: stockMinimo,
-        imagen: producto.imagen_url || "/placeholder-product.jpg",
+        imagen: producto.imagen_url || "/placeholder.svg",
         esPerecedero: producto.es_perecedero || false,
         diasVencimiento: producto.dias_vencimiento,
         estado,

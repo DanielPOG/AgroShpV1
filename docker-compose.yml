@@ -52,6 +52,9 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
       
       NODE_ENV: production
+    volumes:
+      # Volumen para imágenes de productos subidas
+      - productos_uploads:/app/public/productos
     depends_on:
       db:
         condition: service_healthy
@@ -74,4 +77,6 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  productos_uploads:
     driver: local

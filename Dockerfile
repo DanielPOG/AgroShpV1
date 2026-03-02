@@ -62,6 +62,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copiar Prisma schema
 COPY --from=builder /app/prisma ./prisma
 
+# Crear directorio para uploads de productos y asignar permisos
+RUN mkdir -p /app/public/productos && chown -R nextjs:nodejs /app/public/productos
+
 USER nextjs
 
 EXPOSE 3000

@@ -27,7 +27,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardProviders>
+    <DashboardProviders session={session}>
       <SessionValidator />
       <div className="flex h-screen overflow-hidden">
         {/* Sidebar con datos de la sesión */}

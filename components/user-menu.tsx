@@ -31,10 +31,25 @@ export function UserMenu() {
     const handleLogout = async () => {
         setIsSigningOut(true)
         try {
+            // Usar redirect: false para evitar que NextAuth construya URL con NEXTAUTH_URL
+            // y hacer la redirección manualmente con router para usar URL relativa
             await signOut({
-                callbackUrl: "/login",
-                redirect: true,
+                redirect: false,
             })
+            
+            // Limpiar cache y localStorage
+            localStorage.removeItem('agroshop-cart-storage') // Carrito
+            sessionStorage.clear() // Cualquier dato de sesión
+            
+            // Limpiar cookies de NextAuth manualmente por si acaso
+            document.cookie.split(";").forEach((c) => {
+                document.cookie = c
+                    .replace(/^ +/, "")
+                    .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+            })
+            
+            // Redirección manual usando path relativo
+            window.location.href = "/login"
         } catch (error) {
             console.error("Error al cerrar sesión:", error)
             setIsSigningOut(false)

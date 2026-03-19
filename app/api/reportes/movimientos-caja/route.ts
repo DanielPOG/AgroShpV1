@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-config'
 import { getMovimientosDetallados } from '@/lib/db/movimientos-caja-extra'
+import { canAccessFinancialReports } from '@/lib/security/authorize'
 
 /**
  * GET /api/reportes/movimientos-caja
@@ -23,6 +26,21 @@ import { getMovimientosDetallados } from '@/lib/db/movimientos-caja-extra'
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 401 }
+      )
+    }
+
+    if (!canAccessFinancialReports(session.user.role)) {
+      return NextResponse.json(
+        { error: 'Acceso denegado' },
+        { status: 403 }
+      )
+    }
+
     const searchParams = request.nextUrl.searchParams
 
     // Parsear filtros

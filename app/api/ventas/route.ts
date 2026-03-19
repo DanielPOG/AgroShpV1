@@ -6,6 +6,9 @@ import { auth } from '@/lib/auth.server'
 import { createSale, getSales } from '@/lib/db/sales'
 import { createSaleSchema, salesFiltersSchema } from '@/lib/validations/sale.schema'
 import { validateCashSessionForSale, registerSaleInCashMovements } from '@/lib/db/cash-integration'
+import { checkRateLimit, getClientIpAddress, getEnvNumber } from '@/lib/security/rate-limit'
+import { getIdempotencyKey, checkIdempotency, saveIdempotencyResponse } from '@/lib/security/idempotency'
+import { logAudit, summarizeSale } from '@/lib/security/audit'
 import { ZodError } from 'zod'
 import { getPrinter, type VentaData } from '@/lib/printer/escpos-printer'
 
@@ -136,6 +139,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const ventasLimit = getEnvNumber('RATE_LIMIT_VENTAS_POST_MAX', 15)
+    const ventasWindowMs = getEnvNumber('RATE_LIMIT_VENTAS_POST_WINDOW_MS', 60_000)
+    const clientIp = getClientIpAddress(request.headers)
+    const rateLimitKey = `ventas:post:${session.user.id}:${clientIp}`
+    const limitResult = await checkRateLimit({
+      key: rateLimitKey,
+      limit: ventasLimit,
+      windowMs: ventasWindowMs,
+    })
+
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Demasiadas solicitudes. Intente nuevamente en unos segundos.',
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(limitResult.retryAfterSeconds),
+          },
+        }
+      )
+    }
+
+    // Idempotencia: verificar si ya se procesó esta operación
+    const idempotencyKey = getIdempotencyKey(request.headers)
+    if (idempotencyKey) {
+      const cached = await checkIdempotency({
+        key: idempotencyKey,
+        endpoint: 'POST /api/ventas',
+        userId: Number(session.user.id),
+      })
+      if (cached.hit) return cached.response
+    }
+
     // ⭐ NUEVO: Validar sesión de caja abierta Y turno activo (CRÍTICO)
     let cashSession
     let turnoActivo
@@ -169,13 +207,6 @@ export async function POST(request: NextRequest) {
     // Validar datos
     const validatedData = createSaleSchema.parse(dataWithUser)
 
-    // Log para debugging
-    console.log(`📝 Creando venta para usuario ${session.user.name} (ID: ${session.user.id})`)
-    console.log(`   - Sesión de caja: ${cashSession.id}`)
-    console.log(`   - Turno activo: ${turnoActivo.id}`)
-    console.log(`   - Items: ${validatedData.items.length}`)
-    console.log(`   - Métodos de pago: ${validatedData.pagos.length}`)
-
     // Crear venta (pasar sessionId y turnoId para vincular)
     const venta = await createSale({
       ...validatedData,
@@ -188,51 +219,30 @@ export async function POST(request: NextRequest) {
       throw new Error('Error al crear la venta')
     }
 
-    // ⭐ NUEVO: Registrar venta en movimientos de caja
+    // Registrar venta en movimientos de caja
     try {
-      console.log(`🔍 DEBUG: Procesando ${venta.pagos_venta.length} pagos para integración con caja`)
-      
-      // Para cada método de pago, registrar el movimiento
       for (const pago of venta.pagos_venta) {
         const metodoPagoNombre = pago.metodo_pago?.nombre || 'Desconocido'
-        
-        console.log(`📌 DEBUG Pago:`, {
-          metodo_pago_id: pago.metodo_pago_id,
-          metodo_pago_objeto: pago.metodo_pago,
-          metodo_pago_nombre: metodoPagoNombre,
-          monto: pago.monto
-        })
-        
+
         await registerSaleInCashMovements({
           sessionId: cashSession.id,
           turnoId: turnoActivo.id,
           ventaId: venta.id,
           codigoVenta: venta.codigo_venta,
           total: Number(pago.monto),
-          metodoPagoId: pago.metodo_pago_id || 1, // Default a efectivo si es null
+          metodoPagoId: pago.metodo_pago_id || 1,
           metodoPagoNombre,
         })
       }
-      console.log(`✅ Todos los pagos registrados en movimientos de caja`)
     } catch (movementError) {
-      console.error('⚠️ Error al registrar movimiento de caja:', movementError)
-      console.error('⚠️ Stack trace:', movementError instanceof Error ? movementError.stack : 'No stack')
-      // No fallar la venta por error en movimiento
-      // La venta ya está creada, solo loguear el error
+      console.error('Error al registrar movimiento de caja:', movementError instanceof Error ? movementError.message : 'Error desconocido')
     }
 
-    // 🖨️ NUEVO: Imprimir ticket y/o abrir cajón de dinero según configuración
+    // Imprimir ticket y/o abrir cajón de dinero según configuración
     try {
-      console.log(`🖨️ Procesando impresión/cajón para venta ${venta.codigo_venta}`)
-      console.log(`   - Requiere factura: ${venta.requiere_factura}`)
-      console.log(`   - Factura generada: ${venta.factura_generada}`)
-      
-      // Obtener instancia de impresora
       const printer = getPrinter()
 
-      // Caso 1: Usuario seleccionó "Generar Factura" → Imprimir ticket completo y abrir cajón
       if (venta.factura_generada) {
-        console.log(`📄 Imprimiendo ticket con factura...`)
         
         // Agrupar detalles de venta por producto (un producto puede tener varios lotes)
         const itemsAgrupados = venta.detalle_ventas?.reduce((acc, item) => {
@@ -273,31 +283,39 @@ export async function POST(request: NextRequest) {
         if (validatedData.efectivo_recibido !== undefined && validatedData.efectivo_recibido > 0) {
           ventaData.efectivo_recibido = validatedData.efectivo_recibido
           ventaData.cambio = validatedData.efectivo_recibido - Number(venta.total)
-          console.log(`💵 Efectivo: Recibido=${validatedData.efectivo_recibido}, Total=${venta.total}, Cambio=${ventaData.cambio}`)
         }
 
-        // Imprimir ticket completo y abrir cajón
         await printer.printVentaAndOpenDrawer(ventaData)
-        console.log(`✅ Ticket impreso y cajón abierto exitosamente`)
       } 
-      // Caso 2: Usuario seleccionó "Omitir" (requiere_factura = false) → Solo abrir cajón
       else if (!venta.requiere_factura) {
-        console.log(`💰 Venta sin factura - Solo abriendo cajón...`)
         await printer.openDrawerOnly()
-        console.log(`✅ Cajón abierto exitosamente (sin impresión de ticket)`)
       }
-      // Caso 3: Usuario seleccionó "Enviar por Correo" (requiere_factura = true pero factura_generada = false)
-      // → No imprimir ni abrir cajón (se enviará por email)
       else {
-        console.log(`📧 Factura se enviará por correo - No se imprime ticket ni se abre cajón`)
+        // Factura se enviará por correo
       }
       
     } catch (printerError) {
-      console.error('⚠️ Error al procesar impresión/cajón:', printerError)
-      console.error('⚠️ Stack trace:', printerError instanceof Error ? printerError.stack : 'No stack')
-      // No fallar la venta por error de impresión
-      // La venta ya está guardada, solo loguear el error
-      // El usuario puede reimprimir manualmente si es necesario
+      console.error('Error al procesar impresión:', printerError instanceof Error ? printerError.message : 'Error desconocido')
+    }
+
+    // Auditoría financiera
+    await logAudit({
+      tabla: 'ventas',
+      registro_id: venta.id,
+      accion: 'CREATE',
+      usuario_id: Number(session.user.id),
+      datos_nuevos: summarizeSale(venta),
+    })
+
+    // Guardar idempotencia si se proporcionó key
+    if (idempotencyKey) {
+      await saveIdempotencyResponse({
+        key: idempotencyKey,
+        endpoint: 'POST /api/ventas',
+        userId: Number(session.user.id),
+        statusCode: 201,
+        responseBody: venta,
+      })
     }
 
     return NextResponse.json(venta, { status: 201 })

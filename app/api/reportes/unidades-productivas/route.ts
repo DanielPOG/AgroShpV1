@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
 import { prisma } from '@/lib/prisma'
+import { canAccessFinancialReports } from '@/lib/security/authorize'
 
 /**
  * GET /api/reportes/unidades-productivas
@@ -24,6 +25,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 401 }
+      )
+    }
+
+    if (!canAccessFinancialReports(session.user.role)) {
+      return NextResponse.json(
+        { error: 'Acceso denegado' },
+        { status: 403 }
       )
     }
 
@@ -185,7 +193,7 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof Error) {
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Error al generar reporte de unidades productivas' },
         { status: 500 }
       )
     }

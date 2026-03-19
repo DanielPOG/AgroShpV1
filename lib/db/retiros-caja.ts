@@ -175,60 +175,54 @@ export async function autorizarRetiro(
   estado: "autorizado" | "rechazado",
   observaciones?: string
 ) {
-  // Verificar que el retiro existe
-  const retiro = await prisma.retiros_caja.findUnique({
-    where: { id: retiroId },
-    select: {
-      id: true,
-      estado: true,
-      monto: true,
-      solicitado_por: true,
+  return await prisma.$transaction(async (tx) => {
+    // Lock pesimista: evitar doble autorización concurrente
+    const [retiro] = await tx.$queryRaw<
+      { id: number; estado: string; monto: Prisma.Decimal; solicitado_por: number }[]
+    >`SELECT id, estado, monto, solicitado_por FROM retiros_caja WHERE id = ${retiroId} FOR UPDATE`
+
+    if (!retiro) {
+      throw new Error('Retiro no encontrado')
     }
-  })
 
-  if (!retiro) {
-    throw new Error('Retiro no encontrado')
-  }
-
-  if (retiro.estado !== ESTADOS_RETIRO.PENDIENTE) {
-    throw new Error(`Este retiro ya fue ${retiro.estado}`)
-  }
-
-  // No permitir que el solicitante se autorice
-  if (retiro.solicitado_por === autorizadoPorId) {
-    throw new Error('No puedes autorizar tu propio retiro')
-  }
-
-  const fechaRespuesta = new Date()
-
-  // Actualizar retiro
-  const retiroActualizado = await prisma.retiros_caja.update({
-    where: { id: retiroId },
-    data: {
-      estado,
-      autorizado_por: autorizadoPorId,
-      fecha_respuesta: fechaRespuesta,
-      observaciones: observaciones || retiro.estado,
-    },
-    include: {
-      autorizador: {
-        select: {
-          nombre: true,
-          apellido: true,
-        }
-      },
-      solicitante: {
-        select: {
-          nombre: true,
-          apellido: true,
-        }
-      },
+    if (retiro.estado !== ESTADOS_RETIRO.PENDIENTE) {
+      throw new Error(`Este retiro ya fue ${retiro.estado}`)
     }
+
+    // No permitir que el solicitante se autorice
+    if (retiro.solicitado_por === autorizadoPorId) {
+      throw new Error('No puedes autorizar tu propio retiro')
+    }
+
+    const fechaRespuesta = new Date()
+
+    // Actualizar retiro
+    const retiroActualizado = await tx.retiros_caja.update({
+      where: { id: retiroId },
+      data: {
+        estado,
+        autorizado_por: autorizadoPorId,
+        fecha_respuesta: fechaRespuesta,
+        observaciones: observaciones || retiro.estado,
+      },
+      include: {
+        autorizador: {
+          select: {
+            nombre: true,
+            apellido: true,
+          }
+        },
+        solicitante: {
+          select: {
+            nombre: true,
+            apellido: true,
+          }
+        },
+      }
+    })
+
+    return retiroActualizado
   })
-
-  console.log(`✅ Retiro ${retiroId} ${estado} por usuario ${autorizadoPorId}`)
-
-  return retiroActualizado
 }
 
 /**
@@ -238,36 +232,28 @@ export async function completarRetiro(
   retiroId: number,
   reciboUrl?: string
 ) {
-  // Verificar que el retiro está autorizado
-  const retiro = await prisma.retiros_caja.findUnique({
-    where: { id: retiroId },
-    select: {
-      id: true,
-      estado: true,
-      monto: true,
-      sesion_caja_id: true,
-      turno_caja_id: true,
-    }
-  })
-
-  if (!retiro) {
-    throw new Error('Retiro no encontrado')
-  }
-
-  if (retiro.estado !== ESTADOS_RETIRO.AUTORIZADO) {
-    throw new Error('Solo se pueden completar retiros autorizados')
-  }
-
-  // ✅ FASE 4: Validar que haya suficiente efectivo antes de completar el retiro
-  const validacion = await validarSaldoPorMetodoPago(retiro.sesion_caja_id, 'efectivo', retiro.monto)
-  
-  if (!validacion.valido) {
-    console.error(`❌ [completarRetiro] ${validacion.mensaje}`)
-    throw new Error(`No se puede completar el retiro. ${validacion.mensaje}`)
-  }
-
-  // Usar transacción para asegurar consistencia
+  // Usar transacción con lock pesimista para evitar race conditions
   return await prisma.$transaction(async (tx) => {
+    // Lock pesimista sobre el retiro
+    const [retiro] = await tx.$queryRaw<
+      { id: number; estado: string; monto: Prisma.Decimal; sesion_caja_id: number; turno_caja_id: number | null; solicitado_por: number; motivo: string }[]
+    >`SELECT id, estado, monto, sesion_caja_id, turno_caja_id, solicitado_por, motivo FROM retiros_caja WHERE id = ${retiroId} FOR UPDATE`
+
+    if (!retiro) {
+      throw new Error('Retiro no encontrado')
+    }
+
+    if (retiro.estado !== ESTADOS_RETIRO.AUTORIZADO) {
+      throw new Error('Solo se pueden completar retiros autorizados')
+    }
+
+    // Lock sobre la sesión para validar saldo de forma atómica
+    const validacion = await validarSaldoPorMetodoPago(retiro.sesion_caja_id, 'efectivo', retiro.monto)
+
+    if (!validacion.valido) {
+      throw new Error(`No se puede completar el retiro. ${validacion.mensaje}`)
+    }
+
     // 1. Actualizar retiro
     const retiroCompletado = await tx.retiros_caja.update({
       where: { id: retiroId },

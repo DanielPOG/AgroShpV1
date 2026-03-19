@@ -220,190 +220,135 @@ export async function cerrarTurno(data: CerrarTurno) {
   console.log(`\n🏁 [cerrarTurno] Cerrando turno ${data.turno_id}`)
   console.log(`   💵 Efectivo final contado: $${data.efectivo_final}`)
 
-  // 1. Validar que el turno existe y está activo
-  const turno = await prisma.turnos_caja.findUnique({
-    where: { id: data.turno_id },
-    include: {
-      cajero: {
-        select: {
-          id: true,
-          nombre: true,
-          apellido: true,
-        },
-      },
-      sesion_caja: {
-        select: {
-          id: true,
-          codigo_sesion: true,
-        },
-      },
-    },
-  })
+  // Usar transacción con lock pesimista para evitar doble cierre
+  return await prisma.$transaction(async (tx) => {
+    // 1. Lock pesimista: leer turno con FOR UPDATE para evitar doble cierre
+    const [turnoRow] = await tx.$queryRaw<
+      { id: number; estado: string; sesion_caja_id: number; cajero_id: number; efectivo_inicial: number; fecha_inicio: Date; caja_id: number }[]
+    >`SELECT id, estado, sesion_caja_id, cajero_id, efectivo_inicial, fecha_inicio, caja_id FROM turnos_caja WHERE id = ${data.turno_id} FOR UPDATE`
 
-  if (!turno) {
-    throw new Error('Turno no encontrado')
-  }
+    if (!turnoRow) {
+      throw new Error('Turno no encontrado')
+    }
 
-  if (turno.estado !== 'activo') {
-    throw new Error('El turno no está activo')
-  }
+    if (turnoRow.estado !== 'activo') {
+      throw new Error('El turno no está activo')
+    }
 
-  // 1.5. Validar que NO hay retiros pendientes
-  const retirosPendientes = await prisma.retiros_caja.count({
-    where: {
-      turno_caja_id: data.turno_id,
-      estado: 'pendiente',
-    },
-  })
-
-  if (retirosPendientes > 0) {
-    throw new Error(`No puedes cerrar el turno. Tienes ${retirosPendientes} retiro(s) pendiente(s) de autorización. Espera a que sean autorizados o rechazados.`)
-  }
-
-  // 2. Calcular totales del turno
-  console.log(`📊 [cerrarTurno] Calculando totales del turno...`)
-
-  // Obtener ID del método de pago efectivo
-  const metodoPagoEfectivo = await prisma.metodos_pago.findFirst({
-    where: {
-      nombre: {
-        equals: 'efectivo',
-        mode: 'insensitive',
-      },
-    },
-  })
-
-  // Ventas en efectivo del turno
-  const ventasEfectivo = await prisma.pagos_venta.aggregate({
-    where: {
-      venta: {
+    // 1.5. Validar que NO hay retiros pendientes
+    const retirosPendientes = await tx.retiros_caja.count({
+      where: {
         turno_caja_id: data.turno_id,
+        estado: 'pendiente',
       },
-      metodo_pago_id: metodoPagoEfectivo?.id,
-    },
-    _sum: {
-      monto: true,
-    },
-  })
+    })
 
-  const totalVentasEfectivo = Number(ventasEfectivo._sum.monto || 0)
-  console.log(`   💰 Ventas en efectivo: $${totalVentasEfectivo.toLocaleString('es-CO')}`)
+    if (retirosPendientes > 0) {
+      throw new Error(`No puedes cerrar el turno. Tienes ${retirosPendientes} retiro(s) pendiente(s) de autorización. Espera a que sean autorizados o rechazados.`)
+    }
 
-  // Retiros del turno
-  const retiros = await prisma.retiros_caja.aggregate({
-    where: {
-      turno_caja_id: data.turno_id,
-      estado: 'aprobado',
-    },
-    _sum: {
-      monto: true,
-    },
-  })
+    // 2. Calcular totales del turno
+    const metodoPagoEfectivo = await tx.metodos_pago.findFirst({
+      where: {
+        nombre: { equals: 'efectivo', mode: 'insensitive' },
+      },
+    })
 
-  const totalRetiros = Number(retiros._sum.monto || 0)
-  console.log(`   📤 Retiros: $${totalRetiros.toLocaleString('es-CO')}`)
+    const ventasEfectivo = await tx.pagos_venta.aggregate({
+      where: {
+        venta: { turno_caja_id: data.turno_id },
+        metodo_pago_id: metodoPagoEfectivo?.id,
+      },
+      _sum: { monto: true },
+    })
+    const totalVentasEfectivo = Number(ventasEfectivo._sum.monto || 0)
 
-  // Gastos en efectivo del turno
-  const gastos = await prisma.gastos_caja.aggregate({
-    where: {
-      turno_caja_id: data.turno_id,
-      metodo_pago: 'efectivo',
-    },
-    _sum: {
-      monto: true,
-    },
-  })
+    const retiros = await tx.retiros_caja.aggregate({
+      where: {
+        turno_caja_id: data.turno_id,
+        estado: 'aprobado',
+      },
+      _sum: { monto: true },
+    })
+    const totalRetiros = Number(retiros._sum.monto || 0)
 
-  const totalGastos = Number(gastos._sum.monto || 0)
-  console.log(`   💸 Gastos: $${totalGastos.toLocaleString('es-CO')}`)
+    const gastos = await tx.gastos_caja.aggregate({
+      where: {
+        turno_caja_id: data.turno_id,
+        metodo_pago: 'efectivo',
+      },
+      _sum: { monto: true },
+    })
+    const totalGastos = Number(gastos._sum.monto || 0)
 
-  // Movimientos adicionales de efectivo
-  const movimientosIngreso = await prisma.movimientos_caja.aggregate({
-    where: {
-      turno_caja_id: data.turno_id,
-      tipo_movimiento: 'ingreso_adicional',
-      metodo_pago: 'efectivo',
-    },
-    _sum: {
-      monto: true,
-    },
-  })
+    const movimientosIngreso = await tx.movimientos_caja.aggregate({
+      where: {
+        turno_caja_id: data.turno_id,
+        tipo_movimiento: 'ingreso_adicional',
+        metodo_pago: 'efectivo',
+      },
+      _sum: { monto: true },
+    })
 
-  const movimientosEgreso = await prisma.movimientos_caja.aggregate({
-    where: {
-      turno_caja_id: data.turno_id,
-      tipo_movimiento: 'egreso_operativo',
-      metodo_pago: 'efectivo',
-    },
-    _sum: {
-      monto: true,
-    },
-  })
+    const movimientosEgreso = await tx.movimientos_caja.aggregate({
+      where: {
+        turno_caja_id: data.turno_id,
+        tipo_movimiento: 'egreso_operativo',
+        metodo_pago: 'efectivo',
+      },
+      _sum: { monto: true },
+    })
 
-  const totalIngresosAdicionales = Number(movimientosIngreso._sum.monto || 0)
-  const totalEgresosOperativos = Number(movimientosEgreso._sum.monto || 0)
+    const totalIngresosAdicionales = Number(movimientosIngreso._sum.monto || 0)
+    const totalEgresosOperativos = Number(movimientosEgreso._sum.monto || 0)
 
-  // 3. Calcular efectivo esperado y diferencia
-  const efectivoInicial = Number(turno.efectivo_inicial)
-  const efectivoEsperado = calcularEfectivoEsperadoTurno(
-    efectivoInicial,
-    totalVentasEfectivo + totalIngresosAdicionales,
-    totalRetiros,
-    totalGastos + totalEgresosOperativos
-  )
+    // 3. Calcular efectivo esperado y diferencia
+    const efectivoInicial = Number(turnoRow.efectivo_inicial)
+    const efectivoEsperado = calcularEfectivoEsperadoTurno(
+      efectivoInicial,
+      totalVentasEfectivo + totalIngresosAdicionales,
+      totalRetiros,
+      totalGastos + totalEgresosOperativos
+    )
 
-  const diferencia = calcularDiferenciaTurno(efectivoEsperado, data.efectivo_final)
+    const diferencia = calcularDiferenciaTurno(efectivoEsperado, data.efectivo_final)
 
-  console.log(`   💵 Efectivo inicial: $${efectivoInicial.toLocaleString('es-CO')}`)
-  console.log(`   📊 Efectivo esperado: $${efectivoEsperado.toLocaleString('es-CO')}`)
-  console.log(`   🎯 Efectivo contado: $${data.efectivo_final.toLocaleString('es-CO')}`)
-  console.log(`   ${diferencia >= 0 ? '💚' : '❌'} Diferencia: $${diferencia.toLocaleString('es-CO')} ${diferencia >= 0 ? '(sobrante)' : '(faltante)'}`)
-
-  // 4. Cerrar el turno
-  const turnoCerrado = await prisma.turnos_caja.update({
-    where: { id: data.turno_id },
-    data: {
-      efectivo_final: data.efectivo_final,
-      desglose_efectivo: data.desglose_efectivo as any,
-      observaciones_cierre: data.observaciones_cierre,
-      fecha_fin: new Date(),
-      estado: 'finalizado',
-    },
-    include: {
-      cajero: {
-        select: {
-          id: true,
-          nombre: true,
-          apellido: true,
+    // 4. Cerrar el turno (dentro de la misma transacción)
+    const turnoCerrado = await tx.turnos_caja.update({
+      where: { id: data.turno_id },
+      data: {
+        efectivo_final: data.efectivo_final,
+        desglose_efectivo: data.desglose_efectivo as any,
+        observaciones_cierre: data.observaciones_cierre,
+        fecha_fin: new Date(),
+        estado: 'finalizado',
+      },
+      include: {
+        cajero: {
+          select: { id: true, nombre: true, apellido: true },
+        },
+        sesion_caja: {
+          select: { id: true, codigo_sesion: true },
         },
       },
-      sesion_caja: {
-        select: {
-          id: true,
-          codigo_sesion: true,
-        },
+    })
+
+    const duracion = calcularDuracionTurno(turnoRow.fecha_inicio, turnoCerrado.fecha_fin!)
+
+    return {
+      turno: turnoCerrado,
+      resumen: {
+        efectivo_inicial: efectivoInicial,
+        efectivo_final: data.efectivo_final,
+        efectivo_esperado: efectivoEsperado,
+        diferencia,
+        total_ventas_efectivo: totalVentasEfectivo,
+        total_retiros: totalRetiros,
+        total_gastos: totalGastos,
+        duracion_horas: duracion,
       },
-    },
-  })
-
-  const duracion = calcularDuracionTurno(turno.fecha_inicio, turnoCerrado.fecha_fin!)
-  console.log(`✅ [cerrarTurno] Turno cerrado exitosamente`)
-  console.log(`   ⏱️ Duración: ${duracion.toFixed(2)} horas`)
-  console.log(`   👤 Cajero: ${turnoCerrado.cajero.nombre} ${turnoCerrado.cajero.apellido}`)
-
-  return {
-    turno: turnoCerrado,
-    resumen: {
-      efectivo_inicial: efectivoInicial,
-      efectivo_final: data.efectivo_final,
-      efectivo_esperado: efectivoEsperado,
-      diferencia,
-      total_ventas_efectivo: totalVentasEfectivo,
-      total_retiros: totalRetiros,
-      total_gastos: totalGastos,
-      duracion_horas: duracion,
-    },
-  }
+    }
+  }) // fin $transaction
 }
 
 /**

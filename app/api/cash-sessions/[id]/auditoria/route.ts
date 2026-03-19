@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auditarDiferenciasCaja } from '@/lib/db/cash-sessions'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-config'
+import { isAdminOrSupervisor } from '@/lib/security/authorize'
 
 /**
  * GET /api/cash-sessions/[id]/auditoria
@@ -22,6 +25,21 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 401 }
+      )
+    }
+
+    if (!isAdminOrSupervisor(session.user.role)) {
+      return NextResponse.json(
+        { error: 'Acceso denegado' },
+        { status: 403 }
+      )
+    }
+
     const sessionId = parseInt(params.id)
 
     if (isNaN(sessionId)) {

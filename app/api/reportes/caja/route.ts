@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-config'
+import { canAccessFinancialReports } from '@/lib/security/authorize'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +10,10 @@ export async function GET(request: NextRequest) {
 
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    if (!canAccessFinancialReports(session.user?.role)) {
+      return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)

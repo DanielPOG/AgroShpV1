@@ -58,6 +58,7 @@
     "embla-carousel-react": "8.5.1",
     "escpos": "^3.0.0-alpha.6",
     "input-otp": "1.4.1",
+    "ioredis": "^5.6.1",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.454.0",

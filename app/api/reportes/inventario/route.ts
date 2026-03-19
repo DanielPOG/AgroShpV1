@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-config'
+import { canAccessFinancialReports } from '@/lib/security/authorize'
 import {
   getProductosStockCritico,
   getLotesProximosVencer,
@@ -25,6 +26,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'No autenticado' },
         { status: 401 }
+      )
+    }
+
+    if (!canAccessFinancialReports(session.user.role)) {
+      return NextResponse.json(
+        { error: 'Acceso denegado' },
+        { status: 403 }
       )
     }
 
@@ -74,8 +82,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: 'Error al obtener reporte de inventario',
-        details: error instanceof Error ? error.message : 'Error desconocido'
+        error: 'Error al obtener reporte de inventario'
       },
       { status: 500 }
     )

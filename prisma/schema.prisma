@@ -1,8 +1,24 @@
+// =============================================================================
+// AGROSHOP – Prisma Schema
+//
+// NOTA IMPORTANTE: Prisma no soporta CHECK constraints, índices parciales ni
+// triggers de forma nativa. Estos se aplican automáticamente desde
+// scripts/docker-seed.js al inicializar la BD (función applyDatabaseConstraints).
+//
+// Constraints aplicadas por SQL post-push:
+//   - CHECK monetarios (>= 0) en ventas, detalle_ventas, pagos, sesiones, etc.
+//   - CHECK de estados válidos (enum validation) en ventas, sesiones, retiros, etc.
+//   - CHECK de coherencia de negocio (retiro autorizado → autorizador requerido)
+//   - Índices únicos parciales (1 sesión abierta por cajero, 1 turno activo por sesión)
+//   - Trigger: validar turno activo al insertar venta
+//
+// Ver: database/init-constraints.sql para el SQL completo de referencia.
+// =============================================================================
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-1.0.x"]
 }
-
 
 datasource db {
   provider = "postgresql"
@@ -36,7 +52,7 @@ model categorias {
   productos   productos[]
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: total_compras >= 0
 model clientes {
   id               Int       @id @default(autoincrement())
   tipo_cliente     String?   @default("ocasional") @db.VarChar(20)
@@ -72,8 +88,7 @@ model configuracion {
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: valores monetarios >= 0
 model costos_produccion {
   id                  Int              @id @default(autoincrement())
   producto_id         Int?
@@ -97,8 +112,7 @@ model costos_produccion {
   @@index([fecha_registro], map: "idx_costos_fecha")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: valor >= 0
 model descuentos {
   id                   Int                    @id @default(autoincrement())
   codigo               String                 @unique @db.VarChar(50)
@@ -127,7 +141,7 @@ model descuentos {
   @@index([activo], map: "idx_descuentos_activo")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// CHECK: monto_descuento >= 0
 model descuentos_aplicados {
   id               Int         @id @default(autoincrement())
   venta_id         Int?
@@ -141,7 +155,7 @@ model descuentos_aplicados {
   @@index([venta_id], map: "idx_descuentos_aplicados_venta")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// CHECK: cantidad > 0
 model detalle_movimientos {
   id            Int                   @id @default(autoincrement())
   movimiento_id Int?
@@ -154,7 +168,7 @@ model detalle_movimientos {
   producto      productos?            @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// CHECK: cantidad_solicitada > 0
 model detalle_solicitudes {
   id                  Int                        @id @default(autoincrement())
   solicitud_id        Int?
@@ -166,7 +180,7 @@ model detalle_solicitudes {
   solicitud           solicitudes_transferencia? @relation(fields: [solicitud_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// CHECK: cantidad > 0, precio_unitario >= 0, subtotal >= 0, costo_unitario >= 0
 model detalle_ventas {
   id              Int              @id @default(autoincrement())
   venta_id        Int?
@@ -281,7 +295,7 @@ model notificaciones {
   @@index([usuario_id], map: "idx_notificaciones_usuario")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// CHECK: monto > 0
 model pagos_venta {
   id             Int           @id @default(autoincrement())
   venta_id       Int?
@@ -312,8 +326,9 @@ model cajas {
   @@index([activa], map: "idx_cajas_activa")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: fondo_inicial >= 0, todos los acumuladores (ventas_*, retiros, gastos) >= 0
+/// CHECK estado IN ('abierta', 'cerrada')
+/// UNIQUE PARCIAL: idx_sesion_activa_unica(cajero_id) WHERE estado = 'abierta'
 model sesiones_caja {
   id                         Int                @id @default(autoincrement())
   codigo_sesion              String             @unique @db.VarChar(50)
@@ -352,8 +367,7 @@ model sesiones_caja {
   @@index([estado], map: "idx_sesiones_estado")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: monto > 0
 model movimientos_caja {
   id                    Int           @id @default(autoincrement())
   sesion_caja_id        Int
@@ -382,8 +396,9 @@ model movimientos_caja {
   @@index([turno_caja_id], map: "idx_movimientos_caja_turno")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: monto > 0
+/// CHECK estado IN ('pendiente', 'autorizado', 'rechazado', 'completado')
+/// CHECK: si estado IN ('autorizado','completado') → autorizado_por NOT NULL
 model retiros_caja {
   id              Int           @id @default(autoincrement())
   sesion_caja_id  Int
@@ -409,8 +424,7 @@ model retiros_caja {
   @@index([turno_caja_id], map: "idx_retiros_turno")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: monto > 0
 model gastos_caja {
   id              Int           @id @default(autoincrement())
   sesion_caja_id  Int
@@ -435,8 +449,7 @@ model gastos_caja {
   @@index([turno_caja_id], map: "idx_gastos_turno")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: todos los campos billetes_* y monedas_* >= 0
 model arqueos_caja {
   id              Int           @id @default(autoincrement())
   sesion_caja_id  Int
@@ -467,7 +480,11 @@ model arqueos_caja {
   @@index([fecha_arqueo], map: "idx_arqueos_fecha")
 }
 
-/// Modelo para gestión de turnos de caja
+/// CHECK: monto_inicial >= 0, monto_final >= 0, efectivo_inicial >= 0, efectivo_final >= 0
+/// CHECK estado IN ('activo', 'finalizado', 'suspendido')
+/// CHECK: si estado = 'finalizado' → fecha_fin NOT NULL AND efectivo_final NOT NULL
+/// UNIQUE PARCIAL: idx_turno_activo_unico(sesion_caja_id) WHERE estado = 'activo'
+/// TRIGGER: trg_validar_turno_activo_venta – impide ventas en turnos no activos
 model turnos_caja {
   id                   Int                @id @default(autoincrement())
   sesion_caja_id       Int
@@ -510,9 +527,7 @@ model turnos_caja {
   @@index([turno_anterior_id], map: "idx_turnos_anterior")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+/// CHECK: stock_actual >= 0, precio_unitario >= 0
 model productos {
   id                   Int                    @id @default(autoincrement())
   codigo               String                 @unique @db.VarChar(50)
@@ -583,8 +598,7 @@ model roles {
   usuarios    usuarios[]
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK estado IN ('pendiente', 'aprobada', 'rechazada', 'completada')
 model solicitudes_transferencia {
   id                     Int                   @id @default(autoincrement())
   codigo_solicitud       String                @unique @db.VarChar(50)
@@ -680,8 +694,9 @@ model usuarios {
   ventas                                ventas[]
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// CHECK: subtotal >= 0, impuesto >= 0, descuento >= 0, total >= 0
+/// CHECK estado IN ('completada', 'cancelada', 'pendiente')
+/// INDEX PARCIAL: idx_venta_activas_usuario_fecha WHERE deleted_at IS NULL
 model ventas {
   id                   Int                    @id @default(autoincrement())
   codigo_venta         String                 @unique @db.VarChar(50)
@@ -730,4 +745,18 @@ model metas_ventas {
 
   @@index([anio], map: "idx_metas_anio")
   @@index([activa], map: "idx_metas_activa")
+}
+
+model idempotency_keys {
+  id            Int       @id @default(autoincrement())
+  idempotency_key String  @db.VarChar(255)
+  endpoint      String    @db.VarChar(100)
+  usuario_id    Int
+  status_code   Int
+  response_body Json
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime  @db.Timestamptz(6)
+
+  @@unique([idempotency_key, endpoint, usuario_id], map: "uq_idempotency")
+  @@index([expires_at], map: "idx_idempotency_expires")
 }

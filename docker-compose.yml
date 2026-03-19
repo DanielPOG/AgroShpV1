@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-AgroShop}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -22,6 +22,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Redis para rate limiting y caché distribuido
+  redis:
+    image: redis:7-alpine
+    container_name: agroshop-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - redis_data:/data
 
   # Aplicación Next.js
   app:
@@ -34,11 +50,11 @@ services:
       - "80:3000"
     environment:
       # Base de datos - apunta al servicio 'db'
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-AgroShop}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-AgroShop}
       
       # NextAuth
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-AgroShop2025SecretKeyParaSENACentroAgropecuario123456789}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       
       # Configuración de la app
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-AgroShop SENA}
@@ -51,6 +67,9 @@ services:
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
       
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
       NODE_ENV: production
     volumes:
       # Volumen para imágenes de productos subidas
@@ -58,17 +77,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  # Servicio para ejecutar migraciones y seed (opcional, ejecutar manualmente)
+  # Servicio para inicializar BD: push schema + constraints + seed
   migrate:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: agroshop-migrate
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-AgroShop}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-AgroShop}
     command: >
-      sh -c "npx prisma migrate deploy && npx prisma db seed"
+      sh -c "npx prisma db push --skip-generate && node scripts/docker-seed.js"
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +98,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
   productos_uploads:
     driver: local

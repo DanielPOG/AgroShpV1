@@ -1,13 +1,32 @@
-// Script de seed simplificado para Docker
-// Se ejecuta sin necesidad de tsx/typescript
+// Script de seed para Docker (y desarrollo local)
+// Ejecuta: 1) Constraints SQL  2) Datos vanilla  3) Caja inicial
+// Uso: node scripts/docker-seed.js  (o via prisma db seed)
 
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require("path");
 
 const prisma = new PrismaClient();
 
+// ─── Aplicar constraints SQL de hardening ───────────────────────────
+async function applyDatabaseConstraints() {
+  const sqlPath = path.join(__dirname, "..", "database", "init-constraints.sql");
+  if (!fs.existsSync(sqlPath)) {
+    console.log("⚠️  init-constraints.sql no encontrado, saltando constraints");
+    return;
+  }
+  const sql = fs.readFileSync(sqlPath, "utf-8");
+  console.log("🔒 Aplicando constraints de seguridad (CHECK, índices, trigger)...");
+  await prisma.$executeRawUnsafe(sql);
+  console.log("✅ Constraints aplicadas\n");
+}
+
 async function main() {
   console.log("🌱 Iniciando seed de la base de datos...\n");
+
+  // 0. CONSTRAINTS SQL (CHECK, índices parciales, trigger)
+  await applyDatabaseConstraints();
 
   // 1. ROLES
   console.log("📋 Creando roles...");
@@ -414,6 +433,21 @@ async function main() {
         activo: true,
       },
     }),
+  // 8. CAJA PRINCIPAL (necesaria para que los cajeros abran sesiones)
+  console.log("🏪 Creando caja principal...");
+  await prisma.cajas.upsert({
+    where: { codigo: "CAJA-001" },
+    update: {},
+    create: {
+      codigo: "CAJA-001",
+      nombre: "Caja Principal",
+      ubicacion: "Mostrador 1",
+      tipo: "principal",
+      activa: true,
+    },
+  });
+  console.log(`✅ Caja principal creada\n`);
+
   ]);
   console.log(`✅ 3 descuentos creados\n`);
 

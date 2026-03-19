@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
 import { prisma } from '@/lib/prisma'
+import { canAccessFinancialReports } from '@/lib/security/authorize'
 import {
   getResumenTurno,
   getComparativoTurnos,
@@ -37,6 +38,13 @@ export async function GET(request: NextRequest) {
 
     const userRole = session.user.role
     const userId = Number(session.user.id)
+
+    if (!canAccessFinancialReports(userRole) && userRole !== 'Cajero') {
+      return NextResponse.json(
+        { error: 'Acceso denegado' },
+        { status: 403 }
+      )
+    }
 
     // Extraer parámetros
     const { searchParams } = new URL(request.url)
@@ -145,7 +153,7 @@ export async function GET(request: NextRequest) {
     console.error('Error en GET /api/reportes/turnos:', error)
 
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ error: 'No se pudo generar el reporte de turnos' }, { status: 400 })
     }
 
     return NextResponse.json(

@@ -9,6 +9,9 @@ import {
 import { movimientoCajaSchema } from "@/lib/validations/movimiento-caja.schema"
 import { validateCashSessionForSale } from "@/lib/db/cash-integration"
 import { ZodError } from "zod"
+import { checkRateLimit, getClientIpAddress, getEnvNumber } from '@/lib/security/rate-limit'
+import { getIdempotencyKey, checkIdempotency, saveIdempotencyResponse } from '@/lib/security/idempotency'
+import { logAudit, summarizeMovimiento } from '@/lib/security/audit'
 
 /**
  * GET /api/caja/movimientos
@@ -96,6 +99,37 @@ export async function POST(request: NextRequest) {
 
     const userId = parseInt(session.user.id)
 
+    const movLimit = getEnvNumber('RATE_LIMIT_MOVIMIENTOS_POST_MAX', 10)
+    const movWindowMs = getEnvNumber('RATE_LIMIT_MOVIMIENTOS_POST_WINDOW_MS', 60_000)
+    const clientIp = getClientIpAddress(request.headers)
+    const rateLimitKey = `movimientos:post:${session.user.id}:${clientIp}`
+    const limitResult = await checkRateLimit({
+      key: rateLimitKey,
+      limit: movLimit,
+      windowMs: movWindowMs,
+    })
+
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes. Intente nuevamente en unos segundos.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(limitResult.retryAfterSeconds) },
+        }
+      )
+    }
+
+    // Idempotencia: verificar si ya se procesó esta operación
+    const idempotencyKey = getIdempotencyKey(request.headers)
+    if (idempotencyKey) {
+      const cached = await checkIdempotency({
+        key: idempotencyKey,
+        endpoint: 'POST /api/caja/movimientos',
+        userId: userId,
+      })
+      if (cached.hit) return cached.response
+    }
+
     // Validar sesión de caja y turno activo
     let cashSession, turnoActivo
     try {
@@ -131,13 +165,35 @@ export async function POST(request: NextRequest) {
     // Crear movimiento
     const movimiento = await createMovimientoCaja(validatedData)
 
-    return NextResponse.json({
+    // Auditoría financiera
+    await logAudit({
+      tabla: 'movimientos_caja_extra',
+      registro_id: movimiento.id,
+      accion: 'CREATE',
+      usuario_id: userId,
+      datos_nuevos: summarizeMovimiento(movimiento),
+    })
+
+    const responseBody = {
       success: true,
       movimiento,
       message: movimiento.requiere_autorizacion
         ? "Movimiento creado. Requiere autorización de un supervisor."
         : "Movimiento registrado exitosamente"
-    }, { status: 201 })
+    }
+
+    // Guardar idempotencia si se proporcionó key
+    if (idempotencyKey) {
+      await saveIdempotencyResponse({
+        key: idempotencyKey,
+        endpoint: 'POST /api/caja/movimientos',
+        userId: userId,
+        statusCode: 201,
+        responseBody,
+      })
+    }
+
+    return NextResponse.json(responseBody, { status: 201 })
 
   } catch (error) {
     console.error("Error en POST /api/caja/movimientos:", error)

@@ -9,6 +9,8 @@ import {
 import { getActiveCashSession } from '@/lib/db/cash-sessions'
 import { iniciarTurnoSchema } from '@/lib/validations/turno-caja.schema'
 import { ZodError } from 'zod'
+import { checkRateLimit, getClientIpAddress, getEnvNumber } from '@/lib/security/rate-limit'
+import { logAudit, summarizeTurno } from '@/lib/security/audit'
 
 /**
  * GET /api/turnos - Obtener turno activo o historial de turnos
@@ -107,24 +109,28 @@ export async function POST(request: Request) {
       )
     }
 
-    const body = await request.json()
-    
-    console.log('📥 [POST /api/turnos] Request body:', body)
-    console.log('👤 [POST /api/turnos] Session user:', { id: session.user.id, role: userRole })
-    
-    // Validar con Zod
-    try {
-      const validatedData = iniciarTurnoSchema.parse({
-        ...body,
-        cajero_id: Number(session.user.id), // Siempre el usuario actual
-      })
+    const turnoLimit = getEnvNumber('RATE_LIMIT_TURNOS_POST_MAX', 5)
+    const turnoWindowMs = getEnvNumber('RATE_LIMIT_TURNOS_POST_WINDOW_MS', 60_000)
+    const clientIp = getClientIpAddress(new Headers(request.headers))
+    const rateLimitKey = `turnos:post:${session.user.id}:${clientIp}`
+    const limitResult = await checkRateLimit({
+      key: rateLimitKey,
+      limit: turnoLimit,
+      windowMs: turnoWindowMs,
+    })
 
-      console.log('✅ [POST /api/turnos] Validated data:', validatedData)
-    } catch (zodError) {
-      console.error('❌ [POST /api/turnos] Zod validation error:', zodError)
-      throw zodError
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes. Intente nuevamente en unos segundos.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(limitResult.retryAfterSeconds) },
+        }
+      )
     }
-    
+
+    const body = await request.json()
+
     const validatedData = iniciarTurnoSchema.parse({
       ...body,
       cajero_id: Number(session.user.id),
@@ -144,6 +150,15 @@ export async function POST(request: Request) {
     // Crear el turno
     const nuevoTurno = await iniciarTurno(validatedData)
 
+    // Auditoría financiera
+    await logAudit({
+      tabla: 'turnos_caja',
+      registro_id: nuevoTurno.id,
+      accion: 'CREATE',
+      usuario_id: Number(session.user.id),
+      datos_nuevos: summarizeTurno(nuevoTurno),
+    })
+
     return NextResponse.json(
       { 
         turno: nuevoTurno,
@@ -153,25 +168,22 @@ export async function POST(request: Request) {
     )
   } catch (error) {
     if (error instanceof ZodError) {
-      console.error('❌ [POST /api/turnos] Zod validation failed:', JSON.stringify(error.errors, null, 2))
       return NextResponse.json(
         { 
           error: 'Datos inválidos', 
           details: error.errors,
-          message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
         },
         { status: 400 }
       )
     }
 
     if (error instanceof Error) {
-      console.error('❌ [POST /api/turnos] Error al iniciar turno:', error.message)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    console.error('Error inesperado al iniciar turno:', error)
+    console.error('Error al iniciar turno:', error)
     return NextResponse.json(
-      { error: 'Error inesperado al iniciar turno' },
+      { error: 'Error al iniciar turno' },
       { status: 500 }
     )
   }

@@ -2,6 +2,28 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+// Headers de seguridad aplicados a todas las respuestas del middleware
+function applySecurityHeaders(response: NextResponse): NextResponse {
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('X-Frame-Options', 'DENY')
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    response.headers.set('X-DNS-Prefetch-Control', 'off')
+    return response
+}
+
+function secureNext(): NextResponse {
+    return applySecurityHeaders(NextResponse.next())
+}
+
+function secureJson(body: object, init: { status: number }): NextResponse {
+    return applySecurityHeaders(NextResponse.json(body, init))
+}
+
+function secureRedirect(url: URL): NextResponse {
+    return applySecurityHeaders(NextResponse.redirect(url))
+}
+
 /**
  * Proxy para proteger rutas y manejar autenticación (Next.js 15)
  * 
@@ -32,12 +54,12 @@ export async function middleware(request: NextRequest) {
     
     // Si es página pública o asset, dejar pasar sin procesar
     if (isPublicPage || isPublicAsset || isAuthApi) {
-        return NextResponse.next()
+        return secureNext()
     }
 
     // Permitir rutas públicas de API sin autenticación
     if (isPublicApi || isCronRoute) {
-        return NextResponse.next()
+        return secureNext()
     }
 
     // Obtener token de sesión solo para rutas protegidas
@@ -55,10 +77,10 @@ export async function middleware(request: NextRequest) {
         console.error('Error al obtener token:', error)
         // Si hay error obteniendo token, redirigir a login
         if (isDashboard) {
-            return NextResponse.redirect(new URL('/login', request.url))
+            return secureRedirect(new URL('/login', request.url))
         }
         if (isApiRoute) {
-            return NextResponse.json(
+            return secureJson(
                 { error: 'Sesión inválida o expirada' },
                 { status: 401 }
             )
@@ -68,18 +90,18 @@ export async function middleware(request: NextRequest) {
     // Proteger rutas de API
     if (isApiRoute) {
         if (!token) {
-            return NextResponse.json(
+            return secureJson(
                 { error: 'No autorizado - Se requiere iniciar sesión' },
                 { status: 401 }
             )
         }
-        return NextResponse.next()
+        return secureNext()
     }
 
     // Redirigir a login si intenta acceder al dashboard sin autenticación
     if (isDashboard && !token) {
         const loginUrl = new URL('/login', request.url)
-        return NextResponse.redirect(loginUrl)
+        return secureRedirect(loginUrl)
     }
 
     // Redirigir a dashboard si ya está autenticado e intenta ir a login
@@ -88,15 +110,15 @@ export async function middleware(request: NextRequest) {
         const redirectUrl = callbackUrl && callbackUrl.startsWith('/dashboard') 
             ? callbackUrl 
             : '/dashboard'
-        return NextResponse.redirect(new URL(redirectUrl, request.url))
+        return secureRedirect(new URL(redirectUrl, request.url))
     }
 
     // Si está en login sin token, permitir acceso
     if (isAuthPage) {
-        return NextResponse.next()
+        return secureNext()
     }
 
-    return NextResponse.next()
+    return secureNext()
 }
 
 /**

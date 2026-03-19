@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-config'
 import { prisma } from '@/lib/prisma'
+import { isAdminRole } from '@/lib/security/authorize'
 
 /**
  * Endpoint de DEBUG para verificar pago mixto
@@ -7,6 +10,21 @@ import { prisma } from '@/lib/prisma'
  */
 export async function GET(request: Request) {
   try {
+    // Endpoint disponible solo en desarrollo.
+    const nodeEnv = (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV
+    if (nodeEnv !== 'development') {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    }
+
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    if (!isAdminRole(session.user.role)) {
+      return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const codigo = searchParams.get('codigo') || ''
 
@@ -66,7 +84,7 @@ export async function GET(request: Request) {
     })
 
     // 4. Calcular totales por método
-    const totalesPorMetodo = venta.pagos_venta.reduce((acc, pago) => {
+    const totalesPorMetodo = venta.pagos_venta.reduce((acc: Record<string, number>, pago: any) => {
       const metodo = pago.metodo_pago?.nombre || 'Desconocido'
       acc[metodo] = (acc[metodo] || 0) + Number(pago.monto)
       return acc
@@ -80,7 +98,7 @@ export async function GET(request: Request) {
         fecha: venta.fecha_venta,
         cajero: `${venta.usuario.nombre} ${venta.usuario.apellido}`
       },
-      pagos: venta.pagos_venta.map(p => ({
+      pagos: venta.pagos_venta.map((p: any) => ({
         id: p.id,
         monto: p.monto,
         metodo_id: p.metodo_pago_id,
@@ -98,7 +116,7 @@ export async function GET(request: Request) {
         total_ventas_transferencia: sesion.total_ventas_transferencia,
         fecha_apertura: sesion.fecha_apertura
       } : null,
-      movimientos: movimientos.map(m => ({
+      movimientos: movimientos.map((m: any) => ({
         id: m.id,
         tipo: m.tipo_movimiento,
         descripcion: m.descripcion,
@@ -121,7 +139,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error en debug endpoint:', error)
     return NextResponse.json(
-      { error: 'Error al obtener datos de debug', details: String(error) },
+      { error: 'Error al obtener datos de debug' },
       { status: 500 }
     )
   }

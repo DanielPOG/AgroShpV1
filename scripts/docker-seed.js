@@ -39,7 +39,7 @@ async function main() {
   console.log("🌱 Iniciando seed de la base de datos...\n");
 
   // 0. CONSTRAINTS SQL (CHECK, índices parciales, trigger)
-   await applyDatabaseConstraints();
+  //await applyDatabaseConstraints();
 
   // 1. ROLES
   console.log("📋 Creando roles...");

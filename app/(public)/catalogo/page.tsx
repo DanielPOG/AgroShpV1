@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const config = await getCachedConfig()
   const storeName = config.nombre_tienda ?? 'AgroShop SENA'
   
-  const description = `Descubre nuestra selección de productos agropecuarios - ${storeName}`
+  const description = `PEPE PODEROSO selección de productos agropecuarios - ${storeName}`
 
   return {
     title: `${storeName} - Catálogo`,

@@ -169,7 +169,7 @@ export function HomeClientPage({ storeName, ciudad, telefono, email, direccion }
               <span className="xs:hidden">Frescos del Campo</span>
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground text-balance px-4">
-              PEPE PODEROSO <span className="gradient-text">Agropecuarios</span>
+              Catálogo de Productos <span className="gradient-text">Agropecuarios</span>
             </h1>
             <p className="text-sm sm:text-base md:text-lg text-muted-foreground text-pretty leading-relaxed px-4">
               Descubre nuestra selección de productos frescos cultivados en {storeName}

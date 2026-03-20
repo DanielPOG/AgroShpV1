@@ -216,3 +216,4 @@ Este proyecto es para uso del SENA Centro Agropecuario.
 ---
 
 **Desarrollado con ❤️ para el SENA Centro Agropecuario** 🌱
+- Daniel Caicedo Desarrollador Full Stack

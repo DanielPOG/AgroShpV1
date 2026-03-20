@@ -58,7 +58,7 @@ COPY --from=builder /app/public ./public
 # Copiar archivos de standalone build (incluye node_modules necesarios)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
+COPY --from=builder /app/node_modules ./node_modules
 # Copiar Prisma schema
 COPY --from=builder /app/prisma ./prisma
 

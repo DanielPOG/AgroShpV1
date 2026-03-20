@@ -19,9 +19,10 @@ const metaUpdateSchema = z.object({
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     const session = await getServerSession(authOptions)
     
     if (!session?.user) {
@@ -31,7 +32,7 @@ export async function PATCH(
       )
     }
 
-    const id = parseInt(params.id)
+    const id = parseInt(idStr)
     if (isNaN(id)) {
       return NextResponse.json(
         { error: 'ID inválido' },
@@ -110,9 +111,10 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     const session = await getServerSession(authOptions)
     
     if (!session?.user) {
@@ -122,7 +124,7 @@ export async function DELETE(
       )
     }
 
-    const id = parseInt(params.id)
+    const id = parseInt(idStr)
     if (isNaN(id)) {
       return NextResponse.json(
         { error: 'ID inválido' },

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import type { OpenCashSessionData, CloseCashSessionData } from '@/lib/validations/cash-session.schema'
 
 /**
@@ -101,9 +102,10 @@ export async function getEfectivoDisponible(sessionId: number): Promise<number> 
   if (ultimoTurnoCerrado) {
     // Si hay turno cerrado, usar su efectivo final como base
     efectivoBase = Number(ultimoTurnoCerrado.efectivo_final)
-    fechaDesde = ultimoTurnoCerrado.fecha_fin!
+    const fechaBase = ultimoTurnoCerrado.fecha_fin ?? new Date()
+    fechaDesde = fechaBase
     console.log(`   💵 Base: Último turno cerrado (ID ${ultimoTurnoCerrado.id})`)
-    console.log(`   💵 Efectivo base: $${efectivoBase.toLocaleString('es-CO')} (desde ${fechaDesde.toISOString()})`)
+    console.log(`   💵 Efectivo base: $${efectivoBase.toLocaleString('es-CO')} (desde ${fechaBase.toISOString()})`)
   } else {
     // Si no hay turno cerrado, usar fondo inicial
     efectivoBase = Number(session.fondo_inicial)
@@ -548,7 +550,7 @@ export async function openCashSession(userId: number, data: OpenCashSessionData)
 export async function closeCashSession(sessionId: number, userId: number, data: CloseCashSessionData) {
   console.log(`🔒 Cerrando sesión de caja ${sessionId}`)
 
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Obtener sesión
     const session = await tx.sesiones_caja.findUnique({
       where: { id: sessionId },
@@ -1147,7 +1149,7 @@ export async function getEfectivoPanelData(sessionId: number) {
     // Movimientos recientes
     movimientosRecientes: movimientosRecientes.map(m => ({
       id: m.id,
-      fecha: m.fecha,
+      fecha: m.fecha_movimiento,
       tipo: m.tipo_movimiento,
       metodoPago: m.metodo_pago,
       monto: Number(m.monto),
@@ -1187,8 +1189,13 @@ export async function auditarDiferenciasCaja(sessionId: number) {
   }
 
   // 2. Verificar que todas las ventas tienen movimientos
+  const movimientosSesion = await prisma.movimientos_caja.findMany({
+    where: { sesion_caja_id: sessionId, tipo_movimiento: 'venta', venta_id: { not: null } },
+    select: { venta_id: true }
+  })
+  const ventaIds = movimientosSesion.map(m => m.venta_id!).filter(Boolean)
   const ventas = await prisma.ventas.findMany({
-    where: { sesion_caja_id: sessionId },
+    where: { id: { in: ventaIds } },
     include: {
       pagos_venta: {
         include: {
@@ -1301,7 +1308,7 @@ export async function auditarDiferenciasCaja(sessionId: number) {
         movimientos: movimientosHuerfanos.map(m => ({
           id: m.id,
           monto: Number(m.monto),
-          fecha: m.fecha
+          fecha: m.fecha_movimiento
         }))
       }
     })

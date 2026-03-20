@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { ZodError } from 'zod'
 import { getColombiaDate } from '@/lib/date-utils'
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // TRANSACCIÓN ATÓMICA: Todo o nada
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Verificar que el código de producto no exista
       const existingProduct = await tx.productos.findUnique({
         where: { codigo: productoData.codigo },

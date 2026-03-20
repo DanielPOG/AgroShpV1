@@ -132,7 +132,7 @@ export async function createGastoCaja(data: GastoCajaCreate & { autorizado_por?:
   }
 
   // Usar transacción para asegurar consistencia
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Crear gasto
     const gasto = await tx.gastos_caja.create({
       data: {

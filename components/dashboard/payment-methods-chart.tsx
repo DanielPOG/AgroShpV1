@@ -54,7 +54,7 @@ export function PaymentMethodsChart({ metodos }: PaymentMethodsChartProps) {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value: number) => `${value.toFixed(1)}%`}
+                formatter={(value: unknown) => `${Number(value).toFixed(1)}%`}
                 contentStyle={{
                   fontSize: "12px",
                   backgroundColor: "hsl(var(--card))",

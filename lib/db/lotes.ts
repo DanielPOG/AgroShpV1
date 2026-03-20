@@ -1,11 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import type { CreateLoteData, UpdateLoteData, LoteFilters } from '@/lib/validations/lote.schema'
 import { getColombiaDate } from '@/lib/date-utils'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * Obtener lista de lotes con filtros y paginación
  */
-export async function getLotes(filters: LoteFilters = {}) {
+export async function getLotes(filters: Partial<LoteFilters> = {}) {
   try {
     const {
       page = 1,
@@ -368,7 +369,7 @@ export async function updateLote(id: number, data: UpdateLoteData) {
     }
 
     // 🔒 VALIDACIÓN 3: Si producto está desactivado, aplicar restricciones
-    if (!existing.producto.activo) {
+    if (existing.producto && !existing.producto.activo) {
       // Permitir solo cambios a estados no-disponibles o ajustes de cantidad
       if (data.estado === 'disponible' && existing.estado !== 'disponible') {
         throw new Error(`El producto "${existing.producto.nombre}" está desactivado. No se pueden activar lotes.`)
@@ -479,7 +480,7 @@ export async function reactivarLote(id: number, usuario_id: number, motivo?: str
     }
 
     // Validar que el producto está activo
-    if (!lote.producto.activo) {
+    if (lote.producto && !lote.producto.activo) {
       throw new Error(`No se puede reactivar el lote porque el producto "${lote.producto.nombre}" está desactivado`)
     }
 
@@ -794,7 +795,7 @@ export async function getLotesByProducto(producto_id: number) {
 export async function getLotesProximosVencer(dias?: number) {
   try {
     // Usar configuración global si no se especifica
-    const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7) as number
     
     const fechaLimite = getColombiaDate()
     fechaLimite.setDate(fechaLimite.getDate() + diasAlerta)

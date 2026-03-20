@@ -63,15 +63,15 @@ export async function GET(request: Request) {
     }
 
     // 2. Buscar sesión de caja activa del usuario
-    const sesion = await prisma.sesiones_caja.findFirst({
+    const sesion = venta.usuario_id ? await prisma.sesiones_caja.findFirst({
       where: {
-        usuario_id: venta.usuario_id,
+        cajero_id: venta.usuario_id,
         estado: 'abierta'
       },
       orderBy: {
         fecha_apertura: 'desc'
       }
-    })
+    }) : null
 
     // 3. Buscar movimientos de caja relacionados
     const movimientos = await prisma.movimientos_caja.findMany({
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
         venta_id: venta.id
       },
       orderBy: {
-        fecha_hora: 'desc'
+        fecha_movimiento: 'desc'
       }
     })
 
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
         codigo: venta.codigo_venta,
         total: venta.total,
         fecha: venta.fecha_venta,
-        cajero: `${venta.usuario.nombre} ${venta.usuario.apellido}`
+        cajero: `${venta.usuario?.nombre ?? ''} ${venta.usuario?.apellido ?? ''}`
       },
       pagos: venta.pagos_venta.map((p: any) => ({
         id: p.id,
@@ -109,7 +109,6 @@ export async function GET(request: Request) {
       sesion: sesion ? {
         id: sesion.id,
         fondo_inicial: sesion.fondo_inicial,
-        total_ventas: sesion.total_ventas,
         total_ventas_efectivo: sesion.total_ventas_efectivo,
         total_ventas_nequi: sesion.total_ventas_nequi,
         total_ventas_tarjeta: sesion.total_ventas_tarjeta,
@@ -122,7 +121,7 @@ export async function GET(request: Request) {
         descripcion: m.descripcion,
         monto: m.monto,
         metodo_pago: m.metodo_pago,
-        fecha: m.fecha_hora
+        fecha: m.fecha_movimiento
       })),
       diagnostico: {
         ventaEsPagoMixto: venta.pagos_venta.length > 1,

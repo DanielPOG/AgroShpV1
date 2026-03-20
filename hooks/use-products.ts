@@ -38,6 +38,10 @@ interface Product {
   dias_vencimiento?: number | null
   activo?: boolean | null
   created_at?: Date | null
+  categoria_id?: number | null
+  unidad_productiva_id?: number | null
+  proveedor_id?: number | null
+  es_produccion_propia?: boolean | null
   categoria?: {
     id: number
     nombre: string
@@ -105,6 +109,7 @@ interface CreateProductData {
   stock_maximo?: number
   es_perecedero?: boolean
   dias_vencimiento?: number
+  es_produccion_propia?: boolean
   proveedor_id?: number
   imagen_url?: string
   usuario_id?: number
@@ -117,9 +122,9 @@ interface AlertsResponse {
   agotados?: Product[]
   proximos_vencer?: Array<Product & {
     lotes_productos: Array<{
-      numero_lote: string
+      codigo_lote: string
       fecha_vencimiento: Date
-      cantidad_disponible: number
+      cantidad: number
     }>
   }>
   contadores: {

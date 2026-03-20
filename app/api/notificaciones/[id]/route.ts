@@ -12,9 +12,10 @@ import { prisma } from "@/lib/prisma"
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
@@ -24,7 +25,7 @@ export async function DELETE(
       )
     }
 
-    const notificationId = parseInt(params.id)
+    const notificationId = parseInt(id)
 
     if (isNaN(notificationId)) {
       return NextResponse.json(

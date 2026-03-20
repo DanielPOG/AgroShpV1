@@ -5,15 +5,16 @@ import { ZodError } from 'zod'
 import { getCajaById, updateCaja, deleteCaja } from '@/lib/db/cajas'
 import { updateCajaSchema } from '@/lib/validations/caja.schema'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: idStr } = await params
     const session = await getServerSession(authOptions)
 
     if (!session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const id = Number.parseInt(params.id)
+    const id = Number.parseInt(idStr)
 
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
@@ -32,8 +33,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: idStr } = await params
     const session = await getServerSession(authOptions)
 
     if (!session) {
@@ -45,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'No tienes permisos para actualizar cajas' }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id)
+    const id = Number.parseInt(idStr)
 
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
@@ -78,8 +80,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: idStr } = await params
     const session = await getServerSession(authOptions)
 
     if (!session) {
@@ -91,7 +94,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'No tienes permisos para eliminar cajas' }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id)
+    const id = Number.parseInt(idStr)
 
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })

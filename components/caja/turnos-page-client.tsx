@@ -285,7 +285,7 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
   }
 
   // Obtener lista única de cajeros para el filtro
-  const cajerosUnicos = Array.from(new Set(turnos.map(t => t.cajero.id)))
+  const cajerosUnicos = ([...new Set(turnos.map(t => t.cajero.id))] as number[])
     .map(id => {
       const turno = turnos.find(t => t.cajero.id === id)!
       return { id, nombre: `${turno.cajero.nombre} ${turno.cajero.apellido}` }
@@ -391,10 +391,10 @@ export function TurnosPageClient({ sesionCaja, userId, userRole }: TurnosPageCli
               </div>
             </div>
 
-            {turnoActivo.observaciones_inicio && (
+            {turnoActivo.observaciones && (
               <div className="mt-4 p-3 bg-muted rounded-md border-l-4 border-blue-500">
                 <p className="text-sm font-medium mb-1">Observaciones:</p>
-                <p className="text-sm text-muted-foreground">{turnoActivo.observaciones_inicio}</p>
+                <p className="text-sm text-muted-foreground">{turnoActivo.observaciones}</p>
               </div>
             )}
           </CardContent>

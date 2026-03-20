@@ -8,6 +8,7 @@ import type {
   AdjustStockData,
 } from '@/lib/validations/product.schema'
 import { getColombiaDate } from '@/lib/date-utils'
+import { getConfigValue } from '@/lib/constants'
 
 /**
  * Funciones de base de datos para Productos
@@ -133,7 +134,7 @@ export async function getProducts(filters?: ProductFilters) {
   // Filtro por stock mínimo
   if (filters?.stock_min !== undefined) {
     where.stock_actual = {
-      ...where.stock_actual,
+      ...(typeof where.stock_actual === 'object' && where.stock_actual !== null ? where.stock_actual : {}),
       gte: filters.stock_min,
     }
   }
@@ -141,7 +142,7 @@ export async function getProducts(filters?: ProductFilters) {
   // Filtro por stock máximo
   if (filters?.stock_max !== undefined) {
     where.stock_actual = {
-      ...where.stock_actual,
+      ...(typeof where.stock_actual === 'object' && where.stock_actual !== null ? where.stock_actual : {}),
       lte: filters.stock_max,
     }
   }
@@ -499,7 +500,7 @@ export async function createProduct(data: CreateProductData) {
     if (data.stock_inicial && data.stock_inicial > 0 && data.usuario_id) {
       await prisma.historial_inventario.create({
         data: {
-          producto: {
+          productos: {
             connect: { id: product.id }
           },
           tipo_movimiento: 'entrada',
@@ -659,7 +660,7 @@ export async function deleteProduct(id: number, usuario_id?: number, retireLotes
     }
 
     // Usar transacción para garantizar atomicidad
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Si retireLotes es true, retirar todos los lotes disponibles
       if (retireLotes) {
         console.log('🔄 Retirando lotes disponibles para producto:', id)
@@ -859,7 +860,7 @@ export async function adjustStock(data: AdjustStockData) {
       }),
       prisma.historial_inventario.create({
         data: {
-          producto: {
+          productos: {
             connect: { id: data.producto_id }
           },
           tipo_movimiento: data.tipo_movimiento,
@@ -980,13 +981,13 @@ export async function getLowStockProducts() {
         stock_actual: true,
         stock_minimo: true,
         unidad: true,
-        categorias: {
+        categoria: {
           select: {
             nombre: true,
             color: true,
           },
         },
-        unidades_productivas: {
+        unidad_productiva: {
           select: {
             nombre: true,
           },
@@ -1025,7 +1026,7 @@ export async function getOutOfStockProducts() {
         stock_actual: true,
         stock_minimo: true,
         unidad: true,
-        categorias: {
+        categoria: {
           select: {
             nombre: true,
             color: true,
@@ -1084,7 +1085,7 @@ export async function searchProducts(query: string, limit = 10) {
         stock_actual: true,
         unidad: true,
         imagen_url: true,
-        categorias: {
+        categoria: {
           select: {
             nombre: true,
             color: true,
@@ -1110,7 +1111,7 @@ export async function searchProducts(query: string, limit = 10) {
 export async function getProductsExpiringSoon(days?: number) {
   try {
     // Usar configuración global si no se especifica
-    const diasAlerta = days ?? await getConfigValue('dias_alerta_vencimiento', 7)
+    const diasAlerta = days ?? await getConfigValue('dias_alerta_vencimiento', 7) as number
     
     // Esta función requiere información de lotes
     // Por ahora retornamos productos perecederos activos
@@ -1130,7 +1131,7 @@ export async function getProductsExpiringSoon(days?: number) {
         stock_actual: true,
         dias_vencimiento: true,
         unidad: true,
-        categorias: {
+        categoria: {
           select: {
             nombre: true,
             color: true,
@@ -1139,7 +1140,7 @@ export async function getProductsExpiringSoon(days?: number) {
         lotes_productos: {
           where: {
             fecha_vencimiento: {
-              lte: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+              lte: new Date(Date.now() + diasAlerta * 24 * 60 * 60 * 1000),
             },
             estado: 'disponible',
           },
@@ -1148,9 +1149,9 @@ export async function getProductsExpiringSoon(days?: number) {
           },
           take: 5,
           select: {
-            numero_lote: true,
+            codigo_lote: true,
             fecha_vencimiento: true,
-            cantidad_disponible: true,
+            cantidad: true,
           },
         },
       },

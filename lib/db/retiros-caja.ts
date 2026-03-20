@@ -175,7 +175,7 @@ export async function autorizarRetiro(
   estado: "autorizado" | "rechazado",
   observaciones?: string
 ) {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Lock pesimista: evitar doble autorización concurrente
     const [retiro] = await tx.$queryRaw<
       { id: number; estado: string; monto: Prisma.Decimal; solicitado_por: number }[]
@@ -233,7 +233,7 @@ export async function completarRetiro(
   reciboUrl?: string
 ) {
   // Usar transacción con lock pesimista para evitar race conditions
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Lock pesimista sobre el retiro
     const [retiro] = await tx.$queryRaw<
       { id: number; estado: string; monto: Prisma.Decimal; sesion_caja_id: number; turno_caja_id: number | null; solicitado_por: number; motivo: string }[]

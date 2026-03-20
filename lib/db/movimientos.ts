@@ -42,7 +42,7 @@ export async function crearMovimiento(data: CrearMovimientoData) {
   const codigoMovimiento = generarCodigoMovimiento()
 
   try {
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Validar que las unidades existen y están activas
       const [unidadOrigen, unidadDestino] = await Promise.all([
         tx.unidades_productivas.findUnique({

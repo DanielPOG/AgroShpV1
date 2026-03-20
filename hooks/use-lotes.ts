@@ -17,15 +17,16 @@ interface Lote {
     nombre: string
     unidad: string
     es_perecedero: boolean
+    activo: boolean
     imagen_url: string | null
-    categorias: {
+    categoria: {
       id: number
       nombre: string
       icono: string | null
       color: string | null
     } | null
   }
-  unidades_productivas?: {
+  unidad_productiva?: {
     id: number
     codigo: string
     nombre: string

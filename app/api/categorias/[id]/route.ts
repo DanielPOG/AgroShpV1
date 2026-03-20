@@ -17,9 +17,10 @@ import { ZodError } from 'zod'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -30,14 +31,14 @@ export async function GET(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Obtener categoría
     const category = await getCategoryById(id)
 
     return NextResponse.json(category, { status: 200 })
   } catch (error) {
-    console.error(`Error en GET /api/categorias/${params.id}:`, error)
+    console.error('Error en GET /api/categorias/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -73,9 +74,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -86,7 +88,7 @@ export async function PUT(
     }
 
     // Verificar rol
-    const userRole = session.user.rol
+    const userRole = session.user.role
     if (userRole !== 'Admin' && userRole !== 'Inventarista') {
       return NextResponse.json(
         {
@@ -97,7 +99,7 @@ export async function PUT(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Parsear body
     const body = await request.json()
@@ -110,7 +112,7 @@ export async function PUT(
 
     return NextResponse.json(category, { status: 200 })
   } catch (error) {
-    console.error(`Error en PUT /api/categorias/${params.id}:`, error)
+    console.error('Error en PUT /api/categorias/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -145,9 +147,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -158,7 +161,7 @@ export async function DELETE(
     }
 
     // Verificar rol (solo Admin puede eliminar)
-    const userRole = session.user.rol
+    const userRole = session.user.role
     if (userRole !== 'Admin') {
       return NextResponse.json(
         {
@@ -169,14 +172,14 @@ export async function DELETE(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Eliminar categoría
     const result = await deleteCategory(id)
 
     return NextResponse.json(result, { status: 200 })
   } catch (error) {
-    console.error(`Error en DELETE /api/categorias/${params.id}:`, error)
+    console.error('Error en DELETE /api/categorias/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(

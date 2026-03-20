@@ -23,6 +23,9 @@ interface CashSession {
   fondo_inicial: number
   efectivo_esperado: number
   estado: string
+  total_ventas_nequi?: number | null
+  total_ventas_tarjeta?: number | null
+  total_ventas_transferencia?: number | null
   caja: {
     nombre: string
     codigo: string

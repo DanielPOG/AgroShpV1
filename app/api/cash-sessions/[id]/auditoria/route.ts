@@ -22,9 +22,10 @@ import { isAdminOrSupervisor } from '@/lib/security/authorize'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -40,7 +41,7 @@ export async function GET(
       )
     }
 
-    const sessionId = parseInt(params.id)
+    const sessionId = parseInt(id)
 
     if (isNaN(sessionId)) {
       return NextResponse.json(

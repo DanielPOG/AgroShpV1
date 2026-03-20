@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (usuario_id) {
-      where.usuario_id = Number.parseInt(usuario_id)
+      where.cajero_id = Number.parseInt(usuario_id)
     }
 
     const sesiones = await prisma.sesiones_caja.findMany({

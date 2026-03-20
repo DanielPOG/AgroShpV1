@@ -118,11 +118,24 @@ function ChartTooltipContent({
   color,
   nameKey,
   labelKey,
-}: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-  React.ComponentProps<'div'> & {
+}: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any
+    active?: boolean
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload?: Array<Record<string, any>>
+    className?: string
+    indicator?: 'line' | 'dot' | 'dashed'
     hideLabel?: boolean
     hideIndicator?: boolean
-    indicator?: 'line' | 'dot' | 'dashed'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    label?: any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    labelFormatter?: (label: any, payload: Array<Record<string, any>>) => React.ReactNode
+    labelClassName?: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    formatter?: (value: any, name: any, item: any, index: number, payload: any) => React.ReactNode
+    color?: string
     nameKey?: string
     labelKey?: string
   }) {
@@ -256,8 +269,10 @@ function ChartLegendContent({
   payload,
   verticalAlign = 'bottom',
   nameKey,
-}: React.ComponentProps<'div'> &
-  Pick<RechartsPrimitive.LegendProps, 'payload' | 'verticalAlign'> & {
+}: React.ComponentProps<'div'> & {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload?: Array<Record<string, any>>
+    verticalAlign?: 'top' | 'bottom'
     hideIcon?: boolean
     nameKey?: string
   }) {

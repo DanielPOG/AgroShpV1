@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import type { ExpenseData } from '@/lib/validations/expense.schema'
 
 /**
@@ -7,7 +8,7 @@ import type { ExpenseData } from '@/lib/validations/expense.schema'
 export async function createExpense(sessionId: number, userId: number, data: ExpenseData) {
   console.log(`🧾 Registrando gasto: ${data.concepto} - $${data.monto}`)
 
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Crear gasto
     const expense = await tx.gastos_caja.create({
       data: {
@@ -17,7 +18,7 @@ export async function createExpense(sessionId: number, userId: number, data: Exp
         categoria_gasto: data.categoria,
         numero_factura: data.comprobante_numero,
         observaciones: data.observaciones,
-        registrado_por: userId,
+        autorizado_por: userId,
         fecha_gasto: new Date(),
       },
     })
@@ -44,7 +45,7 @@ export async function getSessionExpenses(sessionId: number) {
   return prisma.gastos_caja.findMany({
     where: { sesion_caja_id: sessionId },
     include: {
-      registrado_por: {
+      autorizador: {
         select: {
           nombre: true,
           apellido: true,

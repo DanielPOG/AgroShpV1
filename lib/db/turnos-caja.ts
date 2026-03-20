@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import type { IniciarTurno, CerrarTurno } from '@/lib/validations/turno-caja.schema'
 import { 
   calcularEfectivoEsperadoTurno, 
@@ -180,7 +181,7 @@ export async function iniciarTurno(data: IniciarTurno) {
       efectivo_inicial: efectivoInicial,
       monto_inicial: efectivoInicial, // Al inicio, monto_inicial = efectivo_inicial
       tipo_relevo: data.tipo_relevo,
-      observaciones_inicio: data.observaciones_inicio,
+      observaciones: data.observaciones,
       turno_anterior_id: turnoAnteriorId,
       autorizado_por: data.autorizado_por,
       fecha_inicio: new Date(),
@@ -221,7 +222,7 @@ export async function cerrarTurno(data: CerrarTurno) {
   console.log(`   💵 Efectivo final contado: $${data.efectivo_final}`)
 
   // Usar transacción con lock pesimista para evitar doble cierre
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Lock pesimista: leer turno con FOR UPDATE para evitar doble cierre
     const [turnoRow] = await tx.$queryRaw<
       { id: number; estado: string; sesion_caja_id: number; cajero_id: number; efectivo_inicial: number; fecha_inicio: Date; caja_id: number }[]
@@ -535,9 +536,9 @@ export async function reanudarTurno(turnoId: number, observaciones?: string) {
     where: { id: turnoId },
     data: {
       estado: 'activo',
-      observaciones_inicio: observaciones 
-        ? `${turno.observaciones_inicio || ''}\nReanudado: ${observaciones}`.trim()
-        : turno.observaciones_inicio,
+      observaciones: observaciones 
+        ? `${turno.observaciones || ''}\nReanudado: ${observaciones}`.trim()
+        : turno.observaciones,
     },
   })
 

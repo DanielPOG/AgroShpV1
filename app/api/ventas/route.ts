@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
           descuento: venta.descuento ? Number(venta.descuento) : undefined,
           total: Number(venta.total),
           cliente_nombre: venta.cliente?.nombre || validatedData.cliente_nombre,
-          cliente_telefono: venta.cliente_telefono,  // Cédula/NIT
+          cliente_telefono: venta.cliente_telefono ?? undefined,  // Cédula/NIT
           fecha: venta.fecha_venta || new Date(),
           requiere_factura: venta.requiere_factura || false,
           factura_generada: venta.factura_generada || false,

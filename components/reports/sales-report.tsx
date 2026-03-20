@@ -203,7 +203,7 @@ export function SalesReport() {
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
-                formatter={(value: number) => [`$${value.toLocaleString("es-CO")}`, "Ventas"]}
+                formatter={(value: unknown) => [`$${Number(value).toLocaleString("es-CO")}`, "Ventas"]}
               />
               <Bar dataKey="ventas" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
             </BarChart>
@@ -231,7 +231,7 @@ export function SalesReport() {
                     borderRadius: "8px",
                     fontSize: "12px",
                   }}
-                  formatter={(value: number) => [`$${value.toLocaleString("es-CO")}`, "Ventas"]}
+                  formatter={(value: unknown) => [`$${Number(value).toLocaleString("es-CO")}`, "Ventas"]}
                 />
                 <Line
                   type="monotone"

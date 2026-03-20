@@ -8,9 +8,9 @@ import {
 } from "@/lib/db/movimientos-caja-extra"
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 /**

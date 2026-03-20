@@ -155,7 +155,7 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
     try {
       if (deleteAction === "selected") {
         const count = await eliminarSeleccionadas(selectedIds)
-        if (count === 0) {
+        if (typeof count === 'number' && count === 0) {
           toast({
             title: "No se eliminaron notificaciones",
             description: "Solo se pueden eliminar notificaciones con más de 24 horas de antigüedad. Esto evita que se recreen automáticamente.",
@@ -169,7 +169,7 @@ export function DashboardHeader({ title, description }: DashboardHeaderProps) {
         }
       } else if (deleteAction === "all") {
         const count = await eliminarTodasLeidas()
-        if (count === 0) {
+        if (typeof count === 'number' && count === 0) {
           toast({
             title: "No se eliminaron notificaciones",
             description: "Solo se pueden eliminar notificaciones con más de 24 horas de antigüedad. Esto evita que se recreen automáticamente.",

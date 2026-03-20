@@ -17,9 +17,10 @@ import { ZodError } from 'zod'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -30,14 +31,14 @@ export async function GET(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Obtener unidad
     const unit = await getUnitById(id)
 
     return NextResponse.json(unit, { status: 200 })
   } catch (error) {
-    console.error(`Error en GET /api/unidades/${params.id}:`, error)
+    console.error('Error en GET /api/unidades/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -74,9 +75,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -87,7 +89,7 @@ export async function PUT(
     }
 
     // Verificar rol (solo Admin puede actualizar unidades)
-    const userRole = session.user.rol
+    const userRole = session.user.role
     if (userRole !== 'Admin') {
       return NextResponse.json(
         {
@@ -98,7 +100,7 @@ export async function PUT(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Parsear body
     const body = await request.json()
@@ -111,7 +113,7 @@ export async function PUT(
 
     return NextResponse.json(unit, { status: 200 })
   } catch (error) {
-    console.error(`Error en PUT /api/unidades/${params.id}:`, error)
+    console.error('Error en PUT /api/unidades/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -146,9 +148,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: idStr } = await params
     // Verificar autenticación
     const session = await auth()
     if (!session || !session.user) {
@@ -159,7 +162,7 @@ export async function DELETE(
     }
 
     // Verificar rol (solo Admin puede eliminar)
-    const userRole = session.user.rol
+    const userRole = session.user.role
     if (userRole !== 'Admin') {
       return NextResponse.json(
         {
@@ -170,14 +173,14 @@ export async function DELETE(
     }
 
     // Validar ID
-    const { id } = idParamSchema.parse({ id: params.id })
+    const { id } = idParamSchema.parse({ id: idStr })
 
     // Desactivar unidad (soft delete)
     const result = await deleteUnit(id)
 
     return NextResponse.json(result, { status: 200 })
   } catch (error) {
-    console.error(`Error en DELETE /api/unidades/${params.id}:`, error)
+    console.error('Error en DELETE /api/unidades/[id]:', error)
 
     if (error instanceof ZodError) {
       return NextResponse.json(

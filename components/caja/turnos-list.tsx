@@ -32,7 +32,7 @@ interface Turno {
   estado: string
   fecha_inicio: string | Date
   fecha_fin: string | Date | null
-  observaciones_inicio: string | null
+  observaciones: string | null
   observaciones_cierre: string | null
   cajero: {
     nombre: string
@@ -214,9 +214,9 @@ export function TurnosList({
                     </div>
 
                     {/* Observaciones */}
-                    {turno.estado === 'activo' && turno.observaciones_inicio && (
+                    {turno.estado === 'activo' && turno.observaciones && (
                       <p className="text-xs text-muted-foreground italic border-l-2 pl-2 border-muted line-clamp-1">
-                        {turno.observaciones_inicio}
+                        {turno.observaciones}
                       </p>
                     )}
                     {turno.observaciones_cierre && (

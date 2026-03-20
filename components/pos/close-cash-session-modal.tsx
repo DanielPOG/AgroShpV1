@@ -217,7 +217,7 @@ export function CloseCashSessionModal({
                         min="0"
                         className="text-right"
                         value={billetes[key]}
-                        onChange={(e) => handleBilleteChange(key, e.target.value)}
+                        onChange={(e) => handleBilleteChange(key as string, e.target.value)}
                       />
                       <span className="text-xs text-muted-foreground w-20">
                         ${(billetes[key] * denominacion).toLocaleString("es-CO")}
@@ -247,7 +247,7 @@ export function CloseCashSessionModal({
                         min="0"
                         className="text-right"
                         value={monedas[key]}
-                        onChange={(e) => handleMonedaChange(key, e.target.value)}
+                        onChange={(e) => handleMonedaChange(key as string, e.target.value)}
                       />
                       <span className="text-xs text-muted-foreground w-20">
                         ${(monedas[key] * denominacion).toLocaleString("es-CO")}

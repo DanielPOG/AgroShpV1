@@ -411,7 +411,7 @@ export interface DetalleMovimientosTurno {
     id: number
     monto: number
     motivo: string
-    estado: string
+    estado: string | null
     fecha: Date
   }>
   gastos: Array<{

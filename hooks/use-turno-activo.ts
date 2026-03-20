@@ -38,7 +38,7 @@ export interface TurnoActivo {
   fecha_inicio: Date | string
   fecha_fin?: Date | string | null
   estado: string
-  observaciones_inicio?: string | null
+  observaciones?: string | null
   observaciones_cierre?: string | null
   cajero: Cajero
   sesion_caja: SesionCaja
@@ -64,7 +64,7 @@ interface IniciarTurnoData {
   sesion_caja_id: number
   efectivo_inicial: number
   tipo_relevo: 'inicio_jornada' | 'cambio_turno' | 'fin_jornada' | 'emergencia'
-  observaciones_inicio?: string
+  observaciones?: string
   turno_anterior_id?: number
   autorizado_por?: number
 }

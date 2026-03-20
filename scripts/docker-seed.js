@@ -11,13 +11,20 @@ const prisma = new PrismaClient();
 
 // ─── Aplicar constraints SQL de hardening ───────────────────────────
 async function applyDatabaseConstraints() {
-  const sqlPath = path.join(__dirname, "..", "database", "init-constraints.sql");
+  const sqlPath = path.join(
+    __dirname,
+    "..",
+    "database",
+    "init-constraints.sql",
+  );
   if (!fs.existsSync(sqlPath)) {
     console.log("⚠️  init-constraints.sql no encontrado, saltando constraints");
     return;
   }
   const sql = fs.readFileSync(sqlPath, "utf-8");
-  console.log("🔒 Aplicando constraints de seguridad (CHECK, índices, trigger)...");
+  console.log(
+    "🔒 Aplicando constraints de seguridad (CHECK, índices, trigger)...",
+  );
   await prisma.$executeRawUnsafe(sql);
   console.log("✅ Constraints aplicadas\n");
 }
@@ -433,6 +440,9 @@ async function main() {
         activo: true,
       },
     }),
+  ]);
+  console.log(`✅ 3 descuentos creados\n`);
+
   // 8. CAJA PRINCIPAL (necesaria para que los cajeros abran sesiones)
   console.log("🏪 Creando caja principal...");
   await prisma.cajas.upsert({
@@ -447,9 +457,6 @@ async function main() {
     },
   });
   console.log(`✅ Caja principal creada\n`);
-
-  ]);
-  console.log(`✅ 3 descuentos creados\n`);
 
   console.log("✅ ¡Seed completado exitosamente!\n");
 }

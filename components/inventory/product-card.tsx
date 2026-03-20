@@ -21,6 +21,7 @@ interface Product {
   precio_unitario: number
   stock_actual: number
   stock_minimo: number
+  stock_maximo?: number | null
   unidad: string
   tipo_medida: string
   imagen_url?: string | null

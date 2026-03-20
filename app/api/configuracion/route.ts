@@ -28,7 +28,7 @@ export async function GET() {
     const configuracion: Record<string, any> = {}
     config.forEach((item) => {
       if (item.tipo === "number") {
-        configuracion[item.clave] = parseFloat(item.valor)
+        configuracion[item.clave] = parseFloat(item.valor ?? "0")
       } else {
         configuracion[item.clave] = item.valor
       }

@@ -146,7 +146,7 @@ export function PaymentMethodsReport() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => `$${value.toLocaleString("es-CO")}`}
+                    formatter={(value: unknown) => `$${Number(value).toLocaleString("es-CO")}`}
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",

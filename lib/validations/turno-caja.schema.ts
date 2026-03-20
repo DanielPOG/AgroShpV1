@@ -100,7 +100,7 @@ export const iniciarTurnoSchema = z.object({
   }),
   
   // Observaciones del inicio del turno
-  observaciones_inicio: z.string().max(500).optional().nullable(),
+  observaciones: z.string().max(500).optional().nullable(),
   
   // Turno anterior (si es cambio de turno)
   turno_anterior_id: z.number().int().positive().optional().nullable(),

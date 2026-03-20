@@ -15,9 +15,10 @@ import { cerrarTurnoSchema, suspenderTurnoSchema } from "@/lib/validations/turno
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json(
@@ -26,7 +27,7 @@ export async function GET(
       )
     }
 
-    const turno = await getResumenTurno(parseInt(params.id))
+    const turno = await getResumenTurno(parseInt(id))
 
     if (!turno) {
       return NextResponse.json(
@@ -51,9 +52,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json(
@@ -63,7 +65,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const turnoId = parseInt(params.id)
+    const turnoId = parseInt(id)
 
     // Verificar acción
     if (body.accion === "finalizar") {

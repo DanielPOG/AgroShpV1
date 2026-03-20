@@ -318,7 +318,7 @@ export function InventoryPageClient() {
     let errorCount = 0
 
     try {
-      const promises = Array.from(selectedProducts).map(async (productId) => {
+      const promises = [...selectedProducts].map(async (productId) => {
         try {
           const response = await fetch(`/api/productos/${productId}/reactivar`, {
             method: 'PATCH',
@@ -530,7 +530,7 @@ export function InventoryPageClient() {
         {products.map((product) => (
           <ProductCard
             key={product.id}
-            product={product}
+            product={product as any}
             viewMode={viewMode}
             onClick={() => handleProductClick(product.id)}
             onEdit={!showInactive ? () => handleProductEdit(product.id) : undefined}

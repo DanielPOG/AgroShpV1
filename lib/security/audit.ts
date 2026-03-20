@@ -94,8 +94,8 @@ export function summarizeSale(venta: {
   codigo_venta?: string | null
   total?: number | unknown
   estado?: string | null
-  detalle_ventas?: { cantidad: number; precio_unitario: unknown; producto_id?: number }[]
-  pagos_venta?: { monto: unknown; metodo_pago_id?: number }[]
+  detalle_ventas?: { cantidad: unknown; precio_unitario: unknown; producto_id?: number | null; [key: string]: unknown }[]
+  pagos_venta?: { monto: unknown; metodo_pago_id?: number | null; [key: string]: unknown }[]
 }): Record<string, unknown> {
   return {
     id: venta.id,

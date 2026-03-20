@@ -45,7 +45,7 @@ export function OpenTurnoModal({
   const [formData, setFormData] = useState({
     efectivo_inicial: "",
     tipo_relevo: "",
-    observaciones_inicio: "",
+    observaciones: "",
   })
 
   // Función para obtener el efectivo inicial calculado
@@ -108,7 +108,7 @@ export function OpenTurnoModal({
       setFormData({
         efectivo_inicial: "",
         tipo_relevo: "",
-        observaciones_inicio: "",
+        observaciones: "",
       })
       setEfectivoCalculado(null)
       setUltimoTurno(null)
@@ -168,7 +168,7 @@ export function OpenTurnoModal({
       const requestBody: any = {
         sesion_caja_id: sesionCajaId,
         tipo_relevo: formData.tipo_relevo,
-        observaciones_inicio: formData.observaciones_inicio || undefined,
+        observaciones: formData.observaciones || undefined,
       }
 
       // Si hay último turno, usar su ID como turno_anterior_id
@@ -212,7 +212,7 @@ export function OpenTurnoModal({
       setFormData({
         efectivo_inicial: "",
         tipo_relevo: "",
-        observaciones_inicio: "",
+        observaciones: "",
       })
 
       onSuccess()
@@ -350,20 +350,20 @@ export function OpenTurnoModal({
 
           {/* Observaciones */}
           <div className="space-y-2">
-            <Label htmlFor="observaciones_inicio">
+            <Label htmlFor="observaciones">
               Observaciones (opcional)
             </Label>
             <Textarea
-              id="observaciones_inicio"
+              id="observaciones"
               placeholder="Ej: Inicio de turno matutino, recibido efectivo del turno anterior..."
-              value={formData.observaciones_inicio}
-              onChange={(e) => setFormData({ ...formData, observaciones_inicio: e.target.value })}
+              value={formData.observaciones}
+              onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
               disabled={loading}
               rows={3}
               maxLength={500}
             />
             <p className="text-sm text-muted-foreground">
-              {formData.observaciones_inicio.length}/500 caracteres
+              {formData.observaciones.length}/500 caracteres
             </p>
           </div>
 

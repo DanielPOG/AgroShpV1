@@ -35,6 +35,7 @@ export interface CreateSaleData {
   requiere_factura?: boolean
   factura_generada?: boolean  // ✨ NUEVO: Se registra atómicamente
   observaciones?: string
+  efectivo_recibido?: number
 }
 
 /**

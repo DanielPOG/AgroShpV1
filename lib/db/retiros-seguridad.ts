@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 /**
  * 💰 RETIROS DE SEGURIDAD DURANTE TURNO
@@ -130,7 +131,7 @@ export async function crearRetiroSeguridad(data: RetiroSeguridadData) {
   }
 
   // Crear retiro en transacción
-  const retiro = await prisma.$transaction(async (tx) => {
+  const retiro = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Crear registro de retiro
     const nuevoRetiro = await tx.retiros_caja.create({
       data: {

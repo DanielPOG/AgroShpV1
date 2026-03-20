@@ -14,9 +14,10 @@ import { aprobarArqueoSchema } from "@/lib/validations/arqueo-caja.schema"
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json(
@@ -25,7 +26,7 @@ export async function GET(
       )
     }
 
-    const arqueo = await getArqueoById(parseInt(params.id))
+    const arqueo = await getArqueoById(parseInt(id))
 
     if (!arqueo) {
       return NextResponse.json(
@@ -50,9 +51,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json(
@@ -81,7 +83,7 @@ export async function PUT(
 
     // Aprobar el arqueo
     const arqueo = await aprobarArqueo(
-      parseInt(params.id),
+      parseInt(id),
       parseInt(session.user.id),
       body.observaciones_aprobacion
     )
@@ -106,9 +108,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json(
@@ -119,7 +122,7 @@ export async function DELETE(
 
     const isAdmin = session.user.role === "Admin"
 
-    await deleteArqueo(parseInt(params.id), parseInt(session.user.id), isAdmin)
+    await deleteArqueo(parseInt(id), parseInt(session.user.id), isAdmin)
 
     return NextResponse.json({
       success: true,

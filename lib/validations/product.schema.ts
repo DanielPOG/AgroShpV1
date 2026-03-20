@@ -248,7 +248,7 @@ export const updateProductSchema = baseProductSchema
     (data) => {
       // Validar precios si ambos están presentes (mayorista debe ser menor)
       if (
-        data.precio_mayorista !== undefined &&
+        data.precio_mayorista != null &&
         data.precio_unitario !== undefined &&
         data.precio_mayorista >= data.precio_unitario
       ) {

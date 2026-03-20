@@ -17,9 +17,10 @@ const facturacionSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     // Verificar autenticación
     const session = await getServerSession(authOptions)
     
@@ -31,14 +32,14 @@ export async function PATCH(
     }
 
     // Validar que el usuario tenga permisos
-    if (session.user.rol !== 'Admin' && session.user.rol !== 'Cajero') {
+    if (session.user.role !== 'Admin' && session.user.role !== 'Cajero') {
       return NextResponse.json(
         { error: 'Acceso denegado. Solo Admin y Cajero pueden actualizar ventas.' },
         { status: 403 }
       )
     }
 
-    const ventaId = parseInt(params.id)
+    const ventaId = parseInt(id)
 
     if (isNaN(ventaId)) {
       return NextResponse.json(

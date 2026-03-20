@@ -642,11 +642,11 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
       })
 
       // Calcular totales del turno por método de pago
-      const totalesPorMetodo = {
+      const totalesPorMetodo: Record<string, { ventas: number, retiros: number, gastos: number, ingresos: number, egresos: number }> = {
         efectivo: { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 },
-        nequi: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
-        tarjeta: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
-        transferencia: { ventas: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        nequi: { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        tarjeta: { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 },
+        transferencia: { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 },
       }
 
       // Sumar ventas por método
@@ -654,7 +654,8 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
         if (venta.estado !== 'cancelada') {
           // Cada venta puede tener múltiples pagos
           venta.pagos_venta.forEach(pago => {
-            const nombreMetodo = pago.metodo_pago.nombre.toLowerCase()
+            const nombreMetodo = pago.metodo_pago?.nombre?.toLowerCase()
+            if (!nombreMetodo) return
             const metodo = nombreMetodo as keyof typeof totalesPorMetodo
             if (totalesPorMetodo[metodo]) {
               totalesPorMetodo[metodo].ventas += Number(pago.monto)
@@ -733,7 +734,7 @@ export async function getArqueoHistoryDetail(arqueoId: number) {
 
   // Calcular totales generales de la sesión
   const totalesGenerales = turnosConOperaciones.reduce((acc, turno) => {
-    Object.entries(turno.totales.porMetodo).forEach(([metodo, totales]) => {
+    Object.entries(turno.totales.porMetodo).forEach(([metodo, totales]: [string, any]) => {
       if (!acc[metodo]) {
         acc[metodo] = { ventas: 0, retiros: 0, gastos: 0, ingresos: 0, egresos: 0 }
       }

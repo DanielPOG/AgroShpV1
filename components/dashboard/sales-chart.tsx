@@ -51,7 +51,7 @@ export function SalesChart({ ventas }: SalesChartProps) {
                   borderRadius: "8px",
                   fontSize: "12px"
                 }}
-                formatter={(value: number) => [`$${value.toLocaleString("es-CO")}`, "Ventas"]}
+                formatter={(value: unknown) => [`$${Number(value).toLocaleString("es-CO")}`, "Ventas"]}
               />
               <Area
                 type="monotone"

@@ -207,7 +207,6 @@ export function UpdateProductModal({ productId, isOpen, onClose, onUpdate }: Upd
 
     try {
       await updateProduct(productId, {
-        codigo: formData.codigo,
         nombre: formData.nombre,
         descripcion: formData.descripcion || undefined,
         categoria_id: Number(formData.categoria_id),

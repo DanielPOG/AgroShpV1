@@ -65,11 +65,12 @@ export async function middleware(request: NextRequest) {
     // Obtener token de sesión solo para rutas protegidas
     let token = null
     try {
+        const g = globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }
         token = await getToken({
             req: request,
-            secret: process.env.NEXTAUTH_SECRET,
-            secureCookie: process.env.NODE_ENV === 'production',
-            cookieName: process.env.NODE_ENV === 'production' 
+            secret: g.process?.env?.NEXTAUTH_SECRET,
+            secureCookie: g.process?.env?.NODE_ENV === 'production',
+            cookieName: g.process?.env?.NODE_ENV === 'production' 
                 ? '__Secure-next-auth.session-token'
                 : 'next-auth.session-token'
         })

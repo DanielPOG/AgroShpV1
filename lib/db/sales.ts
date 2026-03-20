@@ -885,7 +885,7 @@ export async function cancelSale(
   try {
     console.log(`🚫 Cancelando venta ID: ${id}`)
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Obtener la venta con sus detalles
       const venta = await tx.ventas.findUnique({
         where: { id },

@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
 
     // Validar permisos: Cajero solo ve su turno
     if (userRole === 'Cajero') {
-      const { default: prisma } = await import('@/lib/prisma')
-      const turno = await prisma.prisma.turnos_caja.findUnique({
+      const { prisma } = await import('@/lib/prisma')
+      const turno = await prisma.turnos_caja.findUnique({
         where: { id: Number(turnoId) },
         select: { cajero_id: true },
       })
@@ -156,8 +156,8 @@ export async function POST(request: NextRequest) {
 
     // Validar permisos: Cajero solo puede hacer retiros de su propio turno
     if (userRole === 'Cajero') {
-      const { default: prisma } = await import('@/lib/prisma')
-      const turno = await prisma.prisma.turnos_caja.findUnique({
+      const { prisma } = await import('@/lib/prisma')
+      const turno = await prisma.turnos_caja.findUnique({
         where: { id: validatedData.turno_caja_id },
         select: { cajero_id: true, estado: true },
       })

@@ -142,7 +142,7 @@ export async function createMovimientoCaja(data: MovimientoCajaCreate) {
   const requiereAutorizacion = data.monto >= MONTO_REQUIERE_AUTORIZACION
 
   // Usar transacción para asegurar consistencia
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Crear el movimiento
     const movimiento = await tx.movimientos_caja.create({
       data: {
@@ -383,12 +383,12 @@ export async function getMovimientosDetallados(filters?: {
   }
   
   if (filters?.fecha_desde || filters?.fecha_hasta) {
-    where.fecha = {}
+    where.fecha_movimiento = {}
     if (filters.fecha_desde) {
-      where.fecha.gte = filters.fecha_desde
+      where.fecha_movimiento.gte = filters.fecha_desde
     }
     if (filters.fecha_hasta) {
-      where.fecha.lte = filters.fecha_hasta
+      where.fecha_movimiento.lte = filters.fecha_hasta
     }
   }
   
@@ -441,7 +441,7 @@ export async function getMovimientosDetallados(filters?: {
         }
       },
       orderBy: {
-        fecha: 'desc'
+        fecha_movimiento: 'desc'
       },
       skip,
       take: limit
@@ -475,10 +475,11 @@ export async function getMovimientosDetallados(filters?: {
     totalesPorTipo[mov.tipo_movimiento] += monto
     
     // Por método
-    if (!totalesPorMetodo[mov.metodo_pago]) {
-      totalesPorMetodo[mov.metodo_pago] = 0
+    const metodoPago = mov.metodo_pago || 'sin_metodo'
+    if (!totalesPorMetodo[metodoPago]) {
+      totalesPorMetodo[metodoPago] = 0
     }
-    totalesPorMetodo[mov.metodo_pago] += monto
+    totalesPorMetodo[metodoPago] += monto
     
     // Ingresos vs Egresos
     if (['venta', 'ingreso_adicional'].includes(mov.tipo_movimiento)) {
@@ -495,7 +496,7 @@ export async function getMovimientosDetallados(filters?: {
   return {
     movimientos: movimientos.map(m => ({
       id: m.id,
-      fecha: m.fecha,
+      fecha: m.fecha_movimiento,
       tipo_movimiento: m.tipo_movimiento,
       metodo_pago: m.metodo_pago,
       monto: Number(m.monto),

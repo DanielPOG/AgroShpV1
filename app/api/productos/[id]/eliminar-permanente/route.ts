@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth.server'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { getColombiaDate } from '@/lib/date-utils'
 
 /**
@@ -52,7 +53,7 @@ export async function DELETE(
     }
 
     // TRANSACCIÓN ATÓMICA: Validar y eliminar
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Verificar que el producto existe
       const producto = await tx.productos.findUnique({
         where: { id },
@@ -99,12 +100,12 @@ export async function DELETE(
       // 6. Registrar en auditoría ANTES de eliminar
       await tx.historial_inventario.create({
         data: {
-          producto: {
+          productos: {
             connect: { id }
           },
           tipo_movimiento: 'eliminacion_permanente',
-          cantidad_anterior: producto.stock_actual,
-          cantidad_movimiento: producto.stock_actual,
+          cantidad_anterior: producto.stock_actual ?? 0,
+          cantidad_movimiento: producto.stock_actual ?? 0,
           cantidad_nueva: 0,
           usuario_id: Number(session.user.id),
           referencia_tipo: 'eliminacion_bd',

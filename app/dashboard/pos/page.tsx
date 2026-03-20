@@ -326,7 +326,7 @@ export default function POSPage() {
     unidad: string
     stock: number
   }) => {
-    addItem(product)
+    addItem({ ...product, codigo: `QUICK-${product.id}`, es_perecedero: false })
     setIsQuickProductOpen(false)
   }
 

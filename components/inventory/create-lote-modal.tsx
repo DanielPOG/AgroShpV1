@@ -39,8 +39,8 @@ interface Product {
   nombre: string
   codigo: string
   unidad: string
-  es_perecedero: boolean
-  dias_vencimiento: number | null
+  es_perecedero?: boolean | null
+  dias_vencimiento?: number | null
 }
 
 interface UnidadProductiva {

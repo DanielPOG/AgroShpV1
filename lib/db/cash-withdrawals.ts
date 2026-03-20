@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import type { CashWithdrawalData, AuthorizeCashWithdrawalData } from '@/lib/validations/cash-withdrawal.schema'
 
 /**
@@ -36,7 +37,7 @@ export async function authorizeCashWithdrawal(
 ) {
   console.log(`🔐 Autorizando retiro ${withdrawalId}`)
 
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const withdrawal = await tx.retiros_caja.findUnique({
       where: { id: withdrawalId },
       include: {

@@ -225,7 +225,7 @@ export function ArqueoHistoryDialog({
               <Separator className="my-3 sm:my-4" />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {Object.entries(data.totalesGenerales.porMetodo).map(([metodo, totales]) => {
+                {Object.entries(data.totalesGenerales.porMetodo).map(([metodo, totales]: [string, any]) => {
                   const Icon = METODO_PAGO_ICONS[metodo as keyof typeof METODO_PAGO_ICONS]
                   const label = METODO_PAGO_LABELS[metodo as keyof typeof METODO_PAGO_LABELS]
                   const saldo = totales.ventas + totales.ingresos - totales.gastos - totales.egresos - (totales.retiros || 0)
@@ -446,8 +446,8 @@ export function ArqueoHistoryDialog({
                                       <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                       <p className="text-xs font-medium truncate">{label}</p>
                                     </div>
-                                    <p className={`font-bold text-xs sm:text-sm ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      {formatearMoneda(saldo)}
+                                    <p className={`font-bold text-xs sm:text-sm ${Number(saldo) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {formatearMoneda(Number(saldo))}
                                     </p>
                                   </div>
                                 )

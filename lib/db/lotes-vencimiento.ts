@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { getConfigValue } from '@/lib/constants'
 
 /**
@@ -94,7 +95,7 @@ export async function checkLotesProximosVencer() {
     // ⚠️ CRÍTICO: NO descontar stock manualmente aquí
     // El trigger SQL sync_stock_on_lote_update() se ejecuta automáticamente
     // cuando cambia el estado y maneja el descuento de stock correctamente
-    const lotesVencidos = await prisma.$transaction(async (tx) => {
+    const lotesVencidos = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Obtener lotes que están vencidos pero aún marcados como disponibles
       const lotesParaVencer = await tx.lotes_productos.findMany({
         where: {
@@ -175,7 +176,7 @@ export async function checkLotesProximosVencer() {
  */
 export async function getLotesProximosVencer(dias?: number) {
   // Usar configuración global si no se especifica
-  const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7)
+  const diasAlerta = dias ?? await getConfigValue('dias_alerta_vencimiento', 7) as number
   
   const ahora = new Date()
   const enXDias = new Date(ahora.getTime() + diasAlerta * 24 * 60 * 60 * 1000)

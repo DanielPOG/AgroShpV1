@@ -41,7 +41,7 @@ export async function checkIdempotency(
   try {
     const existing = await prisma.idempotency_keys.findUnique({
       where: {
-        uq_idempotency: {
+        idempotency_key_endpoint_usuario_id: {
           idempotency_key: input.key,
           endpoint: input.endpoint,
           usuario_id: input.userId,
@@ -84,7 +84,7 @@ export async function saveIdempotencyResponse(input: {
   try {
     await prisma.idempotency_keys.upsert({
       where: {
-        uq_idempotency: {
+        idempotency_key_endpoint_usuario_id: {
           idempotency_key: input.key,
           endpoint: input.endpoint,
           usuario_id: input.userId,

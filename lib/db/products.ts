@@ -99,7 +99,7 @@ export async function getProducts(filters?: ProductFilters) {
 
   // Filtro por estado de stock
   let filterStockStatusAfter = false
-  let stockStatusFilter = null
+  let stockStatusFilter: string | null = null
   
   if (filters?.stock_status) {
     stockStatusFilter = filters.stock_status

@@ -248,7 +248,7 @@ export async function completarRetiro(
     }
 
     // Lock sobre la sesión para validar saldo de forma atómica
-    const validacion = await validarSaldoPorMetodoPago(retiro.sesion_caja_id, 'efectivo', retiro.monto)
+    const validacion = await validarSaldoPorMetodoPago(retiro.sesion_caja_id, 'efectivo', Number(retiro.monto))
 
     if (!validacion.valido) {
       throw new Error(`No se puede completar el retiro. ${validacion.mensaje}`)

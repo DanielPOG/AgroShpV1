@@ -11,21 +11,27 @@ const prisma = new PrismaClient();
 
 // ─── Aplicar constraints SQL de hardening ───────────────────────────
 async function applyDatabaseConstraints() {
-  const sqlPath = path.join(
-    __dirname,
-    "..",
-    "database",
-    "init-constraints.sql",
-  );
+  const sqlPath = path.join(__dirname, "..", "database", "init-constraints.sql");
+
   if (!fs.existsSync(sqlPath)) {
     console.log("⚠️  init-constraints.sql no encontrado, saltando constraints");
     return;
   }
+
   const sql = fs.readFileSync(sqlPath, "utf-8");
-  console.log(
-    "🔒 Aplicando constraints de seguridad (CHECK, índices, trigger)...",
-  );
-  await prisma.$executeRawUnsafe(sql);
+
+  console.log("🔒 Aplicando constraints de seguridad...");
+
+  // dividir por ;
+  const queries = sql
+    .split(";")
+    .map(q => q.trim())
+    .filter(q => q.length > 0);
+
+  for (const query of queries) {
+    await prisma.$executeRawUnsafe(query);
+  }
+
   console.log("✅ Constraints aplicadas\n");
 }
 
@@ -33,7 +39,7 @@ async function main() {
   console.log("🌱 Iniciando seed de la base de datos...\n");
 
   // 0. CONSTRAINTS SQL (CHECK, índices parciales, trigger)
-  await applyDatabaseConstraints();
+   await applyDatabaseConstraints();
 
   // 1. ROLES
   console.log("📋 Creando roles...");

@@ -306,7 +306,7 @@ export function CheckoutModal({ open, onClose, items, clearCart, onSaleComplete 
       }))
 
       // Preparar pagos
-      let pagos = []
+      let pagos: { metodo_pago_id: number; monto: number; referencia?: string }[] = []
       
       // Pago mixto
       if (selectedMethodId === -1) {

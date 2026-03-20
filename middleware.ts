@@ -63,7 +63,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Obtener token de sesión solo para rutas protegidas
-    let token = null
+    let token: Awaited<ReturnType<typeof getToken>> = null
     try {
         const g = globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }
         token = await getToken({

@@ -251,7 +251,7 @@ export async function GET() {
       : 0
 
     // Preparar datos de meta
-    let metaData = null
+    let metaData: { id: number; nombre: string; monto_objetivo: number; anio: number; monto_actual: number; porcentaje: number } | null = null
     if (metaVentas) {
       const montoObjetivo = Number(metaVentas.monto_objetivo)
       const porcentaje = montoObjetivo > 0 ? (totalVentasAnio / montoObjetivo) * 100 : 0

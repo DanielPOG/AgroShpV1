@@ -3,7 +3,7 @@ const nextConfig = {
   output: "standalone", // ← OBLIGATORIO PARA CPANEL
 
   typescript: {
-    ignoreBuildErrors: true, // TEMPORAL: corrigiendo errores con tsc local
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,

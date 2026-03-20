@@ -55,12 +55,16 @@ logs
 # Prisma migrations backup
 prisma/backup_migrations_antiguas
 
-# Scripts de desarrollo
-scripts/
+# Scripts de desarrollo (excepto docker-seed.js que se necesita)
+scripts/*.ts
+scripts/README.md
 
 # Database dumps
 *.dump
-*.sql
+dump.dump
+# Excluir SQL sueltos del root, no los de database/
+!database/
+!database/**
 
 # Misc
 .turbo

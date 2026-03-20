@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
 
     // Intentar enviar con Resend primero
     let emailSent = false
-    let emailId = null
-    let emailError = null
+    let emailId: string | null | undefined = null
+    let emailError: unknown = null
 
     const resendClient = getResend()
     if (resendClient) {

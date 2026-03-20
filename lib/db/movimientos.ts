@@ -125,7 +125,7 @@ export async function crearMovimiento(data: CrearMovimientoData) {
       })
 
       // 4. Procesar cada detalle del movimiento
-      const detallesCreados = []
+      const detallesCreados: Awaited<ReturnType<typeof tx.detalle_movimientos.create>>[] = []
       
       for (const detalle of data.detalles) {
         const lote = await tx.lotes_productos.findUnique({

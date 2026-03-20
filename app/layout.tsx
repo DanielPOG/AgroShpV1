@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { getCachedConfig } from "@/lib/config-cache"
@@ -15,26 +14,30 @@ export async function generateMetadata(): Promise<Metadata> {
   const config = await getCachedConfig()
   const storeName = config.nombre_tienda ?? 'AgroShop SENA'
   
+  const description = `Sistema integral de gestión de ventas, inventario y producción - ${storeName}`
+
   return {
     title: `${storeName} - Sistema de Gestión`,
-    description: `Sistema integral de gestión de ventas, inventario y producción - ${storeName}`,
-    generator: "v0.app",
-    icons: {
-      icon: [
-        {
-          url: "/icon-light-32x32.png",
-          media: "(prefers-color-scheme: light)",
-        },
-        {
-          url: "/icon-dark-32x32.png",
-          media: "(prefers-color-scheme: dark)",
-        },
-        {
-          url: "/icon.svg",
-          type: "image/svg+xml",
-        },
-      ],
-      apple: "/apple-icon.png",
+    description,
+    metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://agroshop.vercel.app'),
+    openGraph: {
+      title: `${storeName} - Sistema de Gestión`,
+      description,
+      siteName: storeName,
+      locale: 'es_CO',
+      type: 'website',
+      images: [{
+        url: '/api/og',
+        width: 1200,
+        height: 630,
+        alt: storeName,
+      }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${storeName} - Sistema de Gestión`,
+      description,
+      images: ['/api/og'],
     },
   }
 }
@@ -53,7 +56,6 @@ export default function RootLayout({
           </AuthProvider>
         </ReactQueryProvider>
         <Toaster />
-        <Analytics />
       </body>
     </html>
   )

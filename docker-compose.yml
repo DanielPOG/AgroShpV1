@@ -47,7 +47,7 @@ services:
     container_name: agroshop-app
     restart: unless-stopped
     ports:
-      - "80:3000"
+      - "3000:3000"  # Puerto externo 3000 para evitar conflicto con Next.js local
     environment:
       # Base de datos - apunta al servicio 'db'
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-AgroShop}

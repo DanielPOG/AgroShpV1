@@ -58,15 +58,16 @@ COPY --from=builder /app/public ./public
 # Copiar archivos de standalone build (incluye node_modules necesarios)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Copiar Prisma schema
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Copiar scripts de seed y constraints SQL
-COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/database ./database
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/database ./database
 
 # Crear directorio para uploads de productos y asignar permisos
+RUN chown -R nextjs:nodejs /app/node_modules
 RUN mkdir -p /app/public/productos && chown -R nextjs:nodejs /app/public/productos
 
 USER nextjs

@@ -58,56 +58,61 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     console.log('   - sendEmail:', sendEmail)
 
     try {
-      // Si se seleccionó envío por correo, llamar al API
-      if (sendEmail && email) {
-        console.log("📧 Enviando factura por correo a:", email)
-        
-        const response = await fetch('/api/send-invoice', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            saleData,
-            invoiceNumber,
-            customerName,
-            customerId,
-            config: {
-              iva_porcentaje: config.iva_porcentaje || 19
-            }
-          })
-        })
-
-        const result = await response.json()
-
-        if (!result.success) {
-          throw new Error(result.error || 'Error al enviar el correo')
-        }
-
-        console.log("✅ Factura enviada exitosamente:", result.emailId)
-      }
-
       if (generateInvoice) {
         console.log("📄 Generando factura física:", invoiceNumber)
       }
 
-      setCompleted(true)
-
-      // Esperar a que se complete la venta antes de cerrar
+      // 1️⃣ PRIMERO: Crear la venta en el sistema
       const dataToSend = {
-        requiere_factura: generateInvoice || sendEmail, // Requiere factura si seleccionó alguna opción
-        factura_generada: generateInvoice, // Solo true si seleccionó "Generar Factura"
+        requiere_factura: generateInvoice || sendEmail,
+        factura_generada: generateInvoice,
         factura_enviada_email: sendEmail,
         email_destino: sendEmail ? email : undefined,
-        cliente_nombre: customerName || undefined, // Nombre del cliente (opcional)
-        cliente_identificacion: customerId || undefined, // Cédula/NIT (opcional)
+        cliente_nombre: customerName || undefined,
+        cliente_identificacion: customerId || undefined,
       }
       
-      console.log('📤 [InvoiceModal] Enviando datos:', dataToSend)
+      console.log('📤 [InvoiceModal] Creando venta primero:', dataToSend)
       
       await onComplete(dataToSend)
-      
+
+      // 2️⃣ DESPUÉS: Solo si la venta se creó exitosamente, enviar email
+      if (sendEmail && email) {
+        console.log("📧 Enviando factura por correo a:", email)
+        
+        try {
+          const response = await fetch('/api/send-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email,
+              saleData,
+              invoiceNumber,
+              customerName,
+              customerId,
+              config: {
+                iva_porcentaje: config.iva_porcentaje || 19
+              }
+            })
+          })
+
+          const result = await response.json()
+
+          if (!result.success) {
+            // La venta ya se creó, solo falló el email — notificar pero no revertir
+            console.error("⚠️ Venta creada pero falló el envío de email:", result.error)
+          } else {
+            console.log("✅ Factura enviada exitosamente:", result.emailId)
+          }
+        } catch (emailError) {
+          // La venta ya se creó, el email es secundario
+          console.error("⚠️ Venta creada pero error al enviar email:", emailError)
+        }
+      }
+
+      setCompleted(true)
       setProcessing(false)
 
       setTimeout(() => {
@@ -116,8 +121,8 @@ export function InvoiceModal({ open, onClose, saleData, onComplete }: InvoiceMod
     } catch (error: any) {
       setProcessing(false)
       setCompleted(false)
-      console.error('❌ Error al completar facturación:', error)
-      alert(`Error: ${error.message || 'No se pudo procesar la facturación'}`)
+      console.error('❌ Error al completar venta:', error)
+      alert(`Error: ${error.message || 'No se pudo procesar la venta'}`)
     }
   }
 

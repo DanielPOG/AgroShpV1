@@ -24,6 +24,7 @@ import {
   Calculator,
   Clock,
   Layers,
+  Shield,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -124,6 +125,13 @@ const navigation = [
     icon: Leaf, 
     roles: ["Admin"],
     description: "Gestión de unidades de producción"
+  },
+  {
+    name: "Usuarios y Roles",
+    href: "/dashboard/admin/usuarios-roles",
+    icon: Shield,
+    roles: ["Admin"],
+    description: "CRUD de usuarios y roles"
   },
   { 
     name: "Catálogo Público", 

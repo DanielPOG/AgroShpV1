@@ -14,7 +14,7 @@ COPY prisma ./prisma/
 
 # Instalar pnpm e instalar dependencias
 RUN corepack enable pnpm
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Generar cliente Prisma
 RUN npx prisma generate

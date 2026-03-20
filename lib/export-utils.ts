@@ -1,8 +1,21 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import { Workbook } from 'exceljs'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+
+async function saveExcelFile(workbook: Workbook, filename: string) {
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 // Extend jsPDF type for autoTable
 declare module 'jspdf' {
@@ -101,10 +114,11 @@ export const exportVentasExcel = async (fechaInicio: Date, fechaFin: Date) => {
     )
     const { data } = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows([
       ['Reporte de Ventas'],
       ['Período', `${format(fechaInicio, 'dd MMM yyyy', { locale: es })} - ${format(fechaFin, 'dd MMM yyyy', { locale: es })}`],
       [],
@@ -113,24 +127,22 @@ export const exportVentasExcel = async (fechaInicio: Date, fechaFin: Date) => {
       ['Cantidad Transacciones', data.estadisticas.cantidad_transacciones],
       ['Ticket Promedio', data.estadisticas.ticket_promedio],
       ['Total Descuentos', data.estadisticas.total_descuentos],
-    ]
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    ])
 
     // Hoja 2: Ventas por día
-    const ventasDia = [
+    const wsVentasDia = workbook.addWorksheet('Ventas por Día')
+    wsVentasDia.addRows([
       ['Fecha', 'Total Ventas', 'Cantidad'],
       ...data.ventas_por_periodo.map((v: any) => [
         format(new Date(v.periodo), 'dd/MM/yyyy'),
         v.total_ventas,
         v.cantidad_ventas,
       ]),
-    ]
-    const wsVentasDia = XLSX.utils.aoa_to_sheet(ventasDia)
-    XLSX.utils.book_append_sheet(workbook, wsVentasDia, 'Ventas por Día')
+    ])
 
     // Hoja 3: Productos más vendidos
-    const productos = [
+    const wsProductos = workbook.addWorksheet('Top Productos')
+    wsProductos.addRows([
       ['Producto', 'Código', 'Cantidad Vendida', 'Ingresos Totales', 'Veces Vendido'],
       ...data.productos_mas_vendidos.map((p: any) => [
         p.nombre,
@@ -139,12 +151,11 @@ export const exportVentasExcel = async (fechaInicio: Date, fechaFin: Date) => {
         p.total_ingresos,
         p.veces_vendido,
       ]),
-    ]
-    const wsProductos = XLSX.utils.aoa_to_sheet(productos)
-    XLSX.utils.book_append_sheet(workbook, wsProductos, 'Top Productos')
+    ])
 
     // Hoja 4: Métodos de pago
-    const metodosPago = [
+    const wsMetodos = workbook.addWorksheet('Métodos de Pago')
+    wsMetodos.addRows([
       ['Método de Pago', 'Cantidad Transacciones', 'Total', '% del Total'],
       ...data.ventas_por_metodo_pago.map((m: any) => [
         m.metodo_pago,
@@ -152,24 +163,21 @@ export const exportVentasExcel = async (fechaInicio: Date, fechaFin: Date) => {
         m.total,
         m.porcentaje,
       ]),
-    ]
-    const wsMetodos = XLSX.utils.aoa_to_sheet(metodosPago)
-    XLSX.utils.book_append_sheet(workbook, wsMetodos, 'Métodos de Pago')
+    ])
 
     // Hoja 5: Ventas por hora
-    const ventasHora = [
+    const wsHoras = workbook.addWorksheet('Ventas por Hora')
+    wsHoras.addRows([
       ['Hora', 'Cantidad Ventas', 'Total Ventas'],
       ...data.ventas_por_hora.map((h: any) => [
         `${h.hora}:00`,
         h.cantidad_ventas,
         h.total_ventas,
       ]),
-    ]
-    const wsHoras = XLSX.utils.aoa_to_sheet(ventasHora)
-    XLSX.utils.book_append_sheet(workbook, wsHoras, 'Ventas por Hora')
+    ])
 
     // Guardar archivo
-    XLSX.writeFile(workbook, `reporte-ventas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-ventas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error
@@ -248,10 +256,11 @@ export const exportInventarioExcel = async (diasVencimiento: number = 30) => {
     const response = await fetch(`/api/reportes/inventario?dias_vencimiento=${diasVencimiento}`)
     const { data } = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows([
       ['Reporte de Inventario'],
       ['Fecha', format(new Date(), 'dd/MM/yyyy HH:mm')],
       [],
@@ -262,12 +271,11 @@ export const exportInventarioExcel = async (diasVencimiento: number = 30) => {
       ['Productos Críticos (Agotados)', data.resumen.productos_criticos],
       ['Productos con Bajo Stock', data.resumen.productos_bajo_stock],
       ['Lotes por Vencer', data.resumen.lotes_por_vencer],
-    ]
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    ])
 
     // Hoja 2: Stock crítico
-    const stockCritico = [
+    const wsStock = workbook.addWorksheet('Stock Crítico')
+    wsStock.addRows([
       ['Producto', 'Código', 'Stock Actual', 'Stock Mínimo', 'Stock Máximo', 'Valor Total', 'Estado'],
       ...data.productos_stock_critico.map((p: any) => [
         p.nombre,
@@ -278,12 +286,11 @@ export const exportInventarioExcel = async (diasVencimiento: number = 30) => {
         p.valor_total,
         p.stock_actual === 0 ? 'AGOTADO' : 'BAJO',
       ]),
-    ]
-    const wsStock = XLSX.utils.aoa_to_sheet(stockCritico)
-    XLSX.utils.book_append_sheet(workbook, wsStock, 'Stock Crítico')
+    ])
 
     // Hoja 3: Lotes próximos a vencer
-    const lotes = [
+    const wsLotes = workbook.addWorksheet('Lotes por Vencer')
+    wsLotes.addRows([
       ['Producto', 'Código Lote', 'Cantidad', 'Fecha Vencimiento', 'Días Restantes'],
       ...data.lotes_proximos_vencer.map((l: any) => [
         l.producto_nombre,
@@ -292,11 +299,9 @@ export const exportInventarioExcel = async (diasVencimiento: number = 30) => {
         format(new Date(l.fecha_vencimiento), 'dd/MM/yyyy'),
         l.dias_restantes,
       ]),
-    ]
-    const wsLotes = XLSX.utils.aoa_to_sheet(lotes)
-    XLSX.utils.book_append_sheet(workbook, wsLotes, 'Lotes por Vencer')
+    ])
 
-    XLSX.writeFile(workbook, `reporte-inventario-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-inventario-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error
@@ -372,10 +377,11 @@ export const exportClientesExcel = async (fechaInicio: Date, fechaFin: Date) => 
     )
     const { data } = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows([
       ['Reporte de Clientes'],
       ['Período', `${format(fechaInicio, 'dd MMM yyyy', { locale: es })} - ${format(fechaFin, 'dd MMM yyyy', { locale: es })}`],
       [],
@@ -383,12 +389,11 @@ export const exportClientesExcel = async (fechaInicio: Date, fechaFin: Date) => 
       ['Total Clientes', data.resumen.total_clientes],
       ['Total Compras', data.resumen.total_compras],
       ['Ticket Promedio Global', data.resumen.ticket_promedio_global],
-    ]
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    ])
 
     // Hoja 2: Top clientes
-    const clientes = [
+    const wsClientes = workbook.addWorksheet('Top Clientes')
+    wsClientes.addRows([
       ['Cliente', 'Tipo', 'Cantidad Compras', 'Total Compras', 'Ticket Promedio', 'Última Compra'],
       ...data.clientes_top.map((c: any) => [
         c.nombre_completo,
@@ -398,11 +403,9 @@ export const exportClientesExcel = async (fechaInicio: Date, fechaFin: Date) => 
         c.ticket_promedio,
         c.ultima_compra ? format(new Date(c.ultima_compra), 'dd/MM/yyyy') : 'N/A',
       ]),
-    ]
-    const wsClientes = XLSX.utils.aoa_to_sheet(clientes)
-    XLSX.utils.book_append_sheet(workbook, wsClientes, 'Top Clientes')
+    ])
 
-    XLSX.writeFile(workbook, `reporte-clientes-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-clientes-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error
@@ -480,10 +483,11 @@ export const exportRentabilidadExcel = async (fechaInicio: Date, fechaFin: Date)
     )
     const { data } = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows([
       ['Reporte de Rentabilidad'],
       ['Período', `${format(fechaInicio, 'dd MMM yyyy', { locale: es })} - ${format(fechaFin, 'dd MMM yyyy', { locale: es })}`],
       [],
@@ -495,12 +499,11 @@ export const exportRentabilidadExcel = async (fechaInicio: Date, fechaFin: Date)
       [],
       ['Productos Rentables', data.productos_rentables.length],
       ['Productos Sin Costos', data.productos_sin_costos.length],
-    ]
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    ])
 
     // Hoja 2: Productos rentables
-    const productos = [
+    const wsProductos = workbook.addWorksheet('Productos Rentables')
+    wsProductos.addRows([
       ['Producto', 'Cantidad Vendida', 'Ingresos', 'Costos Producción', 'Margen Ganancia', '% Margen'],
       ...data.productos_rentables.map((p: any) => [
         p.nombre,
@@ -510,13 +513,12 @@ export const exportRentabilidadExcel = async (fechaInicio: Date, fechaFin: Date)
         p.margen_ganancia,
         p.porcentaje_margen,
       ]),
-    ]
-    const wsProductos = XLSX.utils.aoa_to_sheet(productos)
-    XLSX.utils.book_append_sheet(workbook, wsProductos, 'Productos Rentables')
+    ])
 
     // Hoja 3: Productos sin costos
     if (data.productos_sin_costos.length > 0) {
-      const productosSinCostos = [
+      const wsSinCostos = workbook.addWorksheet('Sin Costos')
+      wsSinCostos.addRows([
         ['Producto', 'Cantidad Vendida', 'Ingresos', 'Nota'],
         ...data.productos_sin_costos.map((p: any) => [
           p.nombre,
@@ -524,12 +526,10 @@ export const exportRentabilidadExcel = async (fechaInicio: Date, fechaFin: Date)
           p.ingresos,
           'Falta configurar costos de producción',
         ]),
-      ]
-      const wsSinCostos = XLSX.utils.aoa_to_sheet(productosSinCostos)
-      XLSX.utils.book_append_sheet(workbook, wsSinCostos, 'Sin Costos')
+      ])
     }
 
-    XLSX.writeFile(workbook, `reporte-rentabilidad-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-rentabilidad-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error
@@ -610,7 +610,7 @@ export const exportMetodosPagoExcel = async (fechaInicio: Date, fechaFin: Date) 
     )
     const { data } = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Calcular totales
     const totalGeneral = data.ventas_por_metodo_pago.reduce((sum: number, m: any) => sum + m.total, 0)
@@ -618,7 +618,8 @@ export const exportMetodosPagoExcel = async (fechaInicio: Date, fechaFin: Date) 
     const ticketPromedio = cantidadTotal > 0 ? totalGeneral / cantidadTotal : 0
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows([
       ['Reporte de Métodos de Pago'],
       ['Período', `${format(fechaInicio, 'dd MMM yyyy', { locale: es })} - ${format(fechaFin, 'dd MMM yyyy', { locale: es })}`],
       [],
@@ -626,12 +627,11 @@ export const exportMetodosPagoExcel = async (fechaInicio: Date, fechaFin: Date) 
       ['Total Ventas', totalGeneral],
       ['Total Transacciones', cantidadTotal],
       ['Ticket Promedio', ticketPromedio],
-    ]
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    ])
 
     // Hoja 2: Métodos de pago
-    const metodosPago = [
+    const wsMetodos = workbook.addWorksheet('Métodos de Pago')
+    wsMetodos.addRows([
       ['Método de Pago', 'Cantidad Transacciones', 'Total', '% del Total', 'Ticket Promedio'],
       ...data.ventas_por_metodo_pago.map((m: any) => [
         m.metodo_pago,
@@ -640,12 +640,10 @@ export const exportMetodosPagoExcel = async (fechaInicio: Date, fechaFin: Date) 
         m.porcentaje,
         m.cantidad_transacciones > 0 ? m.total / m.cantidad_transacciones : 0,
       ]),
-    ]
-    const wsMetodos = XLSX.utils.aoa_to_sheet(metodosPago)
-    XLSX.utils.book_append_sheet(workbook, wsMetodos, 'Métodos de Pago')
+    ])
 
     // Guardar archivo
-    XLSX.writeFile(workbook, `reporte-metodos-pago-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-metodos-pago-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error
@@ -766,20 +764,20 @@ export const exportUnidadesProductivasExcel = async (fechaDesde?: string, fechaH
     const response = await fetch(`/api/reportes/unidades-productivas?${params}`)
     const data = await response.json()
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = new Workbook()
 
     // Hoja 1: Resumen
-    const resumenData = [
+    const resumenRows: any[][] = [
       ['Reporte de Unidades Productivas'],
       ['Fecha de Generación', format(new Date(), 'dd MMM yyyy HH:mm', { locale: es })],
       []
     ]
 
     if (fechaDesde || fechaHasta) {
-      resumenData.push(['Período', `${fechaDesde || 'Inicio'} - ${fechaHasta || 'Hoy'}`])
+      resumenRows.push(['Período', `${fechaDesde || 'Inicio'} - ${fechaHasta || 'Hoy'}`])
     }
 
-    resumenData.push(
+    resumenRows.push(
       [],
       ['TOTALES GENERALES'],
       ['Total General', data.totales.total_general],
@@ -789,7 +787,7 @@ export const exportUnidadesProductivasExcel = async (fechaDesde?: string, fechaH
     )
 
     if (data.unidad_mas_vendida) {
-      resumenData.push(
+      resumenRows.push(
         [],
         ['UNIDAD MÁS VENDIDA'],
         ['Nombre', data.unidad_mas_vendida.nombre],
@@ -801,11 +799,12 @@ export const exportUnidadesProductivasExcel = async (fechaDesde?: string, fechaH
       )
     }
 
-    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-    XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen')
+    const wsResumen = workbook.addWorksheet('Resumen')
+    wsResumen.addRows(resumenRows)
 
     // Hoja 2: Ranking completo
-    const rankingData = [
+    const wsRanking = workbook.addWorksheet('Ranking')
+    wsRanking.addRows([
       ['Posición', 'Código', 'Nombre', 'Descripción', 'Total Ventas', 'Productos Vendidos', 'Productos Distintos', 'Lotes Usados'],
       ...data.unidades.map((u: any, index: number) => [
         index + 1,
@@ -817,25 +816,14 @@ export const exportUnidadesProductivasExcel = async (fechaDesde?: string, fechaH
         u.cantidad_productos_distintos,
         u.cantidad_lotes_usados,
       ]),
-    ]
-    const wsRanking = XLSX.utils.aoa_to_sheet(rankingData)
-    
+    ])
+
     // Aplicar formato a las columnas
-    wsRanking['!cols'] = [
-      { wch: 10 },  // Posición
-      { wch: 15 },  // Código
-      { wch: 30 },  // Nombre
-      { wch: 40 },  // Descripción
-      { wch: 15 },  // Total Ventas
-      { wch: 18 },  // Productos Vendidos
-      { wch: 18 },  // Productos Distintos
-      { wch: 15 },  // Lotes Usados
-    ]
-    
-    XLSX.utils.book_append_sheet(workbook, wsRanking, 'Ranking')
+    const colWidths = [10, 15, 30, 40, 15, 18, 18, 15]
+    wsRanking.columns.forEach((col, i) => { col.width = colWidths[i] })
 
     // Guardar archivo
-    XLSX.writeFile(workbook, `reporte-unidades-productivas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    await saveExcelFile(workbook, `reporte-unidades-productivas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   } catch (error) {
     console.error('Error al exportar Excel:', error)
     throw error

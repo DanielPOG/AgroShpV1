@@ -1,10 +1,13 @@
 # =====================================================
-# AGROSHOP - DOCKER COMPOSE
-# Orquestación de servicios: App + PostgreSQL
+# AGROSHOP - DOCKER COMPOSE (PRODUCCIÓN VPS - PRO)
+# Servicios: App + PostgreSQL + Redis
+# Nginx externo maneja tráfico (80/443)
 # =====================================================
 
 services:
-  # Base de datos PostgreSQL
+  # -------------------------
+  # PostgreSQL
+  # -------------------------
   db:
     image: postgres:16-alpine
     container_name: agroshop-db
@@ -15,77 +18,84 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-AgroShop}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"  # Puerto externo 5433 para evitar conflicto con PostgreSQL local
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-AgroShop}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
-  # Redis para rate limiting y caché distribuido
+  # -------------------------
+  # Redis
+  # -------------------------
   redis:
     image: redis:7-alpine
     container_name: agroshop-redis
     restart: unless-stopped
     command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
-    volumes:
-      - redis_data:/data
+    networks:
+      - internal
 
+  # -------------------------
   # Aplicación Next.js
+  # -------------------------
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: daniel007pog/agroshop:latest
     container_name: agroshop-app
     restart: unless-stopped
-    ports:
-      - "3000:3000"  # Puerto externo 3000 para evitar conflicto con Next.js local
+
+    # ❗ No exponer puerto al host
+    expose:
+      - "3000"
+
+    # Redes
+    networks:
+      - internal   # acceso a db y redis
+      - web        # acceso desde nginx
+
     environment:
-      # Base de datos - apunta al servicio 'db'
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-AgroShop}
-      
-      # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      
-      # Configuración de la app
+
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-AgroShop SENA}
       NEXT_PUBLIC_IVA_PERCENTAGE: ${NEXT_PUBLIC_IVA_PERCENTAGE:-10}
       NEXT_PUBLIC_STOCK_BAJO_UMBRAL: ${NEXT_PUBLIC_STOCK_BAJO_UMBRAL:-10}
       NEXT_PUBLIC_DIAS_ALERTA_VENCIMIENTO: ${NEXT_PUBLIC_DIAS_ALERTA_VENCIMIENTO:-7}
-      
-      # Email (opcional)
+
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
-      
-      # Redis
+
       REDIS_URL: redis://redis:6379
-      
       NODE_ENV: production
+
     volumes:
-      # Volumen para imágenes de productos subidas
       - productos_uploads:/app/public/productos
+
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  # Servicio para inicializar BD: push schema + constraints + seed
+  # -------------------------
+  # Migraciones (manual)
+  # -------------------------
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: daniel007pog/agroshop:latest
     container_name: agroshop-migrate
+    networks:
+      - internal
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-AgroShop}
     command: >
@@ -96,10 +106,20 @@ services:
     profiles:
       - migrate
 
+# -------------------------
+# Volúmenes persistentes
+# -------------------------
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   productos_uploads:
-    driver: local
+
+# -------------------------
+# Redes
+# -------------------------
+networks:
+  internal:
+    driver: bridge
+
+  web:
+    external: true

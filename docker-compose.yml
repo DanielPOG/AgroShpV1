@@ -18,6 +18,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-AgroShop}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./database/init-constraints.sql:/docker-entrypoint-initdb.d/01-init-constraints.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-AgroShop}"]
       interval: 10s
@@ -105,6 +106,24 @@ services:
         condition: service_healthy
     profiles:
       - migrate
+    
+  # -------------------------
+  # Watcher: Actualización Automática
+  # -------------------------
+  watchtower:
+    image: containrrr/watchtower
+    container_name: agroshop-watcher
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Elimina imágenes viejas para no llenar el disco de la VPS
+      - WATCHTOWER_CLEANUP=true 
+      # Revisa cada 300 segundos (5 minutos)
+      - WATCHTOWER_POLL_INTERVAL=300
+      # Solo vigila este contenedor (opcional, pero recomendado)
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    command: agroshop-app
 
 # -------------------------
 # Volúmenes persistentes
